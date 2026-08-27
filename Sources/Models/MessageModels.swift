@@ -106,6 +106,19 @@ public struct FeishuMessageItem: Codable, Identifiable, Equatable, Hashable, Sen
         formatter.dateFormat = "HH:mm"
         return formatter.string(from: createdDate)
     }
+
+    public var formattedTimeOrDate: String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(createdDate) {
+            return formattedTime
+        } else if calendar.isDateInYesterday(createdDate) {
+            return "昨天"
+        } else {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "MM/dd"
+            return formatter.string(from: createdDate)
+        }
+    }
     
     public var formattedDateHeader: String {
         let calendar = Calendar.current

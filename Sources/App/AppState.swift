@@ -76,6 +76,7 @@ public final class AppState: ObservableObject {
     @Published public var selectedMessageForInspection: FeishuMessageItem?
     @Published public var isSendingMessage: Bool = false
     @Published public var replyingToMessage: FeishuMessageItem? = nil
+    @Published public var lastMessages: [String: FeishuMessageItem] = [:]
     
     // MARK: - Group Members State
     @Published public var chatMembers: [FeishuChatMemberItem] = []
@@ -453,6 +454,18 @@ public final class AppState: ObservableObject {
                    selected != updated {
                     self.selectedChat = updated
                 }
+                
+                // Batch fetch last message snippets for chat preview
+                let latestMap = await FeishuAPIClient.shared.batchFetchLatestMessages(
+                    token: token,
+                    chatIds: self.chats.map(\.chatId)
+                )
+                for (cid, msg) in latestMap {
+                    self.lastMessages[cid] = msg
+                    if let mentions = msg.mentions {
+                        UserProfileManager.shared.seedWithMentions(mentions)
+                    }
+                }
             }
         } catch {
             self.chatError = error.localizedDescription
@@ -537,15 +550,18 @@ public final class AppState: ObservableObject {
             } else {
                 self.messages.insert(contentsOf: newItems, at: 0)
             }
-            self.messagePageToken = result.pageToken
             self.hasMoreMessages = result.hasMore ?? false
             self.isLoadingMessages = false
+            
+            if let latest = newItems.last {
+                self.lastMessages[targetChatId] = latest
+                self.lastMessages[chat.chatId] = latest
+            }
         } catch {
             self.messageError = error.localizedDescription
             self.isLoadingMessages = false
         }
     }
-    
     public func loadMoreMessages() async {
         guard let chat = selectedChat, !isLoadingMessages, hasMoreMessages, messagePageToken != nil else { return }
         await loadMessages(for: chat, reset: false)
@@ -577,6 +593,10 @@ public final class AppState: ObservableObject {
                 text: cleanText
             )
             self.messages.append(sentMsg)
+            self.lastMessages[chat.chatId] = sentMsg
+            if let realChatId = sentMsg.chatId {
+                self.lastMessages[realChatId] = sentMsg
+            }
             
             // If we sent to an open_id and Feishu returned the new oc_... chat_id, update the chat
             if let newChatId = sentMsg.chatId, newChatId.hasPrefix("oc_") && chat.chatId != newChatId {

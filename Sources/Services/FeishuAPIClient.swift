@@ -526,6 +526,44 @@ public final class FeishuAPIClient: Sendable {
         return decoded.data ?? FeishuMessageListData(items: [], pageToken: nil, hasMore: false)
     }
     
+    /// Fetches the latest single message for a chat (for preview snippets in chat list)
+    public func fetchLatestMessage(token: String, chatId: String) async -> FeishuMessageItem? {
+        do {
+            let data = try await fetchChatMessages(
+                token: token,
+                chatId: chatId,
+                sortType: "ByCreateTimeDesc",
+                pageToken: nil,
+                pageSize: 1
+            )
+            return data.items?.first
+        } catch {
+            return nil
+        }
+    }
+    
+    /// Concurrently fetches latest messages for a batch of chats with bounded parallel execution
+    public func batchFetchLatestMessages(token: String, chatIds: [String]) async -> [String: FeishuMessageItem] {
+        await withTaskGroup(of: (String, FeishuMessageItem?).self, returning: [String: FeishuMessageItem].self) { group in
+            for chatId in chatIds {
+                if chatId.hasPrefix("oc_") {
+                    group.addTask {
+                        let msg = await self.fetchLatestMessage(token: token, chatId: chatId)
+                        return (chatId, msg)
+                    }
+                }
+            }
+            
+            var results: [String: FeishuMessageItem] = [:]
+            for await (chatId, msg) in group {
+                if let message = msg {
+                    results[chatId] = message
+                }
+            }
+            return results
+        }
+    }
+    
     public func fetchSingleMessage(
         token: String,
         messageId: String
