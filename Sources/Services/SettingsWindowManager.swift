@@ -5,15 +5,15 @@ import AppKit
 public final class SettingsWindowManager: NSObject, NSWindowDelegate {
     public static let shared = SettingsWindowManager()
     
-    private var window: NSWindow?
+    private var windowController: NSWindowController?
     
     public override init() {
         super.init()
     }
     
     public func showSettingsWindow() {
-        if let win = window {
-            win.makeKeyAndOrderFront(nil)
+        if let controller = windowController, let window = controller.window {
+            window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
         }
@@ -21,31 +21,38 @@ public final class SettingsWindowManager: NSObject, NSWindowDelegate {
         let contentView = SettingsWindowContentView()
         let hostingController = NSHostingController(rootView: contentView)
         
-        let newWindow = NSWindow(
+        let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 520, height: 560),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
-        newWindow.title = "设置"
-        newWindow.titleVisibility = .visible
-        newWindow.titlebarAppearsTransparent = true
-        newWindow.center()
-        newWindow.contentViewController = hostingController
-        newWindow.delegate = self
+        window.title = "设置"
+        window.titleVisibility = .visible
+        window.titlebarAppearsTransparent = true
+        window.isReleasedWhenClosed = false
+        window.minSize = NSSize(width: 480, height: 460)
+        window.center()
+        window.contentViewController = hostingController
+        window.delegate = self
         
-        self.window = newWindow
-        newWindow.makeKeyAndOrderFront(nil)
+        let controller = NSWindowController(window: window)
+        self.windowController = controller
+        controller.showWindow(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
     
     public func closeWindow() {
-        window?.close()
-        self.window = nil
+        windowController?.close()
+        DispatchQueue.main.async { [weak self] in
+            self?.windowController = nil
+        }
     }
     
     public func windowWillClose(_ notification: Notification) {
-        self.window = nil
+        DispatchQueue.main.async { [weak self] in
+            self?.windowController = nil
+        }
     }
 }
 
