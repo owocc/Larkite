@@ -156,18 +156,16 @@ public struct ChatDetailView: View {
                             }
                         }
                     } label: {
-                        HStack(spacing: 6) {
-                            AvatarView(urlString: avatarUrl, name: title, size: 20)
+                        HStack(spacing: 8) {
+                            AvatarView(urlString: avatarUrl, name: title, size: 22)
                             
                             Text(title)
                                 .font(.system(size: 13, weight: .semibold))
                                 .foregroundColor(.primary)
                                 .lineLimit(1)
-                            
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 8, weight: .bold))
-                                .foregroundColor(.secondary.opacity(0.7))
                         }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 4)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -230,6 +228,7 @@ public struct ChatDetailView: View {
                     } label: {
                         Image(systemName: "ellipsis")
                     }
+                    .menuIndicator(.hidden)
                     .help("会话更多选项")
                     
                     Button {

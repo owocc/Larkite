@@ -110,6 +110,7 @@ public struct ChatListView: View {
                     Image(systemName: appState.filterMode != .all ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease")
                         .foregroundColor(appState.filterMode != .all ? Color(hex: "3370FF") : .primary)
                 }
+                .menuIndicator(.hidden)
                 .help("会话筛选: \(appState.filterMode.menuTitle)")
             }
         }
