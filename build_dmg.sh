@@ -18,11 +18,11 @@ WINDOW_HEIGHT=533         # 安装窗口高度 (以点/像素为单位)
 ICON_SIZE=100             # 图标渲染尺寸 (点)
 
 # 📍 两个图标的放置坐标 (X, Y，以窗口左上角为原点)
-APP_ICON_X=308            # 左侧 Larkite.app 图标 X 坐标
-APP_ICON_Y=231            # 左侧 Larkite.app 图标 Y 坐标
+APP_ICON_X=358            # 左侧 Larkite.app 图标 X 坐标
+APP_ICON_Y=281            # 左侧 Larkite.app 图标 Y 坐标
 
-APPS_FOLDER_X=558         # 右侧 Applications 替身 X 坐标
-APPS_FOLDER_Y=231         # 右侧 Applications 替身 Y 坐标
+APPS_FOLDER_X=608         # 右侧 Applications 替身 X 坐标
+APPS_FOLDER_Y=281         # 右侧 Applications 替身 Y 坐标
 # ==============================================================================
 
 # 1. Build the .app bundle first

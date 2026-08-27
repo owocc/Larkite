@@ -1,8 +1,7 @@
-# Larkite 🐦
+# Larkite 🐦 `v1.0.0-alpha.1`
 
 > **极简 · 现代 · 高性能 macOS 原生飞书客户端**  
 > 基于 Swift 6 + SwiftUI 构建，专为 macOS 设计的极简飞书客户端。
----
 
 ## 🌟 核心特性
 
