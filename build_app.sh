@@ -17,35 +17,23 @@ if [ -f "Resources/AppIcon.icns" ]; then
     echo "==> Copying AppIcon.icns to Resources..."
     cp "Resources/AppIcon.icns" "${RESOURCES_DIR}/AppIcon.icns"
 fi
-DEPLOYMENT_TARGET="${1:-14.0}"
-echo "==> Building ${APP_NAME} Universal 2 binary (arm64 + x86_64) for macOS ${DEPLOYMENT_TARGET}+..."
+ARCH="${1:-arm64}"
+DEPLOYMENT_TARGET="${2:-14.0}"
+echo "==> Building ${APP_NAME} (${ARCH} native) for macOS ${DEPLOYMENT_TARGET}+..."
 SWIFT_SOURCES=$(find Sources -name "*.swift")
 SDK_PATH="$(xcrun --show-sdk-path)"
 
-echo "  -> Compiling arm64 slice (Apple Silicon)..."
 swiftc -O \
     -parse-as-library \
-    -target "arm64-apple-macos${DEPLOYMENT_TARGET}" \
+    -target "${ARCH}-apple-macos${DEPLOYMENT_TARGET}" \
     -sdk "${SDK_PATH}" \
     ${SWIFT_SOURCES} \
-    -o "${MACOS_DIR}/${APP_NAME}_arm64"
+    -o "${MACOS_DIR}/${APP_NAME}"
 
-echo "  -> Compiling x86_64 slice (Intel)..."
-swiftc -O \
-    -parse-as-library \
-    -target "x86_64-apple-macos${DEPLOYMENT_TARGET}" \
-    -sdk "${SDK_PATH}" \
-    ${SWIFT_SOURCES} \
-    -o "${MACOS_DIR}/${APP_NAME}_x86_64"
+echo "==> Stripping binary for minimum package footprint..."
+strip "${MACOS_DIR}/${APP_NAME}" 2>/dev/null || true
 
-echo "  -> Creating Universal 2 binary with lipo..."
-lipo -create -output "${MACOS_DIR}/${APP_NAME}" \
-    "${MACOS_DIR}/${APP_NAME}_arm64" \
-    "${MACOS_DIR}/${APP_NAME}_x86_64"
-
-rm -f "${MACOS_DIR}/${APP_NAME}_arm64" "${MACOS_DIR}/${APP_NAME}_x86_64"
-
-echo "==> Generating Info.plist (macOS ${DEPLOYMENT_TARGET}+)..."
+echo "==> Generating Info.plist (macOS ${DEPLOYMENT_TARGET}+, ${ARCH})..."
 cat << EOF > "${CONTENTS_DIR}/Info.plist"
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -68,9 +56,9 @@ cat << EOF > "${CONTENTS_DIR}/Info.plist"
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0.0-alpha.1</string>
+    <string>1.0.0-alpha.2</string>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>2</string>
     <key>LSMinimumSystemVersion</key>
     <string>${DEPLOYMENT_TARGET}</string>
     <key>NSHighResolutionCapable</key>

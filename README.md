@@ -1,6 +1,6 @@
 ![Larkite](./images/banner.png)
 
-# Larkite 🐦 `v1.0.0-alpha.1`
+# Larkite 🐦 `v1.0.0-alpha.2`
 
 > **极简 · 现代 · 高性能 macOS 原生飞书客户端**  
 > 基于 Swift 6 + SwiftUI 构建，专为 macOS 设计的极简飞书客户端。
@@ -65,14 +65,15 @@ Larkite/
 
 ```bash
 cd LarkNative
-./build_app.sh       # 快速编译为 Larkite.app
+
+# 1. 快速编译原生 App (默认 Apple Silicon arm64，或传入 x86_64)
+./build_app.sh arm64 14.0
 open Larkite.app
 
-# 或一键打包为官方 DMG 拖拽安装镜像 (带背景图与 Applications 替身)
-./build_dmg.sh
-open Larkite.dmg
+# 2. 按芯片架构分别打包独立 DMG (无冗余二进制，体积极小):
+./build_dmg.sh Larkite-arm64.dmg arm64 14.0     # 适用于 Apple Silicon (M1/M2/M3/M4/M5)
+./build_dmg.sh Larkite-x86_64.dmg x86_64 13.0   # 适用于 Intel Mac (x86_64)
 ```
-1. 登录 [飞书开放平台开发者后台](https://open.feishu.cn/app) 创建或选择自建应用；
 2. 在 **开发配置 -> 安全设置 -> 重定向 URL** 中添加：
    ```
    http://127.0.0.1:8989/callback

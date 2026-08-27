@@ -1,9 +1,8 @@
-name: Release Larkite DMG (Universal & Legacy)
+name: Release Larkite DMG
 
 on:
   push:
-    tags:
-      - 'v*'
+    tags: ["v*"]
   workflow_dispatch:
     inputs:
       prerelease:
@@ -15,14 +14,34 @@ on:
 permissions:
   contents: write
 
-jobs:
-  build-and-release:
-    name: Build Universal & Legacy DMGs (Apple Silicon & Intel)
-    runs-on: macos-14
+env:
+  APP_NAME: Larkite
 
+jobs:
+  release:
+    name: Build & Release Architecture-Specific DMGs (Apple Silicon & Intel)
+    runs-on: macos-14
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history for build number count
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Derive version & build number
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [ -z "$VERSION" ] || [ "$VERSION" == "main" ]; then
+            VERSION="1.0.0-alpha.2"
+          fi
+          BUILD_NUMBER="$(git rev-list --count HEAD)"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
+          echo "Building Larkite version $VERSION (build $BUILD_NUMBER)..."
 
       - name: Select Xcode Version
         run: |
@@ -30,24 +49,22 @@ jobs:
           swift --version
           xcrun --show-sdk-version
 
-      - name: Build Modern macOS 26+ / 14+ Universal Package
+      - name: Build Apple Silicon Package (arm64 - macOS 14+)
         run: |
           chmod +x ./build_app.sh ./build_dmg.sh
-          echo "==> Packaging Modern Universal DMG (arm64 + x86_64)..."
-          ./build_dmg.sh "Larkite-macOS26-Universal.dmg" "14.0"
-          cp "Larkite-macOS26-Universal.dmg" "Larkite.dmg"
+          echo "==> Building and packaging Apple Silicon (arm64) DMG..."
+          ./build_dmg.sh "Larkite-arm64.dmg" "arm64" "14.0"
 
-      - name: Build Legacy macOS 13+ Compatibility Package
+      - name: Build Intel Mac Package (x86_64 - macOS 13+)
         run: |
-          echo "==> Packaging Legacy Universal DMG (arm64 + x86_64)..."
-          ./build_dmg.sh "Larkite-Legacy-Universal.dmg" "13.0"
+          echo "==> Building and packaging Intel Mac (x86_64) DMG..."
+          ./build_dmg.sh "Larkite-x86_64.dmg" "x86_64" "13.0"
 
       - name: Generate Checksums & Verify Artifacts
         run: |
           ls -lh Larkite*.dmg
-          shasum -a 256 Larkite-macOS26-Universal.dmg > Larkite-macOS26-Universal.dmg.sha256
-          shasum -a 256 Larkite-Legacy-Universal.dmg > Larkite-Legacy-Universal.dmg.sha256
-          shasum -a 256 Larkite.dmg > Larkite.dmg.sha256
+          shasum -a 256 Larkite-arm64.dmg > Larkite-arm64.dmg.sha256
+          shasum -a 256 Larkite-x86_64.dmg > Larkite-x86_64.dmg.sha256
           cat *.sha256
 
       - name: Upload Build Artifacts
@@ -58,31 +75,26 @@ jobs:
             Larkite*.dmg
             *.sha256
 
-      - name: Determine Prerelease Status
-        id: prerelease_check
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "is_prerelease=${{ inputs.prerelease }}" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.ref_name }}" =~ (alpha|beta|rc|preview) ]]; then
-            echo "is_prerelease=true" >> $GITHUB_OUTPUT
-          else
-            echo "is_prerelease=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
-        with:
-          name: "Larkite ${{ github.ref_name }}"
-          tag_name: ${{ github.ref_name }}
-          prerelease: ${{ steps.prerelease_check.outputs.is_prerelease }}
-          generate_release_notes: true
-          files: |
-            Larkite-macOS26-Universal.dmg
-            Larkite-macOS26-Universal.dmg.sha256
-            Larkite-Legacy-Universal.dmg
-            Larkite-Legacy-Universal.dmg.sha256
-            Larkite.dmg
-            Larkite.dmg.sha256
+      - name: Create GitHub Release (Native gh CLI)
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if [ -z "$TAG" ] || [ "$TAG" == "main" ]; then
+            TAG="v${VERSION}"
+          fi
+          
+          PRERELEASE_FLAG=""
+          if [[ "${VERSION}" =~ (alpha|beta|rc|preview) ]] || [[ "${{ inputs.prerelease }}" == "true" ]]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+          
+          echo "Creating release $TAG ($PRERELEASE_FLAG)..."
+          gh release create "$TAG" \
+            --title "$APP_NAME $VERSION" \
+            --generate-notes \
+            $PRERELEASE_FLAG \
+            Larkite-arm64.dmg \
+            Larkite-arm64.dmg.sha256 \
+            Larkite-x86_64.dmg \
+            Larkite-x86_64.dmg.sha256
