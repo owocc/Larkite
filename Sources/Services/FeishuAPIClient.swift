@@ -266,6 +266,91 @@ public final class FeishuAPIClient: Sendable {
         return item
     }
     
+    /// Concurrently fetches full chat details (including chat_mode: p2p vs group) for a list of chats
+    public func hydrateChatsWithDetails(
+        token: String,
+        items: [FeishuChatItem],
+        maxConcurrency: Int = 8
+    ) async -> [FeishuChatItem] {
+        await withTaskGroup(of: (Int, FeishuChatItem).self, returning: [FeishuChatItem].self) { group in
+            var results = items
+            
+            for (index, item) in items.enumerated() {
+                group.addTask {
+                    do {
+                        let detail = try await self.fetchChatInfo(token: token, chatId: item.chatId)
+                        return (index, detail)
+                    } catch {
+                        return (index, item)
+                    }
+                }
+            }
+            
+            for await (index, enrichedItem) in group {
+                if index < results.count {
+                    results[index] = enrichedItem
+                }
+            }
+            
+            return results
+        }
+    }
+    
+    /// Initiates or opens a single chat with a user by Open ID / User ID / Email
+    public func createOrGetP2PChat(
+        token: String,
+        receiveIdType: String,
+        receiveId: String
+    ) async throws -> FeishuChatItem {
+        var components = URLComponents(string: "https://open.feishu.cn/open-apis/im/v1/messages")
+        components?.queryItems = [
+            URLQueryItem(name: "receive_id_type", value: receiveIdType)
+        ]
+        
+        guard let url = components?.url else {
+            throw APIError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        let body: [String: Any] = [
+            "receive_id": receiveId,
+            "msg_type": "text",
+            "content": "{\"text\":\"👋\"}"
+        ]
+        
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+        
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw APIError.invalidResponse
+        }
+        
+        let code = json["code"] as? Int ?? -1
+        if code != 0 {
+            let msg = json["msg"] as? String ?? "发起单聊失败"
+            throw APIError.feishuError(code: code, msg: msg)
+        }
+        
+        guard let dataDict = json["data"] as? [String: Any],
+              let chatId = dataDict["chat_id"] as? String else {
+            throw APIError.invalidResponse
+        }
+        
+        return try await fetchChatInfo(token: token, chatId: chatId)
+    }
+    
     // MARK: - Chat Messages History
     
     public func fetchChatMessages(

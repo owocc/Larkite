@@ -3,23 +3,24 @@ import SwiftUI
 @MainActor
 public final class ChatListViewModel: ObservableObject {
     @Published public var showAddChatSheet: Bool = false
-    @Published public var directChatIdInput: String = ""
+    @Published public var selectedIdType: String = "chat_id"
+    @Published public var directIdInput: String = ""
     @Published public var openChatError: String? = nil
     @Published public var isOpeningChat: Bool = false
     
     public init() {}
     
     public func openChat(appState: AppState) async {
-        let cleanId = directChatIdInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanId = directIdInput.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanId.isEmpty else { return }
         
         isOpeningChat = true
         openChatError = nil
         
         do {
-            try await appState.openDirectChat(chatId: cleanId)
+            try await appState.openDirectChatWithUser(idType: selectedIdType, idValue: cleanId)
             self.showAddChatSheet = false
-            self.directChatIdInput = ""
+            self.directIdInput = ""
             self.isOpeningChat = false
         } catch {
             self.openChatError = "获取会话失败: \(error.localizedDescription)"
@@ -80,7 +81,7 @@ public struct ChatListView: View {
                         .foregroundColor(Color(hex: "3370FF"))
                 }
                 .buttonStyle(.plain)
-                .help("输入 Chat ID 查询并打开私聊/指定会话")
+                .help("按 Chat ID / Open ID 发起或查询私聊")
                 
                 // Refresh
                 Button {
@@ -195,24 +196,32 @@ public struct ChatListView: View {
     private var addChatSheet: some View {
         VStack(spacing: 16) {
             HStack {
-                Image(systemName: "bubble.left.and.bubble.right.fill")
+                Image(systemName: "person.crop.circle.badge.plus")
                     .foregroundColor(Color(hex: "3370FF"))
-                Text("打开指定私聊 / 群聊会话")
+                Text("发起 / 打开单聊与指定会话")
                     .font(.system(size: 14, weight: .bold))
                 Spacer()
             }
             
-            Text("输入飞书会话 ID (chat_id，以 oc_ 开头)，系统将自动拉取该私聊/群聊的会话属性与历史消息。")
+            Text("支持输入飞书会话 ID (`oc_...`) 或用户 Open ID (`ou_...`)、User ID 快速发起并打开单聊。")
                 .font(.system(size: 12))
                 .foregroundColor(.secondary)
                 .lineSpacing(3)
             
+            Picker("查询模式", selection: $viewModel.selectedIdType) {
+                Text("Chat ID (oc_...)").tag("chat_id")
+                Text("User Open ID (ou_...)").tag("open_id")
+                Text("User ID").tag("user_id")
+                Text("企业邮箱").tag("email")
+            }
+            .pickerStyle(.segmented)
+            
             VStack(alignment: .leading, spacing: 6) {
-                Text("Chat ID")
+                Text(inputFieldLabel)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.secondary)
                 
-                TextField("oc_xxxxxxxxxxxxxxxxxxxxxxxx", text: $viewModel.directChatIdInput)
+                TextField(inputFieldPlaceholder, text: $viewModel.directIdInput)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 12, design: .monospaced))
             }
@@ -238,7 +247,7 @@ public struct ChatListView: View {
                 Spacer()
                 
                 PrimaryGradientButton(
-                    "打开会话",
+                    "发起 / 打开",
                     icon: "arrow.right",
                     isLoading: viewModel.isOpeningChat
                 ) {
@@ -246,11 +255,31 @@ public struct ChatListView: View {
                         await viewModel.openChat(appState: appState)
                     }
                 }
-                .disabled(viewModel.directChatIdInput.isEmpty)
+                .disabled(viewModel.directIdInput.isEmpty)
             }
         }
         .padding(20)
-        .frame(width: 420)
+        .frame(width: 440)
+    }
+    
+    private var inputFieldLabel: String {
+        switch viewModel.selectedIdType {
+        case "chat_id": return "输入会话 Chat ID"
+        case "open_id": return "输入用户 Open ID"
+        case "user_id": return "输入用户 User ID"
+        case "email": return "输入用户企业邮箱"
+        default: return "输入标识符"
+        }
+    }
+    
+    private var inputFieldPlaceholder: String {
+        switch viewModel.selectedIdType {
+        case "chat_id": return "oc_xxxxxxxxxxxxxxxxxxxxxxxx"
+        case "open_id": return "ou_xxxxxxxxxxxxxxxxxxxxxxxx"
+        case "user_id": return "xxxxxxxx"
+        case "email": return "user@company.com"
+        default: return ""
+        }
     }
     
     private var loadingView: some View {

@@ -403,6 +403,35 @@ public final class AppState: ObservableObject {
                     await self.loadMessages(for: first, reset: true)
                 }
             }
+            
+            // Concurrently hydrate chat_mode (p2p vs group) & user_count in background
+            Task {
+                let hydratedItems = await FeishuAPIClient.shared.hydrateChatsWithDetails(
+                    token: token,
+                    items: newItems
+                )
+                
+                if reset {
+                    self.chats = hydratedItems
+                } else {
+                    // Replace the appended range
+                    var current = self.chats
+                    let startIndex = max(0, current.count - hydratedItems.count)
+                    for (i, hydrated) in hydratedItems.enumerated() {
+                        let targetIdx = startIndex + i
+                        if targetIdx < current.count {
+                            current[targetIdx] = hydrated
+                        }
+                    }
+                    self.chats = current
+                }
+                
+                // Update selectedChat reference if matching
+                if let selected = self.selectedChat,
+                   let updated = self.chats.first(where: { $0.chatId == selected.chatId }) {
+                    self.selectedChat = updated
+                }
+            }
         } catch {
             self.chatError = error.localizedDescription
             self.isLoadingChats = false
@@ -467,15 +496,37 @@ public final class AppState: ObservableObject {
         let cleanId = chatId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanId.isEmpty, let token = session?.accessToken else { return }
         
-        // Check if already in list
         if let existing = chats.first(where: { $0.chatId == cleanId }) {
             self.selectedChat = existing
             return
         }
         
-        // Fetch chat metadata from OpenAPI
         let chatItem = try await FeishuAPIClient.shared.fetchChatInfo(token: token, chatId: cleanId)
         self.chats.insert(chatItem, at: 0)
         self.selectedChat = chatItem
+    }
+    
+    public func openDirectChatWithUser(idType: String, idValue: String) async throws {
+        let cleanId = idValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanId.isEmpty, let token = session?.accessToken else { return }
+        
+        if idType == "chat_id" || cleanId.hasPrefix("oc_") {
+            try await openDirectChat(chatId: cleanId)
+            return
+        }
+        
+        let p2pChat = try await FeishuAPIClient.shared.createOrGetP2PChat(
+            token: token,
+            receiveIdType: idType,
+            receiveId: cleanId
+        )
+        
+        if let index = self.chats.firstIndex(where: { $0.chatId == p2pChat.chatId }) {
+            self.chats[index] = p2pChat
+        } else {
+            self.chats.insert(p2pChat, at: 0)
+        }
+        
+        self.selectedChat = p2pChat
     }
 }
