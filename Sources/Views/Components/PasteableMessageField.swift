@@ -1,96 +1,144 @@
 import SwiftUI
 import AppKit
 
-/// Native AppKit NSTextField wrapper that intercepts Cmd+V paste for Images and Files
+/// Native AppKit NSTextView wrapper that supports multi-line auto-expansion and Cmd+V paste for Images & Files
 public struct PasteableMessageField: NSViewRepresentable {
     @Binding var text: String
     var placeholder: String
+    var isExpanded: Bool
     var onCommit: () -> Void
     var onPasteImage: (Data, String) -> Void
     var onPasteFile: (Data, String) -> Void
     
     public init(
         text: Binding<String>,
-        placeholder: String = "发送消息...",
+        placeholder: String = "输入消息 (Enter 发送, Shift+Enter 换行)...",
+        isExpanded: Bool = false,
         onCommit: @escaping () -> Void,
         onPasteImage: @escaping (Data, String) -> Void,
         onPasteFile: @escaping (Data, String) -> Void
     ) {
         self._text = text
         self.placeholder = placeholder
+        self.isExpanded = isExpanded
         self.onCommit = onCommit
         self.onPasteImage = onPasteImage
         self.onPasteFile = onPasteFile
     }
     
-    public func makeNSView(context: Context) -> CustomPasteNSTextField {
-        let textField = CustomPasteNSTextField()
-        textField.delegate = context.coordinator
-        textField.placeholderString = placeholder
-        textField.isBordered = false
-        textField.drawsBackground = false
-        textField.focusRingType = .none
-        textField.font = NSFont.systemFont(ofSize: 13)
-        textField.textColor = NSColor.labelColor
+    public func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = false
+        scrollView.autohidesScrollers = true
+        scrollView.borderType = .noBorder
+        scrollView.drawsBackground = false
         
-        textField.onPasteImage = onPasteImage
-        textField.onPasteFile = onPasteFile
-        textField.onCommit = onCommit
+        let textView = CustomPasteNSTextView()
+        textView.delegate = context.coordinator
+        textView.isRichText = false
+        textView.allowsUndo = true
+        textView.isSelectable = true
+        textView.isEditable = true
+        textView.drawsBackground = false
+        textView.font = NSFont.systemFont(ofSize: 13)
+        textView.textColor = NSColor.labelColor
+        textView.focusRingType = .none
+        textView.placeholderString = placeholder
         
-        return textField
+        textView.isHorizontallyResizable = false
+        textView.isVerticallyResizable = true
+        textView.autoresizingMask = [.width]
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.containerSize = NSSize(width: scrollView.contentSize.width, height: CGFloat.greatestFiniteMagnitude)
+        textView.textContainerInset = NSSize(width: 0, height: 4)
+        
+        textView.onPasteImage = onPasteImage
+        textView.onPasteFile = onPasteFile
+        textView.onCommit = onCommit
+        
+        scrollView.documentView = textView
+        context.coordinator.textView = textView
+        
+        return scrollView
     }
     
-    public func updateNSView(_ nsView: CustomPasteNSTextField, context: Context) {
-        if nsView.stringValue != text {
-            nsView.stringValue = text
+    public func updateNSView(_ nsView: NSScrollView, context: Context) {
+        guard let textView = nsView.documentView as? CustomPasteNSTextView else { return }
+        if textView.string != text {
+            textView.string = text
+            textView.needsDisplay = true
         }
-        nsView.placeholderString = placeholder
-        nsView.onPasteImage = onPasteImage
-        nsView.onPasteFile = onPasteFile
-        nsView.onCommit = onCommit
+        textView.placeholderString = placeholder
+        textView.onPasteImage = onPasteImage
+        textView.onPasteFile = onPasteFile
+        textView.onCommit = onCommit
     }
     
     public func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
     
-    public final class Coordinator: NSObject, NSTextFieldDelegate {
+    public final class Coordinator: NSObject, NSTextViewDelegate {
         var parent: PasteableMessageField
+        weak var textView: CustomPasteNSTextView?
         
         init(_ parent: PasteableMessageField) {
             self.parent = parent
         }
         
-        public func controlTextDidChange(_ obj: Notification) {
-            if let textField = obj.object as? NSTextField {
-                parent.text = textField.stringValue
+        public func textDidChange(_ notification: Notification) {
+            if let tv = notification.object as? NSTextView {
+                parent.text = tv.string
             }
         }
     }
 }
 
-/// Custom NSTextField subclass overriding pasteboard actions and Cmd+V
-public final class CustomPasteNSTextField: NSTextField {
+/// Custom NSTextView subclass overriding pasteboard actions and Cmd+V
+public final class CustomPasteNSTextView: NSTextView {
     var onPasteImage: ((Data, String) -> Void)?
     var onPasteFile: ((Data, String) -> Void)?
     var onCommit: (() -> Void)?
+    var placeholderString: String = "" {
+        didSet { needsDisplay = true }
+    }
     
-    public override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        // Intercept Return key (without Shift) to send message
-        if event.keyCode == 36 { // Return key
-            if !event.modifierFlags.contains(.shift) {
-                onCommit?()
-                return true
-            }
+    public override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        if string.isEmpty && !placeholderString.isEmpty {
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: font ?? NSFont.systemFont(ofSize: 13),
+                .foregroundColor: NSColor.placeholderTextColor
+            ]
+            let rect = NSRect(x: 5, y: 4, width: bounds.width - 10, height: bounds.height - 8)
+            (placeholderString as NSString).draw(in: rect, withAttributes: attrs)
+        }
+    }
+    
+    public override func keyDown(with event: NSEvent) {
+        // Return key without Shift/Option -> Send message
+        if event.keyCode == 36 && !event.modifierFlags.contains(.shift) && !event.modifierFlags.contains(.option) {
+            onCommit?()
+            return
         }
         
-        // Intercept Cmd+V (Paste)
+        // Shift+Return or Option+Return -> Insert newline
+        if event.keyCode == 36 && (event.modifierFlags.contains(.shift) || event.modifierFlags.contains(.option)) {
+            insertNewlineIgnoringFieldEditor(nil)
+            return
+        }
+        
+        super.keyDown(with: event)
+    }
+    
+    public override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        // Intercept Cmd+V (Paste) for image/file pasteboard data
         if event.modifierFlags.contains(.command) && event.charactersIgnoringModifiers == "v" {
             if handlePasteboard() {
                 return true
             }
         }
-        
         return super.performKeyEquivalent(with: event)
     }
     

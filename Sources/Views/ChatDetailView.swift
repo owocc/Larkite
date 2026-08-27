@@ -9,9 +9,9 @@ public final class ChatDetailViewModel: ObservableObject {
     @Published public var sidePanelTab: Int = 0 // 0: 属性与成员, 1: 原始 API JSON
     @Published public var copiedField: String? = nil
     @Published public var inputMessageText: String = ""
+    @Published public var isEditorExpanded: Bool = false
     @Published public var sendError: String? = nil
     @Published public var memberSearchQuery: String = ""
-    
     public init() {}
     
     public func sendMessage(appState: AppState) async {
@@ -303,9 +303,9 @@ public struct ChatDetailView: View {
                                     .id(msg.id)
                             }
                             
-                            // Bottom breathing spacer so content scrolls completely above the floating dock
+                            // Bottom breathing spacer dynamically adapting to floating dock expansion
                             Color.clear
-                                .frame(height: 110)
+                                .frame(height: viewModel.isEditorExpanded ? 240 : (viewModel.inputMessageText.count >= 30 || viewModel.inputMessageText.contains("\n") ? 150 : 110))
                         }
                         .padding(.vertical, 8)
                     }
@@ -464,12 +464,14 @@ public struct ChatDetailView: View {
                 .padding(.horizontal, 16)
             }
             
-            // Liquid Glass Floating Dock Container
+            let isMultiLine = viewModel.inputMessageText.count >= 30 || viewModel.inputMessageText.contains("\n") || viewModel.isEditorExpanded
+            
             VStack(spacing: 8) {
-                // Typing Input Field
+                // Typing Input Field with Dynamic Auto-Expansion for 30+ chars / multi-line
                 PasteableMessageField(
                     text: $viewModel.inputMessageText,
-                    placeholder: appState.replyingToMessage != nil ? "输入回复内容 (Enter 发送)..." : "输入消息 (Enter 发送)...",
+                    placeholder: appState.replyingToMessage != nil ? "输入回复内容 (Enter 发送, Shift+Enter 换行)..." : "输入消息 (Enter 发送, Shift+Enter 换行)...",
+                    isExpanded: viewModel.isEditorExpanded,
                     onCommit: {
                         Task {
                             await viewModel.sendMessage(appState: appState)
@@ -494,14 +496,19 @@ public struct ChatDetailView: View {
                         }
                     }
                 )
-                .frame(minHeight: 28)
+                .frame(
+                    minHeight: viewModel.isEditorExpanded ? 130 : (isMultiLine ? 64 : 28),
+                    maxHeight: viewModel.isEditorExpanded ? 240 : (isMultiLine ? 140 : 36)
+                )
                 .padding(.horizontal, 14)
                 .padding(.top, 8)
+                .animation(.spring(response: 0.32, dampingFraction: 0.82), value: isMultiLine)
+                .animation(.spring(response: 0.32, dampingFraction: 0.82), value: viewModel.isEditorExpanded)
                 
                 // Bottom Action Capsule Toolbar
                 HStack(spacing: 8) {
-                    // Left Capsule Pill Toolbar (Aa, Emoji, Undo/Reply, AI)
-                    HStack(spacing: 2) {
+                    // Left Capsule Pill Toolbar (Aa, Emoji, Expand Editor, Word Count, AI)
+                    HStack(spacing: 4) {
                         if appState.replyingToMessage != nil {
                             LiquidGlassToolbarButton(icon: "arrow.uturn.left") {
                                 appState.replyingToMessage = nil
@@ -513,6 +520,16 @@ public struct ChatDetailView: View {
                             // Formatting
                         }
                         .help("文字格式")
+                        
+                        // Expand / Collapse Large Writing Space Button
+                        LiquidGlassToolbarButton(
+                            icon: viewModel.isEditorExpanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right"
+                        ) {
+                            withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                                viewModel.isEditorExpanded.toggle()
+                            }
+                        }
+                        .help(viewModel.isEditorExpanded ? "收起输入框" : "展开大书写空间")
                         
                         Menu {
                             Button("👍 点赞") { viewModel.inputMessageText += "👍" }
@@ -537,6 +554,18 @@ public struct ChatDetailView: View {
                             // AI Assistant
                         }
                         .help("智能助手")
+                        
+                        // Real-time Character Count indicator when text >= 30
+                        if viewModel.inputMessageText.count >= 30 {
+                            Text("\(viewModel.inputMessageText.count) 字")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(Color(hex: "3370FF"))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color(hex: "3370FF").opacity(0.1))
+                                .clipShape(Capsule())
+                                .transition(.opacity.combined(with: .scale(scale: 0.85)))
+                        }
                     }
                     .padding(.horizontal, 4)
                     .padding(.vertical, 2)
