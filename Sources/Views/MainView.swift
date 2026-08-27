@@ -23,7 +23,30 @@ public struct MainView: View {
         .frame(minWidth: 860, minHeight: 580)
         .onAppear {
             if !appState.isLoggedIn {
-                AccountWindowManager.shared.showLoginWindow()
+                DispatchQueue.main.async {
+                    for window in NSApp.windows where window.title != "Larkite 账号与登录中心" && window.title != "设置" {
+                        window.orderOut(nil)
+                    }
+                    AccountWindowManager.shared.showLoginWindow()
+                }
+            }
+        }
+        .onChange(of: appState.isLoggedIn) { wasLoggedIn, isLoggedIn in
+            if isLoggedIn {
+                AccountWindowManager.shared.closeWindow()
+                DispatchQueue.main.async {
+                    for window in NSApp.windows where window.title != "Larkite 账号与登录中心" && window.title != "设置" {
+                        window.makeKeyAndOrderFront(nil)
+                    }
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+            } else {
+                DispatchQueue.main.async {
+                    for window in NSApp.windows where window.title != "Larkite 账号与登录中心" && window.title != "设置" {
+                        window.orderOut(nil)
+                    }
+                    AccountWindowManager.shared.showLoginWindow()
+                }
             }
         }
         .sheet(item: $appState.inspectedUser) { user in

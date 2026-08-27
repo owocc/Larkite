@@ -3,8 +3,10 @@ import AppKit
 
 @main
 struct LarkiteApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var appState = AppState.shared
     @StateObject private var configManager = ConfigManager.shared
+    
     var body: some Scene {
         WindowGroup {
             MainView()
@@ -43,5 +45,32 @@ struct LarkiteApp: App {
                 .keyboardShortcut("f", modifiers: .command)
             }
         }
+    }
+}
+
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        if !AppState.shared.isLoggedIn {
+            DispatchQueue.main.async {
+                for window in NSApp.windows where window.title != "Larkite 账号与登录中心" && window.title != "设置" {
+                    window.orderOut(nil)
+                }
+                AccountWindowManager.shared.showLoginWindow()
+            }
+        }
+    }
+    
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag {
+            if AppState.shared.isLoggedIn {
+                for window in NSApp.windows where window.title != "Larkite 账号与登录中心" && window.title != "设置" {
+                    window.makeKeyAndOrderFront(nil)
+                }
+            } else {
+                AccountWindowManager.shared.showLoginWindow()
+            }
+        }
+        return true
     }
 }
