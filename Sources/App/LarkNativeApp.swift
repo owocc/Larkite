@@ -15,14 +15,21 @@ struct LarkNativeApp: App {
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1000, height: 660)
         .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button("设置...") {
+                    SettingsWindowManager.shared.showSettingsWindow()
+                }
+                .keyboardShortcut(",", modifiers: .command)
+            }
+            
             CommandGroup(replacing: .newItem) {}
+            
             CommandMenu("账号与组织") {
-                Button("登录 / 切换企业账号...") {
+                Button("登录更多账号...") {
                     AccountWindowManager.shared.showLoginWindow()
                 }
                 .keyboardShortcut("a", modifiers: [.command, .shift])
             }
-            
             CommandMenu("会话与群组") {
                 Button("刷新群组列表") {
                     Task {

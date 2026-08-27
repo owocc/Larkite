@@ -414,10 +414,10 @@ public struct ChatListView: View {
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "person.crop.circle.badge.plus")
-                            .foregroundColor(Color(hex: "3370FF"))
-                        Text("登录新账号 / 管理企业组织...")
+                            .foregroundColor(configManager.accentColorChoice.color)
+                        Text("登录更多账号")
                             .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(Color(hex: "3370FF"))
+                            .foregroundColor(configManager.accentColorChoice.color)
                     }
                 }
                 .buttonStyle(.plain)
@@ -436,7 +436,7 @@ public struct ChatListView: View {
                         HStack(spacing: 6) {
                             Image(systemName: "person.text.rectangle")
                                 .foregroundColor(.secondary)
-                            Text("查看个人详细资料卡")
+                            Text("个人资料")
                                 .font(.system(size: 11))
                                 .foregroundColor(.primary)
                         }
@@ -446,7 +446,7 @@ public struct ChatListView: View {
                 
                 Divider()
                 
-                // Settings Action (Standalone Preferences Window)
+                // Settings Action (Standalone Preferences Window, Cmd+,)
                 Button {
                     viewModel.showAccountMenu = false
                     SettingsWindowManager.shared.showSettingsWindow()
@@ -454,9 +454,13 @@ public struct ChatListView: View {
                     HStack(spacing: 6) {
                         Image(systemName: "gearshape.fill")
                             .foregroundColor(.secondary)
-                        Text("应用设置与权限管理")
+                        Text("设置")
                             .font(.system(size: 11))
                             .foregroundColor(.primary)
+                        Spacer()
+                        Text("⌘,")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary.opacity(0.7))
                     }
                 }
                 .buttonStyle(.plain)
@@ -469,7 +473,7 @@ public struct ChatListView: View {
                     HStack(spacing: 6) {
                         Image(systemName: "curlybraces.square.fill")
                             .foregroundColor(.secondary)
-                        Text("OpenAPI 接口调试台")
+                        Text("接口调试")
                             .font(.system(size: 11))
                             .foregroundColor(.primary)
                     }
@@ -486,7 +490,7 @@ public struct ChatListView: View {
                     HStack(spacing: 6) {
                         Image(systemName: "rectangle.portrait.and.arrow.right")
                             .foregroundColor(.red)
-                        Text("退出当前账号")
+                        Text("退出登录")
                             .font(.system(size: 11))
                             .foregroundColor(.red)
                     }
@@ -496,9 +500,8 @@ public struct ChatListView: View {
             .padding(.top, 2)
         }
         .padding(12)
-        .frame(width: 270)
+        .frame(width: 250)
     }
-    
     private var addChatSheet: some View {
         VStack(spacing: 16) {
             HStack {
