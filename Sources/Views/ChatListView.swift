@@ -76,38 +76,140 @@ public struct ChatListView: View {
     
     private var headerSection: some View {
         VStack(spacing: 8) {
-            // Title, Add & Refresh
-            HStack {
+            // Top Row: Title, Add, Refresh, Filter Dropdown Menu (Left of Sidebar Toggle), Sidebar Toggle Button
+            HStack(spacing: 6) {
                 Text("消息会话")
                     .font(.system(size: 15, weight: .bold))
                 
                 Spacer()
                 
-                // Add / Open Direct Chat
+                // Add / Open Direct Chat Button
                 Button {
                     viewModel.showAddChatSheet = true
                 } label: {
                     Image(systemName: "plus.bubble.fill")
-                        .font(.system(size: 13))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(Color(hex: "3370FF"))
+                        .padding(5)
+                        .background(
+                            ZStack {
+                                VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
+                                Color(nsColor: .controlBackgroundColor).opacity(0.45)
+                            }
+                            .clipShape(Circle())
+                        )
+                        .overlay(
+                            Circle()
+                                .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
+                        )
+                        .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 1.5)
                 }
                 .buttonStyle(.plain)
                 .help("按 Chat ID / Open ID 发起或查询私聊")
                 
-                // Refresh
+                // Refresh Button
                 Button {
                     Task {
                         await appState.loadChats(reset: true)
                     }
                 } label: {
                     Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(appState.isLoadingChats ? Color(hex: "3370FF") : .secondary)
                         .rotationEffect(.degrees(appState.isLoadingChats ? 360 : 0))
                         .animation(appState.isLoadingChats ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: appState.isLoadingChats)
+                        .padding(5)
+                        .background(
+                            ZStack {
+                                VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
+                                Color(nsColor: .controlBackgroundColor).opacity(0.45)
+                            }
+                            .clipShape(Circle())
+                        )
+                        .overlay(
+                            Circle()
+                                .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
+                        )
+                        .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 1.5)
                 }
                 .buttonStyle(.plain)
                 .help("刷新会话列表 (Cmd+R)")
+                
+                // Filter Dropdown Button (macOS 26+ Liquid Glass, positioned strictly to the left of Sidebar Toggle)
+                Menu {
+                    ForEach(ChatFilterMode.allCases) { mode in
+                        Button {
+                            appState.filterMode = mode
+                        } label: {
+                            HStack {
+                                Label(mode.menuTitle, systemImage: mode.icon)
+                                if appState.filterMode == mode {
+                                    Spacer()
+                                     Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    ZStack(alignment: .topTrailing) {
+                        Image(systemName: "line.3.horizontal.decrease")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(appState.filterMode != .all ? Color(hex: "3370FF") : .secondary)
+                            .padding(5)
+                        
+                        if appState.filterMode != .all {
+                            Circle()
+                                .fill(Color(hex: "3370FF"))
+                                .frame(width: 5, height: 5)
+                                .offset(x: -1, y: 1)
+                        }
+                    }
+                    .background(
+                        ZStack {
+                            VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
+                            Color(nsColor: .controlBackgroundColor).opacity(appState.filterMode != .all ? 0.75 : 0.45)
+                        }
+                        .clipShape(Circle())
+                    )
+                    .overlay(
+                        Group {
+                            if appState.filterMode != .all {
+                                Circle()
+                                    .strokeBorder(Color(hex: "3370FF").opacity(0.6), lineWidth: 1)
+                            } else {
+                                Circle()
+                                    .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
+                            }
+                        }
+                    )
+                    .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 1.5)
+                }
+                .menuStyle(.borderlessButton)
+                .help("会话筛选: \(appState.filterMode.menuTitle)")
+                
+                // Sidebar Toggle Button (macOS 26+ Liquid Glass, rightmost control in header)
+                Button {
+                    NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil)
+                } label: {
+                    Image(systemName: "sidebar.leading")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.secondary)
+                        .padding(5)
+                        .background(
+                            ZStack {
+                                VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
+                                Color(nsColor: .controlBackgroundColor).opacity(0.45)
+                            }
+                            .clipShape(Circle())
+                        )
+                        .overlay(
+                            Circle()
+                                .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
+                        )
+                        .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 1.5)
+                }
+                .buttonStyle(.plain)
+                .help("收起/展开侧边栏")
             }
             
             // Search Field
@@ -136,34 +238,39 @@ public struct ChatListView: View {
             .background(Color(nsColor: .controlBackgroundColor).opacity(0.6))
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             
-            // Filter Pills
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 4) {
-                    ForEach(ChatFilterMode.allCases) { mode in
-                        filterPill(mode: mode)
+            // Active Filter Chip / Status Indicator if filter is enabled
+            if appState.filterMode != .all {
+                HStack(spacing: 6) {
+                    Image(systemName: appState.filterMode.icon)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(Color(hex: "3370FF"))
+                    
+                    Text("当前筛选: \(appState.filterMode.menuTitle)")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(Color(hex: "3370FF"))
+                    
+                    Spacer()
+                    
+                    Button {
+                        appState.filterMode = .all
+                    } label: {
+                        HStack(spacing: 2) {
+                            Text("清除")
+                                .font(.system(size: 10))
+                            Image(systemName: "xmark")
+                                .font(.system(size: 9, weight: .bold))
+                        }
+                        .foregroundColor(.secondary)
                     }
+                    .buttonStyle(.plain)
+                    .help("重置为全部会话")
                 }
-            }
-        }
-    }
-    
-    private func filterPill(mode: ChatFilterMode) -> some View {
-        let isSelected = appState.filterMode == mode
-        return Button {
-            appState.filterMode = mode
-        } label: {
-            Text(mode.rawValue)
-                .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
-                .foregroundColor(isSelected ? Color(hex: "3370FF") : .secondary)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 3)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(isSelected ? Color(hex: "3370FF").opacity(0.14) : Color(nsColor: .quaternaryLabelColor).opacity(0.15))
-                )
-                .contentShape(Rectangle())
+                .background(Color(hex: "3370FF").opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            }
         }
-        .buttonStyle(.plain)
     }
     
     private var chatListContent: some View {

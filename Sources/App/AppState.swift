@@ -20,12 +20,32 @@ public enum NavigationTab: String, CaseIterable, Identifiable {
 
 public enum ChatFilterMode: String, CaseIterable, Identifiable {
     case all = "全部"
-    case group = "群聊"
     case p2p = "私聊"
+    case group = "群聊"
     case `internal` = "内部"
     case external = "外部"
     
     public var id: String { rawValue }
+    
+    public var menuTitle: String {
+        switch self {
+        case .all: return "全部会话"
+        case .p2p: return "私聊 (P2P)"
+        case .group: return "群聊会话"
+        case .internal: return "企业内部群"
+        case .external: return "企业外部群"
+        }
+    }
+    
+    public var icon: String {
+        switch self {
+        case .all: return "tray.2"
+        case .p2p: return "person.fill"
+        case .group: return "person.2.fill"
+        case .internal: return "lock.shield"
+        case .external: return "globe"
+        }
+    }
 }
 
 @MainActor
