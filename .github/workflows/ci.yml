@@ -1,0 +1,35 @@
+name: CI Build Verification
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-verification:
+    name: Verify macOS Build
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Select Xcode Version
+        run: |
+          sudo xcode-select -s /Applications/Xcode_15.4.app || sudo xcode-select -s /Applications/Xcode.app
+          swift --version
+
+      - name: Build Larkite App Bundle
+        run: |
+          chmod +x ./build_app.sh
+          ./build_app.sh
+
+      - name: Verify Bundle Integrity
+        run: |
+          test -f "Larkite.app/Contents/MacOS/Larkite"
+          test -f "Larkite.app/Contents/Info.plist"
+          test -f "Larkite.app/Contents/Resources/AppIcon.icns"
+          echo "==> Larkite.app bundle successfully verified!"
