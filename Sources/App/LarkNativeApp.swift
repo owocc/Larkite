@@ -13,8 +13,8 @@ struct LarkNativeApp: App {
                 .environmentObject(configManager)
                 .preferredColorScheme(configManager.themeMode.colorScheme)
         }
-        .windowStyle(.titleBar)
-        .windowToolbarStyle(.unified(showsTitle: true))
+        .windowStyle(.hiddenTitleBar)
+        .defaultSize(width: 1000, height: 660)
         .commands {
             CommandGroup(replacing: .newItem) {}
             

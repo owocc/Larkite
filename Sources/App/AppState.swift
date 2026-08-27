@@ -43,6 +43,8 @@ public final class AppState: ObservableObject {
     @Published public var localServerPort: UInt16 = 8989
     
     @Published public var selectedTab: NavigationTab = .chats
+    @Published public var isShowingSettings: Bool = false
+    @Published public var isShowingDebug: Bool = false
     
     @Published public var chats: [FeishuChatItem] = []
     @Published public var selectedChat: FeishuChatItem? {

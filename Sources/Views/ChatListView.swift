@@ -3,6 +3,7 @@ import SwiftUI
 @MainActor
 public final class ChatListViewModel: ObservableObject {
     @Published public var showAddChatSheet: Bool = false
+    @Published public var showAccountMenu: Bool = false
     @Published public var selectedIdType: String = "auto"
     @Published public var directIdInput: String = ""
     @Published public var openChatError: String? = nil
@@ -31,16 +32,17 @@ public final class ChatListViewModel: ObservableObject {
 
 public struct ChatListView: View {
     @ObservedObject var appState: AppState = .shared
+    @ObservedObject var configManager: ConfigManager = .shared
     @StateObject private var viewModel = ChatListViewModel()
     
     public init() {}
     
     public var body: some View {
         VStack(spacing: 0) {
-            // Header / Search & Filter Section
+            // Header / Traffic light spacing + Search & Filters
             headerSection
                 .padding(.horizontal, 12)
-                .padding(.top, 12)
+                .padding(.top, 14)
                 .padding(.bottom, 8)
             
             Divider()
@@ -57,9 +59,16 @@ public struct ChatListView: View {
             } else {
                 chatListContent
             }
+            
+            Spacer(minLength: 0)
+            
+            // Bottom Docked Account & Settings Toolbar
+            sidebarBottomSection
         }
-        .frame(minWidth: 290, maxWidth: 360)
-        .background(Color(nsColor: .windowBackgroundColor).opacity(0.5))
+        .background(
+            VisualEffectBackground(material: .sidebar, blendingMode: .behindWindow)
+                .ignoresSafeArea()
+        )
         .sheet(isPresented: $viewModel.showAddChatSheet) {
             addChatSheet
         }
@@ -70,7 +79,7 @@ public struct ChatListView: View {
             // Title, Add & Refresh
             HStack {
                 Text("消息会话")
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.system(size: 15, weight: .bold))
                 
                 Spacer()
                 
@@ -83,7 +92,7 @@ public struct ChatListView: View {
                         .foregroundColor(Color(hex: "3370FF"))
                 }
                 .buttonStyle(.plain)
-                .help("按 Chat ID / Open ID / Message ID 发起或查询会话")
+                .help("按 Chat ID / Open ID 发起或查询私聊")
                 
                 // Refresh
                 Button {
@@ -104,7 +113,7 @@ public struct ChatListView: View {
             // Search Field
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 12))
+                    .font(.system(size: 11))
                     .foregroundColor(.secondary)
                 
                 TextField("搜索名称或 Chat ID...", text: $appState.searchQuery)
@@ -123,8 +132,8 @@ public struct ChatListView: View {
                 }
             }
             .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .background(Color(nsColor: .controlBackgroundColor))
+            .padding(.vertical, 5)
+            .background(Color(nsColor: .controlBackgroundColor).opacity(0.6))
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             
             // Filter Pills
@@ -150,8 +159,9 @@ public struct ChatListView: View {
                 .padding(.vertical, 3)
                 .background(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(isSelected ? Color(hex: "3370FF").opacity(0.12) : Color.clear)
+                        .fill(isSelected ? Color(hex: "3370FF").opacity(0.14) : Color(nsColor: .quaternaryLabelColor).opacity(0.15))
                 )
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -200,13 +210,13 @@ public struct ChatListView: View {
             VStack(spacing: 16) {
                 VStack(spacing: 8) {
                     Image(systemName: "person.crop.circle.badge.plus")
-                        .font(.system(size: 32))
+                        .font(.system(size: 30))
                         .foregroundColor(Color.teal)
                     
                     Text("暂无活跃单聊会话")
                         .font(.system(size: 13, weight: .bold))
                     
-                    Text("飞书群列表 API 不直接标记单聊。点击下方「深度扫描」将遍历全量会话逐个核验 chat_mode == p2p，或从联系人直接发起：")
+                    Text("点击下方「深度扫描」核验单聊，或从下方直接选择联系人发起私聊：")
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -224,7 +234,7 @@ public struct ChatListView: View {
                             } else {
                                 Image(systemName: "magnifyingglass.circle.fill")
                             }
-                            Text(appState.isScanningP2PChats ? "正在逐个校验 chat_mode == p2p..." : "深度扫描全量私聊会话 (p2p)")
+                            Text(appState.isScanningP2PChats ? "正在校验 chat_mode..." : "深度扫描全量私聊 (p2p)")
                         }
                         .font(.system(size: 11, weight: .medium))
                     }
@@ -233,12 +243,12 @@ public struct ChatListView: View {
                     .disabled(appState.isScanningP2PChats)
                     .padding(.top, 4)
                 }
-                .padding(.top, 16)
+                .padding(.top, 14)
                 
                 if !appState.contacts.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("企业联系人")
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.system(size: 11, weight: .semibold))
                             .foregroundColor(.secondary)
                             .padding(.horizontal, 4)
                         
@@ -246,15 +256,15 @@ public struct ChatListView: View {
                             Button {
                                 appState.openContactChat(contact)
                             } label: {
-                                HStack(spacing: 10) {
-                                    AvatarView(urlString: contact.bestAvatarUrl, name: contact.displayName, size: 32)
+                                HStack(spacing: 8) {
+                                    AvatarView(urlString: contact.bestAvatarUrl, name: contact.displayName, size: 28)
                                     
-                                    VStack(alignment: .leading, spacing: 2) {
+                                    VStack(alignment: .leading, spacing: 1) {
                                         Text(contact.displayName)
                                             .font(.system(size: 12, weight: .medium))
                                             .foregroundColor(.primary)
                                         Text(contact.jobTitle ?? contact.email ?? contact.id)
-                                            .font(.system(size: 10))
+                                            .font(.system(size: 9))
                                             .foregroundColor(.secondary)
                                             .lineLimit(1)
                                     }
@@ -262,29 +272,234 @@ public struct ChatListView: View {
                                     Spacer()
                                     
                                     Image(systemName: "bubble.right.fill")
-                                        .font(.system(size: 11))
+                                        .font(.system(size: 10))
                                         .foregroundColor(Color(hex: "3370FF"))
                                 }
-                                .padding(8)
-                                .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .padding(6)
+                                .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
                             }
                             .buttonStyle(.plain)
                         }
                     }
-                    .padding(.horizontal, 8)
-                } else {
-                    Button("输入 ID 发起单聊") {
-                        viewModel.showAddChatSheet = true
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
+                    .padding(.horizontal, 4)
                 }
                 
                 Spacer()
             }
-            .padding(12)
+            .padding(10)
         }
+    }
+    
+    // MARK: - Sidebar Bottom Docked Toolbar
+    
+    private var sidebarBottomSection: some View {
+        VStack(spacing: 6) {
+            Divider()
+            
+            HStack(spacing: 8) {
+                // User Profile Button & Account Switcher
+                Button {
+                    viewModel.showAccountMenu.toggle()
+                } label: {
+                    HStack(spacing: 8) {
+                        if let user = appState.session?.user {
+                            AvatarView(urlString: user.bestAvatarUrl, name: user.displayName, size: 26)
+                            
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(user.displayName)
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .lineLimit(1)
+                                Text(user.email ?? (appState.session?.tokenType.rawValue ?? "已连接"))
+                                    .font(.system(size: 9))
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(1)
+                            }
+                        } else {
+                            AvatarView(urlString: nil, name: "飞书", size: 26)
+                            Text("飞书账号")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.system(size: 8))
+                            .foregroundColor(.secondary.opacity(0.7))
+                    }
+                    .padding(4)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("点击切换账号或管理凭据")
+                .popover(isPresented: $viewModel.showAccountMenu, arrowEdge: .top) {
+                    accountSwitcherPopover
+                }
+                
+                Spacer()
+                
+                // Settings Button
+                Button {
+                    appState.isShowingSettings = true
+                } label: {
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 13))
+                        .foregroundColor(.secondary)
+                        .padding(5)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("应用设置与权限")
+                
+                // Debugger Button
+                Button {
+                    appState.isShowingDebug = true
+                } label: {
+                    Image(systemName: "curlybraces.square.fill")
+                        .font(.system(size: 13))
+                        .foregroundColor(.secondary)
+                        .padding(5)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("OpenAPI 接口调试台")
+            }
+            .padding(.horizontal, 10)
+            .padding(.bottom, 6)
+        }
+    }
+    
+    private var accountSwitcherPopover: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("飞书账号管理")
+                    .font(.system(size: 13, weight: .bold))
+                Spacer()
+                Text("\(configManager.accounts.count) 个已保存")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+            }
+            .padding(.bottom, 2)
+            
+            Divider()
+            
+            // Accounts List
+            ScrollView {
+                VStack(spacing: 4) {
+                    ForEach(configManager.accounts) { acc in
+                        let isActive = acc.id == configManager.activeAccountId
+                        HStack(spacing: 8) {
+                            AvatarView(urlString: acc.avatarUrl, name: acc.displayName, size: 26)
+                            
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(acc.displayName)
+                                    .font(.system(size: 11, weight: isActive ? .bold : .medium))
+                                    .foregroundColor(.primary)
+                                    .lineLimit(1)
+                                
+                                Text(acc.email ?? acc.id)
+                                    .font(.system(size: 9))
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(1)
+                            }
+                            
+                            Spacer()
+                            
+                            if isActive {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.green)
+                            } else {
+                                Button {
+                                    appState.switchAccount(to: acc.id)
+                                    viewModel.showAccountMenu = false
+                                } label: {
+                                    Text("切换")
+                                        .font(.system(size: 10, weight: .semibold))
+                                        .foregroundColor(Color(hex: "3370FF"))
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Color(hex: "3370FF").opacity(0.12))
+                                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                                }
+                                .buttonStyle(.plain)
+                                
+                                Button {
+                                    appState.removeAccount(id: acc.id)
+                                } label: {
+                                    Image(systemName: "xmark.circle")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                                .help("移除该账号")
+                            }
+                        }
+                        .padding(5)
+                        .background(isActive ? Color(hex: "3370FF").opacity(0.1) : Color.clear)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .contentShape(Rectangle())
+                    }
+                }
+            }
+            .frame(maxHeight: 160)
+            
+            Divider()
+            
+            // Actions
+            VStack(alignment: .leading, spacing: 6) {
+                Button {
+                    viewModel.showAccountMenu = false
+                    appState.startAddingNewAccount()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "plus.circle.fill")
+                            .foregroundColor(Color(hex: "3370FF"))
+                        Text("添加新的飞书账号...")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(Color(hex: "3370FF"))
+                    }
+                }
+                .buttonStyle(.plain)
+                
+                if let user = appState.session?.user {
+                    Button {
+                        viewModel.showAccountMenu = false
+                        Task {
+                            await appState.inspectUser(
+                                openId: user.openId ?? user.id,
+                                fallbackName: user.displayName,
+                                fallbackAvatar: user.bestAvatarUrl
+                            )
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "person.text.rectangle")
+                                .foregroundColor(.secondary)
+                            Text("查看个人详细资料卡")
+                                .font(.system(size: 11))
+                                .foregroundColor(.primary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+                
+                Button(role: .destructive) {
+                    viewModel.showAccountMenu = false
+                    appState.logoutCurrentAccount()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "rectangle.portrait.and.arrow.right")
+                            .foregroundColor(.red)
+                        Text("退出当前账号")
+                            .font(.system(size: 11))
+                            .foregroundColor(.red)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.top, 2)
+        }
+        .padding(12)
+        .frame(width: 270)
     }
     
     private var addChatSheet: some View {
@@ -369,11 +584,11 @@ public struct ChatListView: View {
     private var detectedTypeHint: String? {
         let trimmed = viewModel.directIdInput.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.hasPrefix("om_") {
-            return "✓ 识别为 Message ID (将自动定位所属会话)"
+            return "✓ 识别为 Message ID"
         } else if trimmed.hasPrefix("oc_") {
             return "✓ 识别为 Chat ID"
         } else if trimmed.hasPrefix("ou_") {
-            return "✓ 识别为 User Open ID (将发起单聊)"
+            return "✓ 识别为 User Open ID"
         } else if trimmed.hasPrefix("on_") {
             return "✓ 识别为 Union ID"
         } else if trimmed.contains("@") {
