@@ -6,8 +6,8 @@ public final class LoginViewModel: ObservableObject {
     @Published public var showProfileSheet: Bool = false
     @Published public var showDirectTokenSheet: Bool = false
     @Published public var showScopesSheet: Bool = false
-    
-    // Draft App Profile Configuration
+    @Published public var showAccountPopover: Bool = false
+    @Published public var showServerPopover: Bool = false
     @Published public var draftAppId: String = ""
     @Published public var draftAppSecret: String = ""
     @Published public var draftRedirectUri: String = "http://127.0.0.1:8989/callback"
@@ -133,101 +133,35 @@ public struct LoginView: View {
             Spacer()
             
             // Right 1: User / Saved Accounts Switcher Circular Liquid Glass Button (matching sidebar style)
-            Menu {
-                if !configManager.accounts.isEmpty {
-                    Section("已保存企业账号") {
-                        ForEach(configManager.accounts) { acc in
-                            let isActive = acc.id == configManager.activeAccountId
-                            Button {
-                                appState.switchAccount(to: acc.id)
-                                AccountWindowManager.shared.closeWindow()
-                            } label: {
-                                HStack {
-                                    Text(acc.displayName)
-                                    if isActive {
-                                        Spacer()
-                                        Image(systemName: "checkmark")
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    
-                    Divider()
-                }
-                
-                Button {
-                    appState.startAddingNewAccount()
-                } label: {
-                    Label("登录新账号 / 添加新企业", systemImage: "person.crop.circle.badge.plus")
-                }
+            Button {
+                viewModel.showAccountPopover.toggle()
             } label: {
-                ZStack {
-                    if let user = appState.session?.user {
-                        let initial = user.displayName.prefix(1).uppercased()
+                Image(systemName: configManager.activeAccountId != nil ? "person.crop.circle.fill" : "person.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(configManager.activeAccountId != nil ? Color(hex: "3370FF") : .secondary)
+                    .frame(width: 28, height: 28)
+                    .background(
                         ZStack {
-                            Circle()
-                                .fill(LinearGradient(colors: [Color(hex: "3370FF"), Color(hex: "1F55E6")], startPoint: .topLeading, endPoint: .bottomTrailing))
-                                .frame(width: 18, height: 18)
-                            Text(initial.isEmpty ? "飞" : String(initial))
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundColor(.white)
+                            VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
+                            Color(nsColor: .controlBackgroundColor).opacity(0.55)
                         }
-                    } else if let activeId = configManager.activeAccountId, let acc = configManager.accounts.first(where: { $0.id == activeId }) {
-                        let initial = acc.displayName.prefix(1).uppercased()
-                        ZStack {
-                            Circle()
-                                .fill(LinearGradient(colors: [Color(hex: "3370FF"), Color(hex: "1F55E6")], startPoint: .topLeading, endPoint: .bottomTrailing))
-                                .frame(width: 18, height: 18)
-                            Text(initial.isEmpty ? "企" : String(initial))
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundColor(.white)
-                        }
-                    } else {
-                        Image(systemName: "person.fill")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .frame(width: 28, height: 28)
-                .background(
-                    ZStack {
-                        VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
-                        Color(nsColor: .controlBackgroundColor).opacity(0.55)
-                    }
-                    .clipShape(Circle())
-                )
-                .overlay(
-                    Circle()
-                        .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
-                )
-                .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 1.5)
+                        .clipShape(Circle())
+                    )
+                    .overlay(
+                        Circle()
+                            .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
+                    )
+                    .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 1.5)
             }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
+            .buttonStyle(.plain)
             .help("切换企业组织与已保存账号")
+            .popover(isPresented: $viewModel.showAccountPopover, arrowEdge: .bottom) {
+                accountSwitcherPopoverView
+            }
             
             // Right 2: Server / App Profile Circular Liquid Glass Button (matching sidebar style)
-            Menu {
-                Button {
-                    viewModel.showProfileSheet = true
-                } label: {
-                    Label("配置自建应用凭据 (App ID / Secret)", systemImage: "server.rack")
-                }
-                
-                Button {
-                    viewModel.showScopesSheet = true
-                } label: {
-                    Label("设置 OpenAPI 授权权限 (Scopes)", systemImage: "lock.shield")
-                }
-                
-                Divider()
-                
-                Button {
-                    viewModel.copyCallbackUrl(url: viewModel.draftRedirectUri)
-                } label: {
-                    Label("复制本地回调地址 (8989)", systemImage: "doc.on.doc")
-                }
+            Button {
+                viewModel.showServerPopover.toggle()
             } label: {
                 Image(systemName: "server.rack")
                     .font(.system(size: 11, weight: .semibold))
@@ -246,10 +180,156 @@ public struct LoginView: View {
                     )
                     .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 1.5)
             }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
+            .buttonStyle(.plain)
             .help("自建应用与服务配置 (Server Profile)")
+            .popover(isPresented: $viewModel.showServerPopover, arrowEdge: .bottom) {
+                serverConfigPopoverView
+            }
         }
+    }
+    
+    // MARK: - Account Switcher Popover View
+    
+    private var accountSwitcherPopoverView: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("已保存企业账号")
+                    .font(.system(size: 12, weight: .bold))
+                Spacer()
+                Text("\(configManager.accounts.count) 个可用")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+            }
+            .padding(.bottom, 2)
+            
+            Divider()
+            
+            if configManager.accounts.isEmpty {
+                Text("暂无已保存账号，请在下方选择方式登录")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .padding(.vertical, 8)
+            } else {
+                ScrollView {
+                    VStack(spacing: 4) {
+                        ForEach(configManager.accounts) { acc in
+                            let isActive = acc.id == configManager.activeAccountId
+                            HStack(spacing: 8) {
+                                AvatarView(urlString: acc.avatarUrl, name: acc.displayName, size: 24)
+                                
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(acc.displayName)
+                                        .font(.system(size: 11, weight: isActive ? .bold : .medium))
+                                        .foregroundColor(.primary)
+                                        .lineLimit(1)
+                                    Text(acc.email ?? acc.id)
+                                        .font(.system(size: 9))
+                                        .foregroundColor(.secondary)
+                                        .lineLimit(1)
+                                }
+                                
+                                Spacer()
+                                
+                                if isActive {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.green)
+                                } else {
+                                    Button {
+                                        appState.switchAccount(to: acc.id)
+                                        viewModel.showAccountPopover = false
+                                        AccountWindowManager.shared.closeWindow()
+                                    } label: {
+                                        Text("切换")
+                                            .font(.system(size: 10, weight: .semibold))
+                                            .foregroundColor(Color(hex: "3370FF"))
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(Color(hex: "3370FF").opacity(0.12))
+                                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(5)
+                            .background(isActive ? Color(hex: "3370FF").opacity(0.1) : Color.clear)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                        }
+                    }
+                }
+                .frame(maxHeight: 140)
+            }
+            
+            Divider()
+            
+            Button {
+                viewModel.showAccountPopover = false
+                appState.startAddingNewAccount()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "person.crop.circle.badge.plus")
+                        .foregroundColor(Color(hex: "3370FF"))
+                    Text("登录新账号 / 添加新企业")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(Color(hex: "3370FF"))
+                }
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(12)
+        .frame(width: 250)
+    }
+    
+    // MARK: - Server Config Popover View
+    
+    private var serverConfigPopoverView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                viewModel.showServerPopover = false
+                viewModel.showProfileSheet = true
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "server.rack")
+                        .foregroundColor(Color(hex: "3370FF"))
+                    Text("配置自建应用凭据 (App ID / Secret)")
+                        .font(.system(size: 11, weight: .medium))
+                }
+            }
+            .buttonStyle(.plain)
+            
+            Divider()
+            
+            Button {
+                viewModel.showServerPopover = false
+                viewModel.showScopesSheet = true
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "lock.shield")
+                        .foregroundColor(Color(hex: "3370FF"))
+                    Text("设置 OpenAPI 授权权限 (Scopes)")
+                        .font(.system(size: 11, weight: .medium))
+                }
+            }
+            .buttonStyle(.plain)
+            
+            Divider()
+            
+            Button {
+                viewModel.showServerPopover = false
+                viewModel.copyCallbackUrl(url: viewModel.draftRedirectUri)
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "doc.on.doc")
+                        .foregroundColor(.secondary)
+                    Text("复制本地回调地址 (8989)")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                }
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(12)
+        .frame(width: 260)
     }
     
     // MARK: - Main Login Body (3 Clean Action Buttons)
