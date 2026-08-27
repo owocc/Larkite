@@ -22,10 +22,24 @@ public final class ConfigManager: ObservableObject {
             if let secret = KeychainHelper.readString(key: appSecretKeychainKey) {
                 loaded.appSecret = secret
             }
+            
+            // Auto-merge any missing essential scopes from recommended list
+            var currentScopes = Set(loaded.scopes.components(separatedBy: " ").filter { !$0.isEmpty })
+            let recommended = FeishuScopes.recommendedList.map(\.key)
+            for key in recommended {
+                currentScopes.insert(key)
+            }
+            loaded.scopes = currentScopes.sorted().joined(separator: " ")
+            
             self.config = loaded
         } else {
             self.config = .default
         }
+    }
+    
+    public func resetToRecommendedScopes() {
+        self.config.scopes = FeishuScopes.recommendedString
+        saveConfig()
     }
     
     public func saveConfig() {
