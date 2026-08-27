@@ -54,6 +54,39 @@ public final class ChatDetailViewModel: ObservableObject {
         }
     }
     
+    public func pickAndSendFile(appState: AppState) {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.canCreateDirectories = false
+        panel.canChooseFiles = true
+        panel.prompt = "发送文件"
+        panel.message = "选择要发送到当前会话的文档或附件 (最大 30MB)"
+        
+        if panel.runModal() == .OK, let url = panel.url {
+            guard let data = try? Data(contentsOf: url) else { return }
+            Task {
+                do {
+                    try await appState.sendFile(fileData: data, fileName: url.lastPathComponent)
+                } catch {
+                    self.sendError = "发送文件失败: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+    
+    public func sendClipboard(appState: AppState) {
+        Task {
+            do {
+                let sent = try await appState.sendClipboardImage()
+                if !sent {
+                    self.sendError = "剪贴板中未检测到可发送的图片或文件"
+                }
+            } catch {
+                self.sendError = "发送剪贴板内容失败: \(error.localizedDescription)"
+            }
+        }
+    }
     
     public func copyToClipboard(text: String, field: String) {
         let pasteboard = NSPasteboard.general
@@ -352,22 +385,51 @@ public struct ChatDetailView: View {
                 .background(Color.red.opacity(0.08))
             }
             
-            HStack(spacing: 8) {
-                // Image Picker Attachment Button
+            HStack(spacing: 6) {
+                // Image Attachment Button
                 Button {
                     viewModel.pickAndSendImage(appState: appState)
                 } label: {
                     Image(systemName: "photo.on.rectangle.angled")
-                        .font(.system(size: 15))
+                        .font(.system(size: 14))
                         .foregroundColor(Color(hex: "3370FF"))
-                        .padding(7)
+                        .padding(6)
                         .background(Color(hex: "3370FF").opacity(0.12))
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .disabled(appState.isSendingMessage)
-                .help("选择本地图片发送")
+                .help("发送图片")
                 
+                // File Attachment Button
+                Button {
+                    viewModel.pickAndSendFile(appState: appState)
+                } label: {
+                    Image(systemName: "paperclip")
+                        .font(.system(size: 14))
+                        .foregroundColor(Color(hex: "3370FF"))
+                        .padding(6)
+                        .background(Color(hex: "3370FF").opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(appState.isSendingMessage)
+                .help("发送文件 / 附件 (PDF, Word, Excel, ZIP等)")
+                
+                // Paste Clipboard Button
+                Button {
+                    viewModel.sendClipboard(appState: appState)
+                } label: {
+                    Image(systemName: "doc.on.clipboard")
+                        .font(.system(size: 13))
+                        .foregroundColor(Color(hex: "3370FF"))
+                        .padding(6)
+                        .background(Color(hex: "3370FF").opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(appState.isSendingMessage)
+                .help("发送剪贴板中的截屏图片或文件")
                 TextField(
                     appState.replyingToMessage != nil ? "输入回复内容 (Enter 发送)..." : "发送消息 (Enter 发送)...",
                     text: $viewModel.inputMessageText
@@ -411,6 +473,10 @@ public struct ChatDetailView: View {
                 if ["png", "jpg", "jpeg", "webp", "gif", "bmp", "heic", "tiff"].contains(ext) {
                     Task { @MainActor in
                         try? await appState.sendImage(imageData: data, fileName: fileUrl.lastPathComponent)
+                    }
+                } else {
+                    Task { @MainActor in
+                        try? await appState.sendFile(fileData: data, fileName: fileUrl.lastPathComponent)
                     }
                 }
             }

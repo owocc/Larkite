@@ -758,6 +758,116 @@ public final class AppState: ObservableObject {
         }
     }
     
+    public func sendFile(fileData: Data, fileName: String) async throws {
+        guard !fileData.isEmpty, let chat = selectedChat, let token = session?.accessToken else { return }
+        
+        isSendingMessage = true
+        defer { isSendingMessage = false }
+        
+        let ext = (fileName as NSString).pathExtension.lowercased()
+        let fileType: String
+        switch ext {
+        case "mp4", "mov": fileType = "mp4"
+        case "pdf": fileType = "pdf"
+        case "doc", "docx": fileType = "doc"
+        case "xls", "xlsx": fileType = "xls"
+        case "ppt", "pptx": fileType = "ppt"
+        case "opus": fileType = "opus"
+        default: fileType = "stream"
+        }
+        
+        let fileKey = try await FeishuAPIClient.shared.uploadFile(
+            token: token,
+            fileData: fileData,
+            fileName: fileName,
+            fileType: fileType
+        )
+        
+        if let replyTarget = replyingToMessage {
+            let sentMsg = try await FeishuAPIClient.shared.replyFileMessage(
+                token: token,
+                messageId: replyTarget.messageId,
+                fileKey: fileKey
+            )
+            self.messages.append(sentMsg)
+            self.replyingToMessage = nil
+        } else {
+            let receiveIdType = chat.isP2P && !chat.chatId.hasPrefix("oc_") ? "open_id" : "chat_id"
+            let sentMsg = try await FeishuAPIClient.shared.sendFileMessage(
+                token: token,
+                receiveIdType: receiveIdType,
+                receiveId: chat.chatId,
+                fileKey: fileKey
+            )
+            self.messages.append(sentMsg)
+            self.lastMessages[chat.chatId] = sentMsg
+            if let realChatId = sentMsg.chatId {
+                self.lastMessages[realChatId] = sentMsg
+            }
+            
+            if let newChatId = sentMsg.chatId, newChatId.hasPrefix("oc_") && chat.chatId != newChatId {
+                let updatedChat = FeishuChatItem(
+                    chatId: newChatId,
+                    avatar: chat.avatar,
+                    name: chat.name,
+                    description: chat.description,
+                    ownerId: chat.ownerId ?? chat.chatId,
+                    ownerIdType: chat.ownerIdType ?? "open_id",
+                    external: chat.external,
+                    tenantKey: chat.tenantKey,
+                    chatStatus: chat.chatStatus,
+                    chatMode: "p2p",
+                    chatType: "private",
+                    chatTag: "p2p",
+                    userCount: "2",
+                    botCount: "0"
+                )
+                if let idx = self.chats.firstIndex(where: { $0.chatId == chat.chatId }) {
+                    self.chats[idx] = updatedChat
+                } else {
+                    self.chats.insert(updatedChat, at: 0)
+                }
+                self.selectedChat = updatedChat
+                ConfigManager.shared.saveP2PChats(self.chats)
+            }
+        }
+    }
+    
+    public func sendClipboardImage() async throws -> Bool {
+        let pasteboard = NSPasteboard.general
+        
+        if let pngData = pasteboard.data(forType: .png) {
+            let timestamp = Int(Date().timeIntervalSince1970)
+            try await sendImage(imageData: pngData, fileName: "截屏_\(timestamp).png")
+            return true
+        }
+        
+        if let tiffData = pasteboard.data(forType: .tiff),
+           let image = NSImage(data: tiffData),
+           let tiffRep = image.tiffRepresentation,
+           let bitmap = NSBitmapImageRep(data: tiffRep),
+           let pngData = bitmap.representation(using: .png, properties: [:]) {
+            let timestamp = Int(Date().timeIntervalSince1970)
+            try await sendImage(imageData: pngData, fileName: "截屏_\(timestamp).png")
+            return true
+        }
+        
+        if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL], let firstUrl = urls.first {
+            let ext = firstUrl.pathExtension.lowercased()
+            guard let fileData = try? Data(contentsOf: firstUrl) else { return false }
+            
+            if ["png", "jpg", "jpeg", "webp", "gif", "bmp", "heic", "tiff"].contains(ext) {
+                try await sendImage(imageData: fileData, fileName: firstUrl.lastPathComponent)
+                return true
+            } else {
+                try await sendFile(fileData: fileData, fileName: firstUrl.lastPathComponent)
+                return true
+            }
+        }
+        
+        return false
+    }
+    
     public func recallMessageItem(_ message: FeishuMessageItem) async throws {
         guard let token = session?.accessToken else { return }
         try await FeishuAPIClient.shared.recallMessage(token: token, messageId: message.messageId)

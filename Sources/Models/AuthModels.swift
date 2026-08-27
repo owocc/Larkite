@@ -57,6 +57,21 @@ public struct FeishuUploadImageData: Codable, Sendable {
     }
 }
 
+/// Feishu Upload File API Response
+public struct FeishuUploadFileResponse: Codable, Sendable {
+    public let code: Int
+    public let msg: String
+    public let data: FeishuUploadFileData?
+}
+
+public struct FeishuUploadFileData: Codable, Sendable {
+    public let fileKey: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case fileKey = "file_key"
+    }
+}
+
 public enum FeishuScopeCategory: String, CaseIterable, Identifiable, Sendable {
     case message = "消息与会话"
     case chat = "群组与群成员"

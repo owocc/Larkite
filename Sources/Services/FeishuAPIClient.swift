@@ -777,6 +777,151 @@ public final class FeishuAPIClient: Sendable {
         }
         return msg
     }
+    
+    // MARK: - File Upload & File Message
+    
+    public func uploadFile(
+        token: String,
+        fileData: Data,
+        fileName: String,
+        fileType: String = "stream",
+        durationMs: Int? = nil
+    ) async throws -> String {
+        guard let url = URL(string: "https://open.feishu.cn/open-apis/im/v1/files") else {
+            throw APIError.invalidURL
+        }
+        
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        var body = Data()
+        
+        // file_type
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"file_type\"\r\n\r\n".data(using: .utf8)!)
+        body.append("\(fileType)\r\n".data(using: .utf8)!)
+        
+        // file_name
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"file_name\"\r\n\r\n".data(using: .utf8)!)
+        body.append("\(fileName)\r\n".data(using: .utf8)!)
+        
+        // duration
+        if let duration = durationMs {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"duration\"\r\n\r\n".data(using: .utf8)!)
+            body.append("\(duration)\r\n".data(using: .utf8)!)
+        }
+        
+        // file
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(fileName)\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: application/octet-stream\r\n\r\n".data(using: .utf8)!)
+        body.append(fileData)
+        body.append("\r\n".data(using: .utf8)!)
+        
+        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+        request.httpBody = body
+        
+        let (data, response) = try await session.data(for: request)
+        guard (response as? HTTPURLResponse) != nil else {
+            throw APIError.invalidResponse
+        }
+        
+        let decoded = try JSONDecoder().decode(FeishuUploadFileResponse.self, from: data)
+        if decoded.code != 0 {
+            throw APIError.feishuError(code: decoded.code, msg: decoded.msg)
+        }
+        
+        guard let key = decoded.data?.fileKey else {
+            throw APIError.invalidResponse
+        }
+        
+        return key
+    }
+    
+    public func sendFileMessage(
+        token: String,
+        receiveIdType: String,
+        receiveId: String,
+        fileKey: String
+    ) async throws -> FeishuMessageItem {
+        var components = URLComponents(string: "https://open.feishu.cn/open-apis/im/v1/messages")
+        components?.queryItems = [
+            URLQueryItem(name: "receive_id_type", value: receiveIdType)
+        ]
+        
+        guard let url = components?.url else {
+            throw APIError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        let contentString = "{\"file_key\":\"\(fileKey)\"}"
+        let body: [String: Any] = [
+            "receive_id": receiveId,
+            "msg_type": "file",
+            "content": contentString
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        
+        let (data, response) = try await session.data(for: request)
+        guard (response as? HTTPURLResponse) != nil else {
+            throw APIError.invalidResponse
+        }
+        
+        let decoded = try JSONDecoder().decode(FeishuSingleMessageResponse.self, from: data)
+        if decoded.code != 0 {
+            throw APIError.feishuError(code: decoded.code, msg: decoded.msg)
+        }
+        guard let msg = decoded.data else {
+            throw APIError.invalidResponse
+        }
+        return msg
+    }
+    
+    public func replyFileMessage(
+        token: String,
+        messageId: String,
+        fileKey: String
+    ) async throws -> FeishuMessageItem {
+        let encodedId = messageId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? messageId
+        guard let url = URL(string: "https://open.feishu.cn/open-apis/im/v1/messages/\(encodedId)/reply") else {
+            throw APIError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        let contentString = "{\"file_key\":\"\(fileKey)\"}"
+        let body: [String: Any] = [
+            "msg_type": "file",
+            "content": contentString
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        
+        let (data, response) = try await session.data(for: request)
+        guard (response as? HTTPURLResponse) != nil else {
+            throw APIError.invalidResponse
+        }
+        
+        let decoded = try JSONDecoder().decode(FeishuSingleMessageResponse.self, from: data)
+        if decoded.code != 0 {
+            throw APIError.feishuError(code: decoded.code, msg: decoded.msg)
+        }
+        guard let msg = decoded.data else {
+            throw APIError.invalidResponse
+        }
+        return msg
+    }
     // MARK: - Send / Reply / Recall / Reactions
     
     public func sendMessage(
