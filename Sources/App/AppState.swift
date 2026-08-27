@@ -411,6 +411,9 @@ public final class AppState: ObservableObject {
     
     public func cancelAddingAccount() {
         self.isAddingAccount = false
+        if self.session == nil, let activeId = ConfigManager.shared.activeAccountId {
+            self.switchAccount(to: activeId)
+        }
     }
     
     public func switchAccount(to accountId: String) {

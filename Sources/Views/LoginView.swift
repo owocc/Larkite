@@ -70,12 +70,37 @@ public struct LoginView: View {
             
             ScrollView {
                 VStack(spacing: 20) {
+                    // Back to active account button (if adding new account or active account exists)
+                    if appState.isAddingAccount || configManager.activeAccountId != nil {
+                        HStack {
+                            Button {
+                                appState.cancelAddingAccount()
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "arrow.left")
+                                        .font(.system(size: 11, weight: .bold))
+                                    Text("返回并继续使用当前账号")
+                                        .font(.system(size: 12, weight: .semibold))
+                                }
+                                .foregroundColor(Color(hex: "3370FF"))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Color(hex: "3370FF").opacity(0.12))
+                                .clipShape(Capsule())
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            
+                            Spacer()
+                        }
+                        .frame(maxWidth: 520)
+                    }
+                    
                     // Existing Accounts Switcher Banner (if accounts exist)
                     if !configManager.accounts.isEmpty {
                         existingAccountsBanner
                             .frame(maxWidth: 520)
                     }
-                    
                     // Header Brand
                     headerView
                     
@@ -148,47 +173,65 @@ public struct LoginView: View {
     }
     
     private var existingAccountsBanner: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "person.2.fill")
-                .foregroundColor(Color(hex: "3370FF"))
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: "person.2.fill")
+                    .foregroundColor(Color(hex: "3370FF"))
+                Text("已保存的飞书账号 (点击直接进入)")
+                    .font(.system(size: 12, weight: .bold))
+                Spacer()
+                Text("\(configManager.accounts.count) 个可用")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+            }
             
-            Text("已保存 \(configManager.accounts.count) 个飞书账号")
-                .font(.system(size: 12, weight: .medium))
-            
-            Spacer()
-            
-            Menu {
-                ForEach(configManager.accounts) { acc in
+            ForEach(configManager.accounts) { acc in
+                let isActive = acc.id == configManager.activeAccountId
+                HStack(spacing: 10) {
+                    AvatarView(urlString: acc.avatarUrl, name: acc.displayName, size: 30)
+                    
+                    VStack(alignment: .leading, spacing: 1) {
+                        HStack(spacing: 4) {
+                            Text(acc.displayName)
+                                .font(.system(size: 12, weight: .semibold))
+                            if isActive {
+                                StatusBadge("当前使用", color: .green)
+                            }
+                        }
+                        Text(acc.email ?? acc.id)
+                            .font(.system(size: 9))
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
+                    
+                    Spacer()
+                    
                     Button {
                         appState.switchAccount(to: acc.id)
                     } label: {
-                        HStack {
-                            Text(acc.displayName)
-                            if acc.id == configManager.activeAccountId {
-                                Image(systemName: "checkmark")
-                            }
+                        HStack(spacing: 3) {
+                            Text(isActive ? "继续使用" : "直接进入")
+                            Image(systemName: "arrow.right")
+                                .font(.system(size: 9))
                         }
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(Color(hex: "3370FF"))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Color(hex: "3370FF").opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
                 }
-            } label: {
-                HStack(spacing: 4) {
-                    Text("切换已有账号")
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 9))
-                }
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(Color(hex: "3370FF"))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color(hex: "3370FF").opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .padding(6)
+                .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
             }
-            .menuStyle(.borderlessButton)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.6))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .padding(12)
+        .background(Color(nsColor: .quaternaryLabelColor).opacity(0.18))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
     
     private var headerView: some View {
