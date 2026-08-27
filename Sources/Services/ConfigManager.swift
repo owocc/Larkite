@@ -17,12 +17,42 @@ public enum ThemeMode: String, CaseIterable, Identifiable, Codable, Sendable {
     }
 }
 
+public enum AccentColorChoice: String, CaseIterable, Identifiable, Codable, Sendable {
+    case system = "系统主色"
+    case blue = "飞书蓝"
+    case green = "消息绿"
+    case purple = "极光紫"
+    case orange = "活力橙"
+    case pink = "珊瑚粉"
+    case cyan = "青碧蓝"
+    
+    public var id: String { rawValue }
+    
+    public var color: Color {
+        switch self {
+        case .system:
+            return Color.accentColor
+        case .blue:
+            return Color(hex: "3370FF")
+        case .green:
+            return Color(hex: "34C759")
+        case .purple:
+            return Color(hex: "AF52DE")
+        case .orange:
+            return Color(hex: "FF9500")
+        case .pink:
+            return Color(hex: "FF2D55")
+        case .cyan:
+            return Color(hex: "32ADE6")
+        }
+    }
+}
 @MainActor
 public final class ConfigManager: ObservableObject {
     public static let shared = ConfigManager()
     
     private let themeModeKey = "LarkNative_ThemeMode"
-    
+    private let accentColorKey = "LarkNative_AccentColor"
     private let userDefaultsKey = "LarkNative_AppConfig"
     private let sessionKey = "LarkNative_UserSession"
     private let accountsKey = "LarkNative_Accounts"
@@ -43,8 +73,13 @@ public final class ConfigManager: ObservableObject {
             UserDefaults.standard.set(themeMode.rawValue, forKey: themeModeKey)
         }
     }
+    @Published public var accentColorChoice: AccentColorChoice = .system {
+        didSet {
+            UserDefaults.standard.set(accentColorChoice.rawValue, forKey: accentColorKey)
+        }
+    }
     private init() {
-        // 0. Load theme mode
+        // 0. Load theme mode & accent color
         if let raw = UserDefaults.standard.string(forKey: themeModeKey),
            let savedTheme = ThemeMode(rawValue: raw) {
             self.themeMode = savedTheme
@@ -52,6 +87,12 @@ public final class ConfigManager: ObservableObject {
             self.themeMode = .system
         }
         
+        if let rawAccent = UserDefaults.standard.string(forKey: accentColorKey),
+           let savedAccent = AccentColorChoice(rawValue: rawAccent) {
+            self.accentColorChoice = savedAccent
+        } else {
+            self.accentColorChoice = .system
+        }
         // 1. Load active account ID
         let savedActiveId = UserDefaults.standard.string(forKey: activeAccountIdKey)
         self.activeAccountId = savedActiveId

@@ -31,11 +31,21 @@ public struct MessageBubbleView: View {
     let isCurrentUser: Bool
     
     @ObservedObject var appState: AppState = .shared
+    @ObservedObject var configManager: ConfigManager = .shared
     @StateObject private var viewModel = MessageBubbleViewModel()
     
     public init(message: FeishuMessageItem, isCurrentUser: Bool = false) {
         self.message = message
         self.isCurrentUser = isCurrentUser
+    }
+    
+    private var isSelfMessage: Bool {
+        if isCurrentUser { return true }
+        guard let sender = message.sender else { return false }
+        if let current = appState.session?.user {
+            return sender.id == current.openId || sender.id == current.userId
+        }
+        return false
     }
     
     public var body: some View {
@@ -45,14 +55,63 @@ public struct MessageBubbleView: View {
             systemMessageView(text: text)
         } else if case .recalled = content {
             recalledMessageView
+        } else if isSelfMessage {
+            myMessageRow(content: content)
         } else {
-            standardMessageRow(content: content)
+            otherMessageRow(content: content)
         }
     }
     
-    private func standardMessageRow(content: ParsedMessageContent) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            // Sender Avatar (Click to inspect profile)
+    // MARK: - My Messages (Right Aligned, Accent Colored)
+    
+    private func myMessageRow(content: ParsedMessageContent) -> some View {
+        HStack(alignment: .bottom, spacing: 8) {
+            Spacer(minLength: 48)
+            
+            VStack(alignment: .trailing, spacing: 4) {
+                // Time & Status Header
+                HStack(spacing: 6) {
+                    if let status = viewModel.actionMessage {
+                        Text(status)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(configManager.accentColorChoice.color)
+                            .transition(.opacity)
+                    }
+                    
+                    Text(message.formattedTime)
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                }
+                .frame(height: 14)
+                
+                // Bubble Content
+                bubbleContent(content: content, isSelf: true)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 4)
+        .frame(minHeight: 40, alignment: .trailing)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(viewModel.isHovered ? Color(nsColor: .quaternaryLabelColor).opacity(0.12) : Color.clear)
+        )
+        .overlay(alignment: .topTrailing) {
+            hoverQuickActions
+                .padding(.trailing, 16)
+                .padding(.top, 2)
+                .opacity(viewModel.isHovered ? 1.0 : 0.0)
+                .animation(.easeInOut(duration: 0.12), value: viewModel.isHovered)
+        }
+        .onHover { hovering in
+            viewModel.isHovered = hovering
+        }
+    }
+    
+    // MARK: - Other's Messages (Left Aligned, Frosted Background)
+    
+    private func otherMessageRow(content: ParsedMessageContent) -> some View {
+        HStack(alignment: .bottom, spacing: 10) {
+            // Sender Avatar
             Button {
                 if let senderId = message.sender?.id {
                     Task {
@@ -67,15 +126,15 @@ public struct MessageBubbleView: View {
                 AvatarView(
                     urlString: senderAvatarUrl,
                     name: senderDisplayName,
-                    size: 34
+                    size: 32
                 )
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("点击查看「\(senderDisplayName)」详细资料")
+            .help("查看「\(senderDisplayName)」详细资料")
             
             VStack(alignment: .leading, spacing: 4) {
-                // Header (Sender Name, Bot Badge, Time) - Fixed height to avoid jitter
+                // Sender Name, Bot Badge, Time
                 HStack(spacing: 6) {
                     Text(senderDisplayName)
                         .font(.system(size: 12, weight: .semibold))
@@ -96,26 +155,25 @@ public struct MessageBubbleView: View {
                             .transition(.opacity)
                     }
                 }
-                .frame(height: 16)
+                .frame(height: 14)
                 
-                // Content Bubble
-                bubbleContent(content: content)
+                // Bubble Content
+                bubbleContent(content: content, isSelf: false)
             }
             
-            Spacer(minLength: 40)
+            Spacer(minLength: 48)
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 6)
-        .frame(minHeight: 48, alignment: .leading)
+        .padding(.vertical, 4)
+        .frame(minHeight: 40, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(viewModel.isHovered ? Color(nsColor: .quaternaryLabelColor).opacity(0.15) : Color.clear)
+                .fill(viewModel.isHovered ? Color(nsColor: .quaternaryLabelColor).opacity(0.12) : Color.clear)
         )
         .overlay(alignment: .topTrailing) {
-            // Floating Hover Actions Overlay (zero layout shift, fixed positioning)
             hoverQuickActions
                 .padding(.trailing, 16)
-                .padding(.top, 4)
+                .padding(.top, 2)
                 .opacity(viewModel.isHovered ? 1.0 : 0.0)
                 .animation(.easeInOut(duration: 0.12), value: viewModel.isHovered)
         }
@@ -123,6 +181,8 @@ public struct MessageBubbleView: View {
             viewModel.isHovered = hovering
         }
     }
+    
+    // MARK: - Floating Quick Actions Menu
     
     private var hoverQuickActions: some View {
         HStack(spacing: 4) {
@@ -207,7 +267,7 @@ public struct MessageBubbleView: View {
         .padding(.vertical, 2)
         .background(
             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.92))
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.95))
                 .shadow(color: Color.black.opacity(0.12), radius: 6, x: 0, y: 2)
         )
         .overlay(
@@ -216,20 +276,30 @@ public struct MessageBubbleView: View {
         )
     }
     
+    // MARK: - Bubble Content Dispatcher
+    
     @ViewBuilder
-    private func bubbleContent(content: ParsedMessageContent) -> some View {
+    private func bubbleContent(content: ParsedMessageContent, isSelf: Bool) -> some View {
         switch content {
         case .text(let text):
             Text(text)
-                .font(.system(size: 13))
-                .foregroundColor(.primary)
+                .font(.system(size: 13.5))
+                .foregroundColor(isSelf ? .white : .primary)
                 .textSelection(.enabled)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(bubbleBackground)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .background(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(isSelf ? configManager.accentColorChoice.color : Color(nsColor: .controlBackgroundColor).opacity(0.85))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(isSelf ? Color.white.opacity(0.15) : Color(nsColor: .separatorColor).opacity(0.35), lineWidth: 1)
+                )
+                .shadow(color: isSelf ? configManager.accentColorChoice.color.opacity(0.2) : Color.black.opacity(0.04), radius: 6, x: 0, y: 2)
                 
         case .image(let imageKey):
+            // Apple Messages style: Frameless edge-to-edge image attachment
             MessageImageView(messageId: message.messageId, imageKey: imageKey)
                 .contextMenu {
                     Button("复制 Message ID") {
@@ -260,19 +330,26 @@ public struct MessageBubbleView: View {
             HStack(spacing: 8) {
                 Image(systemName: "waveform")
                     .font(.system(size: 16))
-                    .foregroundColor(Color(hex: "3370FF"))
+                    .foregroundColor(isSelf ? .white : Color(hex: "3370FF"))
                 Text("语音消息")
                     .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(isSelf ? .white : .primary)
                 if let ms = durationMs {
                     Text("\(ms / 1000)s")
                         .font(.system(size: 11))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(isSelf ? .white.opacity(0.8) : .secondary)
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(bubbleBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 9)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(isSelf ? configManager.accentColorChoice.color : Color(nsColor: .controlBackgroundColor).opacity(0.85))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(isSelf ? Color.white.opacity(0.15) : Color(nsColor: .separatorColor).opacity(0.35), lineWidth: 1)
+            )
             
         case .media(let fileKey, let imageKey, let fileName, let durationSec):
             MessageMediaView(
@@ -282,25 +359,28 @@ public struct MessageBubbleView: View {
                 fileName: fileName,
                 durationSec: durationSec
             )
-            .padding(8)
-            .background(bubbleBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             
         case .post(let title, let segments):
             VStack(alignment: .leading, spacing: 6) {
                 if let title = title, !title.isEmpty {
                     Text(title)
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(.primary)
+                        .foregroundColor(isSelf ? .white : .primary)
                 }
                 
                 ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
-                    renderPostSegment(segment)
+                    renderPostSegment(segment, isSelf: isSelf)
                 }
             }
-            .padding(12)
-            .background(bubbleBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(isSelf ? configManager.accentColorChoice.color : Color(nsColor: .controlBackgroundColor).opacity(0.85))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(isSelf ? Color.white.opacity(0.15) : Color(nsColor: .separatorColor).opacity(0.35), lineWidth: 1)
+            )
             
         case .card(let rawJson):
             VStack(alignment: .leading, spacing: 6) {
@@ -317,8 +397,14 @@ public struct MessageBubbleView: View {
                     .foregroundColor(.secondary)
             }
             .padding(12)
-            .background(bubbleBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.85))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(Color(nsColor: .separatorColor).opacity(0.35), lineWidth: 1)
+            )
             
         case .shareChat(let chatId):
             HStack(spacing: 8) {
@@ -328,49 +414,64 @@ public struct MessageBubbleView: View {
                     .font(.system(size: 12, weight: .medium))
             }
             .padding(10)
-            .background(bubbleBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.85))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(Color(nsColor: .separatorColor).opacity(0.35), lineWidth: 1)
+            )
             
         case .rawText(let raw):
             Text(raw)
                 .font(.system(size: 12))
                 .padding(10)
-                .background(bubbleBackground)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color(nsColor: .controlBackgroundColor).opacity(0.85))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color(nsColor: .separatorColor).opacity(0.35), lineWidth: 1)
+                )
                 
         default:
             Text("不支持的消息类型: \(message.msgType)")
                 .font(.system(size: 11))
                 .foregroundColor(.secondary)
                 .padding(8)
-                .background(bubbleBackground)
+                .background(Color(nsColor: .controlBackgroundColor).opacity(0.6))
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
     }
     
     @ViewBuilder
-    private func renderPostSegment(_ segment: PostSegment) -> some View {
+    private func renderPostSegment(_ segment: PostSegment, isSelf: Bool) -> some View {
         switch segment {
         case .text(let text):
             Text(text)
                 .font(.system(size: 13))
+                .foregroundColor(isSelf ? .white : .primary)
                 .textSelection(.enabled)
         case .link(let text, let url):
             if let linkUrl = URL(string: url) {
                 Link(text, destination: linkUrl)
                     .font(.system(size: 13))
+                    .foregroundColor(isSelf ? .white.opacity(0.9) : Color(hex: "3370FF"))
+                    .underline()
             } else {
                 Text(text)
                     .font(.system(size: 13))
-                    .foregroundColor(Color(hex: "3370FF"))
+                    .foregroundColor(isSelf ? .white.opacity(0.9) : Color(hex: "3370FF"))
             }
         case .mention(let name):
             Text("@\(name)")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(Color(hex: "3370FF"))
+                .foregroundColor(isSelf ? .white : Color(hex: "3370FF"))
                 .padding(.horizontal, 4)
                 .padding(.vertical, 1)
-                .background(Color(hex: "3370FF").opacity(0.12))
+                .background(isSelf ? Color.white.opacity(0.25) : Color(hex: "3370FF").opacity(0.12))
                 .clipShape(RoundedRectangle(cornerRadius: 4))
         case .image(let imageKey):
             MessageImageView(messageId: message.messageId, imageKey: imageKey)
@@ -411,15 +512,6 @@ public struct MessageBubbleView: View {
             Spacer()
         }
         .padding(.vertical, 4)
-    }
-    
-    private var bubbleBackground: some View {
-        RoundedRectangle(cornerRadius: 12, style: .continuous)
-            .fill(Color(nsColor: .controlBackgroundColor).opacity(0.85))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(Color(nsColor: .separatorColor).opacity(0.35), lineWidth: 1)
-            )
     }
     
     private var senderDisplayName: String {

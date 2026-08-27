@@ -133,6 +133,48 @@ public struct SettingsView: View {
                     .pickerStyle(.segmented)
                     .frame(width: 260)
                 }
+                
+                Divider()
+                
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("我的消息气泡主色 (Accent Color)")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        StatusBadge(configManager.accentColorChoice.rawValue, color: configManager.accentColorChoice.color)
+                    }
+                    
+                    HStack(spacing: 12) {
+                        ForEach(AccentColorChoice.allCases) { choice in
+                            Button {
+                                configManager.accentColorChoice = choice
+                                viewModel.triggerSavedToast()
+                            } label: {
+                                ZStack {
+                                    Circle()
+                                        .fill(choice.color)
+                                        .frame(width: 24, height: 24)
+                                        .shadow(color: choice.color.opacity(0.35), radius: 4, x: 0, y: 2)
+                                    
+                                    if configManager.accentColorChoice == choice {
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 11, weight: .bold))
+                                            .foregroundColor(.white)
+                                    }
+                                }
+                                .overlay(
+                                    Circle()
+                                        .strokeBorder(Color.white.opacity(0.35), lineWidth: 1.5)
+                                )
+                                .scaleEffect(configManager.accentColorChoice == choice ? 1.1 : 1.0)
+                            }
+                            .buttonStyle(.plain)
+                            .help(choice.rawValue)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
             }
         }
     }

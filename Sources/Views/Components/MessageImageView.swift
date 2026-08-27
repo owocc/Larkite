@@ -125,11 +125,12 @@ public struct MessageImageView: View {
                             .resizable()
                             .scaledToFit()
                             .frame(maxWidth: 340, maxHeight: 280)
-                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .stroke(Color(nsColor: .separatorColor).opacity(0.3), lineWidth: 1)
                             )
+                            .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 3)
                             .contentShape(Rectangle())
                             .onTapGesture {
                                 viewModel.previewInSystem(messageId: messageId, imageKey: imageKey)
