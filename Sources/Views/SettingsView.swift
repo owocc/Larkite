@@ -119,10 +119,10 @@ public struct SettingsView: View {
     
     public var body: some View {
         VStack(spacing: 0) {
-            // Centered Native Preferences Tabs (Seamless, No Dividers)
+            // Centered Native Preferences Tabs (Seamless, Transparent Header)
             topTabBar
                 .padding(.horizontal, 16)
-                .padding(.top, 10)
+                .padding(.top, 28)
                 .padding(.bottom, 10)
             
             // Tab Content
@@ -342,18 +342,15 @@ public struct SettingsView: View {
                 .pickerStyle(.segmented)
             }
             
-            Divider()
-            
             // Accent Color
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
-                    Text("自我消息气泡强调色")
+                    Text("强调色")
                         .font(.system(size: 12, weight: .bold))
                         .foregroundColor(.secondary)
                     Spacer()
                     StatusBadge(configManager.accentColorChoice.rawValue, color: configManager.accentColorChoice.color)
                 }
-                
                 HStack(spacing: 10) {
                     ForEach(AccentColorChoice.allCases) { choice in
                         Button {
@@ -380,9 +377,6 @@ public struct SettingsView: View {
                     }
                 }
             }
-            
-            Divider()
-            
             // Live Message Bubble Preview
             VStack(alignment: .leading, spacing: 8) {
                 Text("消息气泡外观实时预览")

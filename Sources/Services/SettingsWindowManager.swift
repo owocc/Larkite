@@ -23,14 +23,13 @@ public final class SettingsWindowManager: NSObject, NSWindowDelegate {
         
         let newWindow = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 520, height: 560),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
         newWindow.title = "设置"
         newWindow.titleVisibility = .visible
-        newWindow.titlebarAppearsTransparent = false
-        newWindow.minSize = NSSize(width: 480, height: 460)
+        newWindow.titlebarAppearsTransparent = true
         newWindow.center()
         newWindow.contentViewController = hostingController
         newWindow.delegate = self
