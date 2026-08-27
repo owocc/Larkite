@@ -10,9 +10,9 @@ public final class ChatDetailViewModel: ObservableObject {
     @Published public var copiedField: String? = nil
     @Published public var inputMessageText: String = ""
     @Published public var isEditorExpanded: Bool = false
+    @Published public var editorContentHeight: CGFloat = 24
     @Published public var sendError: String? = nil
     @Published public var memberSearchQuery: String = ""
-    public init() {}
     
     public func sendMessage(appState: AppState) async {
         let clean = inputMessageText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -297,8 +297,9 @@ public struct ChatDetailView: View {
                             }
                             
                             // Bottom breathing spacer dynamically adapting to floating dock expansion
+                            // Bottom breathing spacer dynamically adapting to floating dock expansion
                             Color.clear
-                                .frame(height: viewModel.isEditorExpanded ? 310 : (viewModel.inputMessageText.count > 40 || viewModel.inputMessageText.contains("\n") ? 120 : 70))
+                                .frame(height: viewModel.isEditorExpanded ? 340 : min(180, max(68, viewModel.editorContentHeight + 44)))
                         }
                         .padding(.vertical, 8)
                     }
@@ -401,72 +402,73 @@ public struct ChatDetailView: View {
     // MARK: - Liquid Glass Floating Input Dock (Telegram macOS Style)
     
     private var messageInputBar: some View {
-        VStack(spacing: 6) {
-            // Floating Reply Bar
-            if let replying = appState.replyingToMessage {
-                HStack(spacing: 8) {
-                    Image(systemName: "arrowshape.turn.up.left.fill")
-                        .font(.system(size: 11))
-                        .foregroundColor(configManager.accentColorChoice.color)
-                    Text("正在回复: \(replying.parsedContent.previewSummary)")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                    
-                    Spacer()
-                    
-                    Button {
-                        appState.replyingToMessage = nil
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 12))
-                            .foregroundColor(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 6)
-                .background(
-                    ZStack {
-                        VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
-                        Color(nsColor: .controlBackgroundColor).opacity(0.75)
-                    }
-                    .clipShape(Capsule())
-                )
-                .overlay(
-                    Capsule()
-                        .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
-                )
-                .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 3)
-                .padding(.horizontal, 16)
-            }
+        GeometryReader { geo in
+            let windowHalfHeight = max(220, min(400, geo.size.height > 0 ? geo.size.height * 0.5 : 280))
+            let dynamicEditorHeight: CGFloat = viewModel.isEditorExpanded ? windowHalfHeight : min(120, max(34, viewModel.editorContentHeight + 8))
             
-            // Error toast if any
-            if let error = viewModel.sendError {
-                HStack(spacing: 6) {
-                    Image(systemName: "exclamationmark.circle.fill")
-                        .foregroundColor(.red)
-                    Text("发送失败: \(error)")
-                        .font(.system(size: 11))
-                        .foregroundColor(.red)
-                        .lineLimit(1)
-                    Spacer()
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 5)
-                .background(Color.red.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .padding(.horizontal, 16)
-            }
-            
-            // Telegram macOS Style Floating Input Dock Bar
-            GeometryReader { geo in
-                let isLongText = viewModel.inputMessageText.count > 40 || viewModel.inputMessageText.contains("\n")
-                let windowHalfHeight: CGFloat = max(200, min(400, geo.size.height > 0 ? geo.size.height * 0.5 : 260))
-                let dynamicHeight: CGFloat = viewModel.isEditorExpanded ? windowHalfHeight : (isLongText ? 76 : 36)
+            VStack(spacing: 6) {
+                Spacer()
                 
+                // Floating Reply Bar
+                if let replying = appState.replyingToMessage {
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrowshape.turn.up.left.fill")
+                            .font(.system(size: 11))
+                            .foregroundColor(configManager.accentColorChoice.color)
+                        Text("正在回复: \(replying.parsedContent.previewSummary)")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                        
+                        Spacer()
+                        
+                        Button {
+                            appState.replyingToMessage = nil
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background(
+                        ZStack {
+                            VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
+                            Color(nsColor: .controlBackgroundColor).opacity(0.75)
+                        }
+                        .clipShape(Capsule())
+                    )
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
+                    )
+                    .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 3)
+                    .padding(.horizontal, 16)
+                }
+                
+                // Error toast if any
+                if let error = viewModel.sendError {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.circle.fill")
+                            .foregroundColor(.red)
+                        Text("发送失败: \(error)")
+                            .font(.system(size: 11))
+                            .foregroundColor(.red)
+                            .lineLimit(1)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 5)
+                    .background(Color.red.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .padding(.horizontal, 16)
+                }
+                
+                // Bottom Dock: Left Attachment (Fixed Bottom) + Middle Expanding Editor + Right Send Button (Fixed Bottom)
                 HStack(alignment: .bottom, spacing: 8) {
-                    // Left: Attachment Button 📎 (Liquid Glass Circle Button, matching reference image b3c33f8aba9d8c44.png)
+                    // Left: Attachment Liquid Glass Button (34x34 Circle, Fixed Bottom)
                     Menu {
                         Button {
                             viewModel.pickAndSendImage(appState: appState)
@@ -491,7 +493,7 @@ public struct ChatDetailView: View {
                         Image(systemName: "paperclip")
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(.secondary)
-                            .frame(width: 36, height: 36)
+                            .frame(width: 34, height: 34)
                             .background(
                                 ZStack {
                                     VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
@@ -509,12 +511,13 @@ public struct ChatDetailView: View {
                     .menuIndicator(.hidden)
                     .help("添加附件 (图片、视频、文件)")
                     
-                    // Middle: Auto-Expanding Liquid Glass Message Field
-                    ZStack(alignment: .topTrailing) {
+                    // Middle: Auto-Expanding Liquid Glass Message Container
+                    ZStack(alignment: .bottomTrailing) {
                         PasteableMessageField(
                             text: $viewModel.inputMessageText,
                             placeholder: appState.replyingToMessage != nil ? "输入回复内容 (Enter 发送, Shift+Enter 换行)..." : "输入消息 (Enter 发送, Shift+Enter 换行)...",
                             isExpanded: viewModel.isEditorExpanded,
+                            contentHeight: $viewModel.editorContentHeight,
                             onCommit: {
                                 Task {
                                     await viewModel.sendMessage(appState: appState)
@@ -540,14 +543,14 @@ public struct ChatDetailView: View {
                             }
                         )
                         .padding(.leading, 12)
-                        .padding(.trailing, 32)
+                        .padding(.trailing, 34)
                         .padding(.vertical, 4)
-                        .frame(height: dynamicHeight)
+                        .frame(height: dynamicEditorHeight)
                         
-                        // Floating Controls inside Input Dock (Expand Top-Right & Emoji Bottom-Right)
+                        // Action Buttons inside Editor: Expand (Top-Right) & Emoji (Bottom-Right) (34x34, Flat, No Liquid Glass)
                         VStack {
-                            // Expand/Collapse Button (Top-Right of input field when text is long or expanded)
-                            if isLongText || viewModel.isEditorExpanded {
+                            // Top-Right: Expand / Collapse Button (34x34 hit target, plain flat icon)
+                            if viewModel.editorContentHeight > 40 || viewModel.isEditorExpanded {
                                 HStack {
                                     Spacer()
                                     Button {
@@ -556,9 +559,10 @@ public struct ChatDetailView: View {
                                         }
                                     } label: {
                                         Image(systemName: viewModel.isEditorExpanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
-                                            .font(.system(size: 11, weight: .semibold))
+                                            .font(.system(size: 12, weight: .semibold))
                                             .foregroundColor(.secondary)
-                                            .padding(6)
+                                            .frame(width: 34, height: 34)
+                                            .contentShape(Rectangle())
                                     }
                                     .buttonStyle(.plain)
                                     .help(viewModel.isEditorExpanded ? "收起输入框" : "展开大书写空间 (窗口1/2)")
@@ -567,37 +571,38 @@ public struct ChatDetailView: View {
                             
                             Spacer()
                             
-                            // Native macOS Emoji Palette Invoker Button (Bottom-Right of input field)
+                            // Bottom-Right: Native Emoji Palette Button (34x34 hit target, plain flat icon)
                             HStack {
                                 Spacer()
                                 Button {
                                     NSApp.orderFrontCharacterPalette(nil)
                                 } label: {
                                     Image(systemName: "face.smiling")
-                                        .font(.system(size: 15, weight: .medium))
+                                        .font(.system(size: 16, weight: .medium))
                                         .foregroundColor(.secondary)
-                                        .padding(6)
+                                        .frame(width: 34, height: 34)
+                                        .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
                                 .help("唤起 macOS 原生表情面板 (Cmd+Ctrl+Space)")
                             }
                         }
-                        .frame(height: dynamicHeight)
+                        .frame(height: dynamicEditorHeight)
                     }
                     .background(
                         ZStack {
                             VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
                             Color(nsColor: .controlBackgroundColor).opacity(0.65)
                         }
-                        .clipShape(RoundedRectangle(cornerRadius: viewModel.isEditorExpanded ? 18 : 20, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: viewModel.isEditorExpanded ? 18 : 18, style: .continuous))
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: viewModel.isEditorExpanded ? 18 : 20, style: .continuous)
+                        RoundedRectangle(cornerRadius: viewModel.isEditorExpanded ? 18 : 18, style: .continuous)
                             .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1.2)
                     )
                     .shadow(color: Color.black.opacity(0.12), radius: 10, x: 0, y: 4)
                     
-                    // Right: Fixed Send Button 🚀
+                    // Right: Send Button (34x34 Circle Liquid Glass, Fixed Bottom)
                     LiquidGlassSendButton(
                         isLoading: appState.isSendingMessage,
                         isDisabled: viewModel.inputMessageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -610,18 +615,10 @@ public struct ChatDetailView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 12)
             }
-            .frame(height: {
-                let isLongText = viewModel.inputMessageText.count > 40 || viewModel.inputMessageText.contains("\n")
-                if viewModel.isEditorExpanded {
-                    return 280
-                } else if isLongText {
-                    return 88
-                } else {
-                    return 48
-                }
-            }())
+            .animation(.spring(response: 0.32, dampingFraction: 0.82), value: viewModel.isEditorExpanded)
+            .animation(.spring(response: 0.32, dampingFraction: 0.82), value: viewModel.editorContentHeight)
         }
-        .animation(.spring(response: 0.32, dampingFraction: 0.82), value: viewModel.isEditorExpanded)
+        .frame(height: viewModel.isEditorExpanded ? 320 : min(160, max(52, viewModel.editorContentHeight + 28)))
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
             guard let provider = providers.first else { return false }
             _ = provider.loadObject(ofClass: URL.self) { url, _ in
@@ -640,7 +637,6 @@ public struct ChatDetailView: View {
             return true
         }
     }
-    
     // MARK: - Right-Side Inspector Panel (Apple Messages Style)
     
     private func rightSideInspectorPanel(chat: FeishuChatItem) -> some View {

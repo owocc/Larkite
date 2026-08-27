@@ -6,6 +6,7 @@ public struct PasteableMessageField: NSViewRepresentable {
     @Binding var text: String
     var placeholder: String
     var isExpanded: Bool
+    @Binding var contentHeight: CGFloat
     var onCommit: () -> Void
     var onPasteImage: (Data, String) -> Void
     var onPasteFile: (Data, String) -> Void
@@ -14,6 +15,7 @@ public struct PasteableMessageField: NSViewRepresentable {
         text: Binding<String>,
         placeholder: String = "输入消息 (Enter 发送, Shift+Enter 换行)...",
         isExpanded: Bool = false,
+        contentHeight: Binding<CGFloat> = .constant(24),
         onCommit: @escaping () -> Void,
         onPasteImage: @escaping (Data, String) -> Void,
         onPasteFile: @escaping (Data, String) -> Void
@@ -21,6 +23,7 @@ public struct PasteableMessageField: NSViewRepresentable {
         self._text = text
         self.placeholder = placeholder
         self.isExpanded = isExpanded
+        self._contentHeight = contentHeight
         self.onCommit = onCommit
         self.onPasteImage = onPasteImage
         self.onPasteFile = onPasteFile
@@ -68,6 +71,7 @@ public struct PasteableMessageField: NSViewRepresentable {
         if textView.string != text {
             textView.string = text
             textView.needsDisplay = true
+            context.coordinator.recalculateHeight(for: textView)
         }
         textView.placeholderString = placeholder
         textView.onPasteImage = onPasteImage
@@ -88,8 +92,20 @@ public struct PasteableMessageField: NSViewRepresentable {
         }
         
         public func textDidChange(_ notification: Notification) {
-            if let tv = notification.object as? NSTextView {
-                parent.text = tv.string
+            guard let tv = notification.object as? NSTextView else { return }
+            parent.text = tv.string
+            recalculateHeight(for: tv)
+        }
+        
+        func recalculateHeight(for tv: NSTextView) {
+            guard let layoutManager = tv.layoutManager, let textContainer = tv.textContainer else { return }
+            layoutManager.ensureLayout(for: textContainer)
+            let usedRect = layoutManager.usedRect(for: textContainer)
+            let calculatedHeight = max(24, usedRect.height + 8)
+            if abs(parent.contentHeight - calculatedHeight) > 1 {
+                DispatchQueue.main.async {
+                    self.parent.contentHeight = calculatedHeight
+                }
             }
         }
     }
