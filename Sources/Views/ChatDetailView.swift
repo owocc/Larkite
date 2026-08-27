@@ -110,12 +110,13 @@ public struct ChatDetailView: View {
             .help("刷新消息与成员数据")
             
             // Copy Chat ID
+            let copyKey = "header_\(chat.chatId)"
             Button {
-                viewModel.copyToClipboard(text: chat.chatId, field: "Chat ID")
+                viewModel.copyToClipboard(text: chat.chatId, field: copyKey)
             } label: {
                 HStack(spacing: 4) {
-                    Image(systemName: viewModel.copiedField == "Chat ID" ? "checkmark" : "doc.on.doc")
-                    Text(viewModel.copiedField == "Chat ID" ? "已复制" : "复制 ID")
+                    Image(systemName: viewModel.copiedField == copyKey ? "checkmark" : "doc.on.doc")
+                    Text(viewModel.copiedField == copyKey ? "已复制" : "复制 ID")
                 }
                 .font(.system(size: 11))
             }
@@ -129,20 +130,53 @@ public struct ChatDetailView: View {
     // MARK: - Mode Selector
     
     private var modeSelectorBar: some View {
-        HStack {
-            Picker("", selection: $viewModel.selectedTab) {
-                Text("消息流 (\(appState.messages.count))").tag(0)
-                Text("群属性与成员 (\(appState.chatMemberTotal > 0 ? "\(appState.chatMemberTotal)" : "\(appState.chatMembers.count)"))").tag(1)
-                Text("API JSON 载荷").tag(2)
-            }
-            .pickerStyle(.segmented)
-            .frame(width: 360)
+        HStack(spacing: 8) {
+            modeTabButton(
+                title: "消息流 (\(appState.messages.count))",
+                index: 0,
+                icon: "bubble.left.and.bubble.right.fill"
+            )
+            
+            modeTabButton(
+                title: "群属性与成员 (\(appState.chatMemberTotal > 0 ? "\(appState.chatMemberTotal)" : "\(appState.chatMembers.count)"))",
+                index: 1,
+                icon: "person.2.fill"
+            )
+            
+            modeTabButton(
+                title: "API JSON 载荷",
+                index: 2,
+                icon: "curlybraces"
+            )
             
             Spacer()
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 8)
         .background(Color(nsColor: .controlBackgroundColor).opacity(0.3))
+    }
+    
+    private func modeTabButton(title: String, index: Int, icon: String) -> some View {
+        let isSelected = viewModel.selectedTab == index
+        return Button {
+            viewModel.selectedTab = index
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 11))
+                Text(title)
+                    .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
+            }
+            .foregroundColor(isSelected ? Color(hex: "3370FF") : .secondary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isSelected ? Color(hex: "3370FF").opacity(0.14) : Color(nsColor: .quaternaryLabelColor).opacity(0.12))
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
     
     // MARK: - Messages Stream View
@@ -481,16 +515,22 @@ public struct ChatDetailView: View {
                     
                     Spacer()
                     
-                    // Copy ID
+                    // Copy Member ID uniquely
+                    let memberCopyKey = "member_\(member.memberId)"
                     Button {
-                        viewModel.copyToClipboard(text: member.memberId, field: "Member ID")
+                        viewModel.copyToClipboard(text: member.memberId, field: memberCopyKey)
                     } label: {
                         HStack(spacing: 2) {
-                            Image(systemName: viewModel.copiedField == "Member ID" ? "checkmark" : "doc.on.doc")
-                            Text(viewModel.copiedField == "Member ID" ? "已复制" : "复制 ID")
+                            Image(systemName: viewModel.copiedField == memberCopyKey ? "checkmark" : "doc.on.doc")
+                            Text(viewModel.copiedField == memberCopyKey ? "已复制" : "复制 ID")
                         }
                         .font(.system(size: 10))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(viewModel.copiedField == memberCopyKey ? .green : .secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(Color(nsColor: .quaternaryLabelColor).opacity(0.15))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .help("复制 Member Open ID")
@@ -511,6 +551,7 @@ public struct ChatDetailView: View {
                         .padding(.vertical, 3)
                         .background(Color(hex: "3370FF").opacity(0.12))
                         .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .help("向该成员发起单聊")
@@ -536,6 +577,7 @@ public struct ChatDetailView: View {
                             .foregroundColor(Color(hex: "3370FF"))
                     }
                     .padding(.vertical, 6)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
@@ -555,6 +597,7 @@ public struct ChatDetailView: View {
             return "{}"
         }()
         
+        let jsonCopyKey = "json_\(chat.chatId)"
         return VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("群聊 OpenAPI 原始返回载荷")
@@ -562,11 +605,11 @@ public struct ChatDetailView: View {
                     .foregroundColor(.secondary)
                 Spacer()
                 Button {
-                    viewModel.copyToClipboard(text: jsonString, field: "JSON")
+                    viewModel.copyToClipboard(text: jsonString, field: jsonCopyKey)
                 } label: {
                     HStack(spacing: 4) {
-                        Image(systemName: viewModel.copiedField == "JSON" ? "checkmark" : "doc.on.doc")
-                        Text(viewModel.copiedField == "JSON" ? "已复制" : "复制 JSON")
+                        Image(systemName: viewModel.copiedField == jsonCopyKey ? "checkmark" : "doc.on.doc")
+                        Text(viewModel.copiedField == jsonCopyKey ? "已复制" : "复制 JSON")
                     }
                     .font(.system(size: 11))
                 }
@@ -590,7 +633,8 @@ public struct ChatDetailView: View {
     }
     
     private func propertyRow(label: String, value: String, canCopy: Bool = false) -> some View {
-        HStack(alignment: .top) {
+        let propKey = "prop_\(label)_\(value)"
+        return HStack(alignment: .top) {
             Text(label)
                 .font(.system(size: 12))
                 .foregroundColor(.secondary)
@@ -605,11 +649,13 @@ public struct ChatDetailView: View {
             
             if canCopy {
                 Button {
-                    viewModel.copyToClipboard(text: value, field: label)
+                    viewModel.copyToClipboard(text: value, field: propKey)
                 } label: {
-                    Image(systemName: viewModel.copiedField == label ? "checkmark" : "doc.on.doc")
+                    Image(systemName: viewModel.copiedField == propKey ? "checkmark" : "doc.on.doc")
                         .font(.system(size: 10))
-                        .foregroundColor(viewModel.copiedField == label ? .green : .secondary)
+                        .foregroundColor(viewModel.copiedField == propKey ? .green : .secondary)
+                        .padding(4)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .help("复制")

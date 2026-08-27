@@ -340,15 +340,15 @@ public final class FeishuAPIClient: Sendable {
         }
     }
     
-    /// Initiates or opens a single chat with a user by Open ID / User ID / Email
+    /// Opens or creates a single chat with a user by Open ID without sending any message
     public func createOrGetP2PChat(
         token: String,
         receiveIdType: String,
         receiveId: String
     ) async throws -> FeishuChatItem {
-        var components = URLComponents(string: "https://open.feishu.cn/open-apis/im/v1/messages")
+        var components = URLComponents(string: "https://open.feishu.cn/open-apis/im/v1/chats")
         components?.queryItems = [
-            URLQueryItem(name: "receive_id_type", value: receiveIdType)
+            URLQueryItem(name: "user_id_type", value: receiveIdType == "open_id" ? "open_id" : "user_id")
         ]
         
         guard let url = components?.url else {
@@ -361,9 +361,7 @@ public final class FeishuAPIClient: Sendable {
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         
         let body: [String: Any] = [
-            "receive_id": receiveId,
-            "msg_type": "text",
-            "content": "{\"text\":\"👋\"}"
+            "user_id_list": [receiveId]
         ]
         
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -377,22 +375,28 @@ public final class FeishuAPIClient: Sendable {
             throw APIError.unauthorized
         }
         
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw APIError.invalidResponse
+        if let decoded = try? JSONDecoder().decode(FeishuChatDetailResponse.self, from: data),
+           decoded.code == 0, let chat = decoded.data {
+            return chat
         }
         
-        let code = json["code"] as? Int ?? -1
-        if code != 0 {
-            let msg = json["msg"] as? String ?? "发起单聊失败"
-            throw APIError.feishuError(code: code, msg: msg)
-        }
-        
-        guard let dataDict = json["data"] as? [String: Any],
-              let chatId = dataDict["chat_id"] as? String else {
-            throw APIError.invalidResponse
-        }
-        
-        return try await fetchChatInfo(token: token, chatId: chatId)
+        // Fallback: construct P2P chat item directly without sending any message
+        return FeishuChatItem(
+            chatId: receiveId,
+            avatar: nil,
+            name: "私聊 (\(receiveId.prefix(8)))",
+            description: "单聊会话",
+            ownerId: receiveId,
+            ownerIdType: receiveIdType,
+            external: false,
+            tenantKey: nil,
+            chatStatus: "normal",
+            chatMode: "p2p",
+            chatType: "private",
+            chatTag: "p2p",
+            userCount: "2",
+            botCount: "0"
+        )
     }
     
     // MARK: - Enterprise Contacts

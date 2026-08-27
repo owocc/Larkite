@@ -101,10 +101,12 @@ public struct SidebarView: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(isSelected ? Color(hex: "3370FF").opacity(0.12) : Color.clear)
             )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -124,6 +126,8 @@ public struct SidebarView: View {
                             .font(.system(size: 11))
                     }
                     .foregroundColor(.secondary)
+                    .padding(4)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 
