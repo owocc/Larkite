@@ -17,6 +17,90 @@ extension Color {
     )
 }
 
+/// Native Apple Messages Chat Bubble Shape with bottom-left and bottom-right tail curves
+public struct ChatBubbleShape: Shape {
+    public let isSelf: Bool
+    
+    public init(isSelf: Bool) {
+        self.isSelf = isSelf
+    }
+    
+    public func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let r: CGFloat = 16
+        let tailW: CGFloat = 5
+        let tailH: CGFloat = 6
+        
+        if isSelf {
+            let bMaxX = rect.maxX - tailW
+            path.move(to: CGPoint(x: rect.minX + r, y: rect.minY))
+            
+            // Top edge & top-right corner
+            path.addLine(to: CGPoint(x: bMaxX - r, y: rect.minY))
+            path.addArc(center: CGPoint(x: bMaxX - r, y: rect.minY + r), radius: r, startAngle: .degrees(-90), endAngle: .degrees(0), clockwise: false)
+            
+            // Right edge down to tail start
+            path.addLine(to: CGPoint(x: bMaxX, y: rect.maxY - tailH - 4))
+            
+            // Tail curve out to bottom-right tip
+            path.addCurve(
+                to: CGPoint(x: rect.maxX, y: rect.maxY),
+                control1: CGPoint(x: bMaxX, y: rect.maxY - 2),
+                control2: CGPoint(x: rect.maxX - 1, y: rect.maxY)
+            )
+            // Tail curve in to bottom edge
+            path.addCurve(
+                to: CGPoint(x: bMaxX - 12, y: rect.maxY),
+                control1: CGPoint(x: rect.maxX - 3, y: rect.maxY),
+                control2: CGPoint(x: bMaxX - 6, y: rect.maxY)
+            )
+            
+            // Bottom edge to bottom-left corner
+            path.addLine(to: CGPoint(x: rect.minX + r, y: rect.maxY))
+            path.addArc(center: CGPoint(x: rect.minX + r, y: rect.maxY - r), radius: r, startAngle: .degrees(90), endAngle: .degrees(180), clockwise: false)
+            
+            // Left edge up & top-left corner
+            path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + r))
+            path.addArc(center: CGPoint(x: rect.minX + r, y: rect.minY + r), radius: r, startAngle: .degrees(180), endAngle: .degrees(270), clockwise: false)
+            
+        } else {
+            let bMinX = rect.minX + tailW
+            path.move(to: CGPoint(x: bMinX + r, y: rect.minY))
+            
+            // Top edge & top-right corner
+            path.addLine(to: CGPoint(x: rect.maxX - r, y: rect.minY))
+            path.addArc(center: CGPoint(x: rect.maxX - r, y: rect.minY + r), radius: r, startAngle: .degrees(-90), endAngle: .degrees(0), clockwise: false)
+            
+            // Right edge down & bottom-right corner
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - r))
+            path.addArc(center: CGPoint(x: rect.maxX - r, y: rect.maxY - r), radius: r, startAngle: .degrees(0), endAngle: .degrees(90), clockwise: false)
+            
+            // Bottom edge to tail start
+            path.addLine(to: CGPoint(x: bMinX + 12, y: rect.maxY))
+            
+            // Tail curve out to bottom-left tip
+            path.addCurve(
+                to: CGPoint(x: rect.minX, y: rect.maxY),
+                control1: CGPoint(x: bMinX + 6, y: rect.maxY),
+                control2: CGPoint(x: rect.minX + 3, y: rect.maxY)
+            )
+            // Tail curve in to left edge
+            path.addCurve(
+                to: CGPoint(x: bMinX, y: rect.maxY - tailH - 4),
+                control1: CGPoint(x: rect.minX + 1, y: rect.maxY),
+                control2: CGPoint(x: bMinX, y: rect.maxY - 2)
+            )
+            
+            // Left edge up & top-left corner
+            path.addLine(to: CGPoint(x: bMinX, y: rect.minY + r))
+            path.addArc(center: CGPoint(x: bMinX + r, y: rect.minY + r), radius: r, startAngle: .degrees(180), endAngle: .degrees(270), clockwise: false)
+        }
+        
+        path.closeSubpath()
+        return path
+    }
+}
+
 @MainActor
 public final class MessageBubbleViewModel: ObservableObject {
     @Published public var isHovered: Bool = false
@@ -276,15 +360,15 @@ public struct MessageBubbleView: View {
             Text(text)
                 .font(.system(size: 13.5))
                 .foregroundColor(isSelf ? .white : .primary)
-                .textSelection(.enabled)
-                .padding(.horizontal, 14)
+                .padding(.leading, isSelf ? 14 : 18)
+                .padding(.trailing, isSelf ? 18 : 14)
                 .padding(.vertical, 9)
                 .background(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    ChatBubbleShape(isSelf: isSelf)
                         .fill(isSelf ? configManager.accentColorChoice.color : Color.appleMessagesIncomingBubble)
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    ChatBubbleShape(isSelf: isSelf)
                         .stroke(isSelf ? Color.white.opacity(0.12) : Color.clear, lineWidth: 0.8)
                 )
         case .image(let imageKey):
@@ -329,14 +413,15 @@ public struct MessageBubbleView: View {
                         .foregroundColor(isSelf ? .white.opacity(0.8) : .secondary)
                 }
             }
-            .padding(.horizontal, 14)
+            .padding(.leading, isSelf ? 14 : 18)
+            .padding(.trailing, isSelf ? 18 : 14)
             .padding(.vertical, 9)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                ChatBubbleShape(isSelf: isSelf)
                     .fill(isSelf ? configManager.accentColorChoice.color : Color.appleMessagesIncomingBubble)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                ChatBubbleShape(isSelf: isSelf)
                     .stroke(isSelf ? Color.white.opacity(0.12) : Color.clear, lineWidth: 0.8)
             )
             
@@ -361,16 +446,17 @@ public struct MessageBubbleView: View {
                     renderPostSegment(segment, isSelf: isSelf)
                 }
             }
-            .padding(14)
+            .padding(.leading, isSelf ? 14 : 18)
+            .padding(.trailing, isSelf ? 18 : 14)
+            .padding(.vertical, 12)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                ChatBubbleShape(isSelf: isSelf)
                     .fill(isSelf ? configManager.accentColorChoice.color : Color.appleMessagesIncomingBubble)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                ChatBubbleShape(isSelf: isSelf)
                     .stroke(isSelf ? Color.white.opacity(0.12) : Color.clear, lineWidth: 0.8)
             )
-            
         case .card(let rawJson):
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
@@ -430,7 +516,6 @@ public struct MessageBubbleView: View {
             Text(text)
                 .font(.system(size: 13))
                 .foregroundColor(isSelf ? .white : .primary)
-                .textSelection(.enabled)
         case .link(let text, let url):
             if let linkUrl = URL(string: url) {
                 Link(text, destination: linkUrl)
