@@ -11,7 +11,7 @@ on:
 jobs:
   build-verification:
     name: Verify macOS Build
-    runs-on: macos-14
+    runs-on: macos-26
 
     steps:
       - name: Checkout Repository
@@ -24,20 +24,27 @@ jobs:
         with:
           node-version: 24
 
-      - name: Select Xcode Version
-          sudo xcode-select -s /Applications/Xcode_15.4.app || sudo xcode-select -s /Applications/Xcode.app
+      - name: Verify macOS 26 build toolchain
+        run: |
+          xcodebuild -version
           swift --version
+          SDK_VERSION="$(xcrun --sdk macosx --show-sdk-version)"
+          echo "Using macOS SDK ${SDK_VERSION}"
+          case "${SDK_VERSION}" in
+            26.*|27.*) ;;
+            *) echo "error: Liquid Glass builds require macOS SDK 26 or newer" >&2; exit 1 ;;
+          esac
 
       - name: Build Larkite App Bundle
         run: |
           chmod +x ./build_app.sh
-          ./build_app.sh
+          ./build_app.sh "arm64" "14.0"
 
-      - name: Verify Bundle & Universal 2 Binary Integrity
+      - name: Verify Bundle & Liquid Glass SDK Linkage
         run: |
           test -f "Larkite.app/Contents/MacOS/Larkite"
           test -f "Larkite.app/Contents/Info.plist"
           test -f "Larkite.app/Contents/Resources/AppIcon.icns"
           file "Larkite.app/Contents/MacOS/Larkite" | grep -q "arm64"
-          file "Larkite.app/Contents/MacOS/Larkite" | grep -q "x86_64"
-          echo "==> Larkite.app Universal 2 (arm64 + x86_64) bundle successfully verified!"
+          vtool -show-build "Larkite.app/Contents/MacOS/Larkite" | grep -Eq 'sdk (26|27)\.'
+          echo "==> Larkite.app arm64 bundle linked against a macOS 26+ SDK successfully verified!"

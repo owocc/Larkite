@@ -20,7 +20,9 @@ env:
 jobs:
   release:
     name: Build & Release Architecture-Specific DMGs (Apple Silicon & Intel)
-    runs-on: macos-14
+    # Liquid Glass is enabled for standard AppKit/SwiftUI controls only when
+    # the app is linked against the macOS 26 SDK or newer.
+    runs-on: macos-26
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -43,11 +45,16 @@ jobs:
           echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
           echo "Building Larkite version $VERSION (build $BUILD_NUMBER)..."
 
-      - name: Select Xcode Version
+      - name: Verify macOS 26 build toolchain
         run: |
-          sudo xcode-select -s /Applications/Xcode_15.4.app || sudo xcode-select -s /Applications/Xcode.app
+          xcodebuild -version
           swift --version
-          xcrun --show-sdk-version
+          SDK_VERSION="$(xcrun --sdk macosx --show-sdk-version)"
+          echo "Using macOS SDK ${SDK_VERSION}"
+          case "${SDK_VERSION}" in
+            26.*|27.*) ;;
+            *) echo "error: Liquid Glass release builds require macOS SDK 26 or newer" >&2; exit 1 ;;
+          esac
 
       - name: Build Apple Silicon Package (arm64 - macOS 14+)
         run: |
@@ -63,6 +70,7 @@ jobs:
       - name: Generate Checksums & Verify Artifacts
         run: |
           ls -lh Larkite*.dmg
+          vtool -show-build "Larkite.app/Contents/MacOS/Larkite" | grep -Eq 'sdk (26|27)\.'
           shasum -a 256 Larkite-arm64.dmg > Larkite-arm64.dmg.sha256
           shasum -a 256 Larkite-x86_64.dmg > Larkite-x86_64.dmg.sha256
           cat *.sha256
