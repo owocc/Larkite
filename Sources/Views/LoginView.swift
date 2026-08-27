@@ -162,17 +162,19 @@ public struct LoginView: View {
                     Label("登录新账号 / 添加新企业", systemImage: "person.crop.circle.badge.plus")
                 }
             } label: {
-                ZStack {
+                Group {
                     if let user = appState.session?.user {
-                        AvatarView(urlString: user.bestAvatarUrl, name: user.displayName, size: 22)
+                        LoginHeaderAvatarRepresentable(urlString: user.bestAvatarUrl, name: user.displayName, size: 22)
                     } else if let activeId = configManager.activeAccountId, let acc = configManager.accounts.first(where: { $0.id == activeId }) {
-                        AvatarView(urlString: acc.avatarUrl, name: acc.displayName, size: 22)
+                        LoginHeaderAvatarRepresentable(urlString: acc.avatarUrl, name: acc.displayName, size: 22)
                     } else {
                         Image(systemName: "person.crop.circle.fill")
-                            .font(.system(size: 13))
+                            .font(.system(size: 14))
                             .foregroundColor(.secondary)
                     }
                 }
+                .frame(width: 22, height: 22)
+                .clipShape(Circle())
                 .frame(width: 28, height: 28)
                 .background(
                     ZStack {
@@ -595,5 +597,83 @@ public struct LoginView: View {
             endPoint: .bottomTrailing
         )
         .ignoresSafeArea()
+    }
+}
+
+struct LoginHeaderAvatarRepresentable: NSViewRepresentable {
+    let urlString: String?
+    let name: String
+    let size: CGFloat
+    
+    func makeNSView(context: Context) -> NSImageView {
+        let iv = NSImageView(frame: NSRect(x: 0, y: 0, width: size, height: size))
+        iv.imageScaling = .scaleAxesIndependently
+        iv.wantsLayer = true
+        iv.layer?.cornerRadius = size / 2
+        iv.layer?.masksToBounds = true
+        iv.setContentHuggingPriority(.required, for: .horizontal)
+        iv.setContentHuggingPriority(.required, for: .vertical)
+        iv.setContentCompressionResistancePriority(.required, for: .horizontal)
+        iv.setContentCompressionResistancePriority(.required, for: .vertical)
+        update(iv)
+        return iv
+    }
+    
+    func updateNSView(_ nsView: NSImageView, context: Context) {
+        nsView.frame = NSRect(x: 0, y: 0, width: size, height: size)
+        nsView.layer?.cornerRadius = size / 2
+        update(nsView)
+    }
+    
+    private func update(_ iv: NSImageView) {
+        guard let urlStr = urlString, let url = URL(string: urlStr), !urlStr.isEmpty else {
+            iv.image = makeFallback()
+            return
+        }
+        
+        iv.image = makeFallback()
+        
+        Task {
+            do {
+                let (data, _) = try await URLSession.shared.data(from: url)
+                guard let raw = NSImage(data: data) else { return }
+                let targetSize = NSSize(width: size * 2, height: size * 2)
+                let resized = NSImage(size: targetSize)
+                resized.lockFocus()
+                raw.draw(in: NSRect(origin: .zero, size: targetSize), from: .zero, operation: .copy, fraction: 1.0)
+                resized.unlockFocus()
+                await MainActor.run {
+                    iv.image = resized
+                }
+            } catch {}
+        }
+    }
+    
+    private func makeFallback() -> NSImage {
+        let targetSize = NSSize(width: size * 2, height: size * 2)
+        let img = NSImage(size: targetSize)
+        img.lockFocus()
+        let gradient = NSGradient(
+            colors: [
+                NSColor(red: 51/255, green: 112/255, blue: 255/255, alpha: 1),
+                NSColor(red: 41/255, green: 94/255, blue: 204/255, alpha: 1)
+            ]
+        )
+        gradient?.draw(in: NSRect(origin: .zero, size: targetSize), angle: 45)
+        let initial = (name.prefix(1).uppercased().isEmpty ? "飞" : name.prefix(1).uppercased()) as NSString
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.boldSystemFont(ofSize: size * 0.8),
+            .foregroundColor: NSColor.white
+        ]
+        let strSize = initial.size(withAttributes: attrs)
+        let strRect = NSRect(
+            x: (targetSize.width - strSize.width) / 2,
+            y: (targetSize.height - strSize.height) / 2,
+            width: strSize.width,
+            height: strSize.height
+        )
+        initial.draw(in: strRect, withAttributes: attrs)
+        img.unlockFocus()
+        return img
     }
 }
