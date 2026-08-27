@@ -64,6 +64,7 @@ public final class AppState: ObservableObject {
     
     // MARK: - Contacts & Private Messages State
     @Published public var contacts: [FeishuContactUser] = []
+    @Published public var isScanningP2PChats: Bool = false
     @Published public var isLoadingContacts: Bool = false
     
     // MARK: - Messages State
@@ -461,6 +462,26 @@ public final class AppState: ObservableObject {
     public func loadMoreChats() async {
         guard !isLoadingChats, hasMoreChats, pageToken != nil else { return }
         await loadChats(reset: false)
+    }
+    
+    /// Traverses all chat pages and queries chat_mode for every single chat to discover all p2p single chats
+    public func deepScanAllChatsAndP2P() async {
+        guard let token = session?.accessToken else { return }
+        isScanningP2PChats = true
+        
+        let allHydrated = await FeishuAPIClient.shared.scanAndHydrateAllChats(token: token)
+        if !allHydrated.isEmpty {
+            let p2pOnly = allHydrated.filter { $0.isP2P }
+            ConfigManager.shared.saveP2PChats(p2pOnly)
+            self.chats = allHydrated
+            
+            if let selected = self.selectedChat,
+               let updated = self.chats.first(where: { $0.chatId == selected.chatId }) {
+                self.selectedChat = updated
+            }
+        }
+        
+        isScanningP2PChats = false
     }
     
     // MARK: - Message History Query

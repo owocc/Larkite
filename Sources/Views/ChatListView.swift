@@ -206,11 +206,32 @@ public struct ChatListView: View {
                     Text("暂无活跃单聊会话")
                         .font(.system(size: 13, weight: .bold))
                     
-                    Text("飞书群列表 API 默认不包含单聊。您可以从下方选择联系人或点击上方「+」直接发起私聊：")
+                    Text("飞书群列表 API 不直接标记单聊。点击下方「深度扫描」将遍历全量会话逐个核验 chat_mode == p2p，或从联系人直接发起：")
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 12)
+                    
+                    Button {
+                        Task {
+                            await appState.deepScanAllChatsAndP2P()
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            if appState.isScanningP2PChats {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Image(systemName: "magnifyingglass.circle.fill")
+                            }
+                            Text(appState.isScanningP2PChats ? "正在逐个校验 chat_mode == p2p..." : "深度扫描全量私聊会话 (p2p)")
+                        }
+                        .font(.system(size: 11, weight: .medium))
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .disabled(appState.isScanningP2PChats)
+                    .padding(.top, 4)
                 }
                 .padding(.top, 16)
                 

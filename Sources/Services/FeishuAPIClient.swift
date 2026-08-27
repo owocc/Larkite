@@ -235,6 +235,45 @@ public final class FeishuAPIClient: Sendable {
         return decoded.data ?? FeishuChatListData(items: [], pageToken: nil, hasMore: false)
     }
     
+    /// Fetches all pages of user/bot chats
+    public func fetchAllChats(token: String) async throws -> [FeishuChatItem] {
+        var allItems: [FeishuChatItem] = []
+        var currentToken: String? = nil
+        var hasMore = true
+        
+        while hasMore {
+            let data = try await fetchChatList(
+                token: token,
+                sortType: "ByActiveTimeDesc",
+                pageToken: currentToken,
+                pageSize: 50
+            )
+            
+            if let items = data.items {
+                allItems.append(contentsOf: items)
+            }
+            
+            hasMore = data.hasMore ?? false
+            currentToken = data.pageToken
+            
+            if currentToken == nil || currentToken?.isEmpty == true {
+                break
+            }
+        }
+        
+        return allItems
+    }
+    
+    /// Deep scan: traverses all chats and queries chat_mode (p2p vs group) for every chat
+    public func scanAndHydrateAllChats(token: String) async -> [FeishuChatItem] {
+        do {
+            let allRawChats = try await fetchAllChats(token: token)
+            return await hydrateChatsWithDetails(token: token, items: allRawChats)
+        } catch {
+            return []
+        }
+    }
+    
     public func fetchChatInfo(token: String, chatId: String) async throws -> FeishuChatItem {
         let encodedId = chatId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? chatId
         guard let url = URL(string: "https://open.feishu.cn/open-apis/im/v1/chats/\(encodedId)") else {
