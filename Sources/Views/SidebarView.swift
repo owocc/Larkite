@@ -1,13 +1,21 @@
 import SwiftUI
 
+@MainActor
+public final class SidebarViewModel: ObservableObject {
+    @Published public var showAccountMenu: Bool = false
+    public init() {}
+}
+
 public struct SidebarView: View {
     @ObservedObject var appState: AppState = .shared
+    @ObservedObject var configManager: ConfigManager = .shared
+    @StateObject private var viewModel = SidebarViewModel()
     
     public init() {}
     
     public var body: some View {
         VStack(spacing: 0) {
-            // User Header Card
+            // User Header Card with Account Switcher Popover
             userHeaderCard
                 .padding(.horizontal, 12)
                 .padding(.top, 14)
@@ -27,25 +35,17 @@ public struct SidebarView: View {
             
             Spacer()
             
-            // Footer Session info & Logout
+            // Footer Session info & Account Actions
             footerSection
                 .padding(12)
         }
-        .frame(minWidth: 200, maxWidth: 240)
+        .frame(minWidth: 210, maxWidth: 250)
         .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
     }
     
     private var userHeaderCard: some View {
         Button {
-            if let user = appState.session?.user {
-                Task {
-                    await appState.inspectUser(
-                        openId: user.openId ?? user.id,
-                        fallbackName: user.displayName,
-                        fallbackAvatar: user.bestAvatarUrl
-                    )
-                }
-            }
+            viewModel.showAccountMenu.toggle()
         } label: {
             HStack(spacing: 10) {
                 if let user = appState.session?.user {
@@ -75,20 +75,158 @@ public struct SidebarView: View {
                 
                 Spacer()
                 
-                Image(systemName: "chevron.right")
+                Image(systemName: "chevron.up.chevron.down")
                     .font(.system(size: 10))
-                    .foregroundColor(.secondary.opacity(0.6))
+                    .foregroundColor(.secondary.opacity(0.7))
             }
             .padding(8)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color(nsColor: .quaternaryLabelColor).opacity(0.2))
+                    .fill(Color(nsColor: .quaternaryLabelColor).opacity(0.25))
             )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help("点击查看当前登录账号详细资料")
+        .help("点击切换账号或查看资料")
+        .popover(isPresented: $viewModel.showAccountMenu, arrowEdge: .trailing) {
+            accountSwitcherPopover
+        }
+    }
+    
+    private var accountSwitcherPopover: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("飞书账号管理")
+                    .font(.system(size: 13, weight: .bold))
+                Spacer()
+                Text("\(configManager.accounts.count) 个已保存")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+            }
+            .padding(.bottom, 2)
+            
+            Divider()
+            
+            // Accounts List
+            ScrollView {
+                VStack(spacing: 4) {
+                    ForEach(configManager.accounts) { acc in
+                        let isActive = acc.id == configManager.activeAccountId
+                        HStack(spacing: 8) {
+                            AvatarView(urlString: acc.avatarUrl, name: acc.displayName, size: 28)
+                            
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(acc.displayName)
+                                    .font(.system(size: 12, weight: isActive ? .bold : .medium))
+                                    .foregroundColor(.primary)
+                                    .lineLimit(1)
+                                
+                                Text(acc.email ?? acc.id)
+                                    .font(.system(size: 9))
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(1)
+                            }
+                            
+                            Spacer()
+                            
+                            if isActive {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.green)
+                            } else {
+                                Button {
+                                    appState.switchAccount(to: acc.id)
+                                    viewModel.showAccountMenu = false
+                                } label: {
+                                    Text("切换")
+                                        .font(.system(size: 10, weight: .semibold))
+                                        .foregroundColor(Color(hex: "3370FF"))
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Color(hex: "3370FF").opacity(0.12))
+                                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                                }
+                                .buttonStyle(.plain)
+                                
+                                Button {
+                                    appState.removeAccount(id: acc.id)
+                                } label: {
+                                    Image(systemName: "xmark.circle")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                                .help("移除该账号")
+                            }
+                        }
+                        .padding(6)
+                        .background(isActive ? Color(hex: "3370FF").opacity(0.1) : Color.clear)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .contentShape(Rectangle())
+                    }
+                }
+            }
+            .frame(maxHeight: 180)
+            
+            Divider()
+            
+            // Actions
+            VStack(alignment: .leading, spacing: 6) {
+                Button {
+                    viewModel.showAccountMenu = false
+                    appState.startAddingNewAccount()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "plus.circle.fill")
+                            .foregroundColor(Color(hex: "3370FF"))
+                        Text("添加新的飞书账号...")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(Color(hex: "3370FF"))
+                    }
+                }
+                .buttonStyle(.plain)
+                
+                if let user = appState.session?.user {
+                    Button {
+                        viewModel.showAccountMenu = false
+                        Task {
+                            await appState.inspectUser(
+                                openId: user.openId ?? user.id,
+                                fallbackName: user.displayName,
+                                fallbackAvatar: user.bestAvatarUrl
+                            )
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "person.text.rectangle")
+                                .foregroundColor(.secondary)
+                            Text("查看个人详细资料卡")
+                                .font(.system(size: 11))
+                                .foregroundColor(.primary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+                
+                Button(role: .destructive) {
+                    viewModel.showAccountMenu = false
+                    appState.logoutCurrentAccount()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "rectangle.portrait.and.arrow.right")
+                            .foregroundColor(.red)
+                        Text("退出当前账号")
+                            .font(.system(size: 11))
+                            .foregroundColor(.red)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.top, 2)
+        }
+        .padding(14)
+        .frame(width: 280)
     }
     
     private func navButton(tab: NavigationTab) -> some View {
@@ -137,12 +275,12 @@ public struct SidebarView: View {
             
             HStack {
                 Button(action: {
-                    appState.logout()
+                    appState.logoutCurrentAccount()
                 }) {
                     HStack(spacing: 6) {
                         Image(systemName: "rectangle.portrait.and.arrow.right")
                             .font(.system(size: 11))
-                        Text("退出登录")
+                        Text("退出账号")
                             .font(.system(size: 11))
                     }
                     .foregroundColor(.secondary)

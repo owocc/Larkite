@@ -35,6 +35,7 @@ public final class AppState: ObservableObject {
     // MARK: - Published Properties
     
     @Published public var session: UserSession?
+    @Published public var isAddingAccount: Bool = false
     @Published public var isAuthenticating: Bool = false
     @Published public var authError: String?
     @Published public var authStatusMessage: String = ""
@@ -48,13 +49,11 @@ public final class AppState: ObservableObject {
         didSet {
             guard let chat = selectedChat else { return }
             if oldValue?.chatId != chat.chatId {
-                // Reset messages & in-flight message tasks
                 activeMessageLoadTask?.cancel()
                 activeMessageLoadTask = Task {
                     await loadMessages(for: chat, reset: true)
                 }
                 
-                // Reset member state for the newly selected chat
                 activeMembersLoadTask?.cancel()
                 self.chatMembers = []
                 self.chatMemberTotal = 0
@@ -104,7 +103,7 @@ public final class AppState: ObservableObject {
     private var activeMembersLoadTask: Task<Void, Never>?
     
     public var isLoggedIn: Bool {
-        session != nil && !(session?.accessToken.isEmpty ?? true)
+        !isAddingAccount && session != nil && !(session?.accessToken.isEmpty ?? true)
     }
     
     public var filteredChats: [FeishuChatItem] {
@@ -136,9 +135,10 @@ public final class AppState: ObservableObject {
     }
     
     private init() {
-        self.chats = ConfigManager.shared.loadP2PChats()
+        let activeId = ConfigManager.shared.activeAccountId
+        self.chats = ConfigManager.shared.loadP2PChats(forAccountId: activeId)
         
-        if let savedSession = ConfigManager.shared.loadSession() {
+        if let savedSession = ConfigManager.shared.loadSession(forAccountId: activeId) {
             self.session = savedSession
             Task {
                 await self.loadUserInfo()
@@ -244,8 +244,13 @@ public final class AppState: ObservableObject {
             }
             
             self.session = newSession
-            ConfigManager.shared.saveSession(newSession)
+            _ = ConfigManager.shared.saveAccountSession(
+                user: newSession.user,
+                session: newSession,
+                config: config
+            )
             self.isAuthenticating = false
+            self.isAddingAccount = false
             self.authStatusMessage = ""
             
             await self.loadChats(reset: true)
@@ -313,8 +318,13 @@ public final class AppState: ObservableObject {
             _ = try await FeishuAPIClient.shared.fetchChatList(token: cleanToken, pageSize: 5)
             
             self.session = newSession
-            ConfigManager.shared.saveSession(newSession)
+            _ = ConfigManager.shared.saveAccountSession(
+                user: newSession.user,
+                session: newSession,
+                config: ConfigManager.shared.config
+            )
             self.isAuthenticating = false
+            self.isAddingAccount = false
             self.authStatusMessage = ""
             
             await self.loadChats(reset: true)
@@ -364,8 +374,13 @@ public final class AppState: ObservableObject {
             )
             
             self.session = newSession
-            ConfigManager.shared.saveSession(newSession)
+            _ = ConfigManager.shared.saveAccountSession(
+                user: newSession.user,
+                session: newSession,
+                config: ConfigManager.shared.config
+            )
             self.isAuthenticating = false
+            self.isAddingAccount = false
             self.authStatusMessage = ""
             
             await self.loadChats(reset: true)
@@ -376,7 +391,7 @@ public final class AppState: ObservableObject {
         }
     }
     
-    // MARK: - User Info & Session Refresh
+    // MARK: - User Info & Multi-Account Operations
     
     public func loadUserInfo() async {
         guard let token = session?.accessToken else { return }
@@ -389,12 +404,60 @@ public final class AppState: ObservableObject {
         }
     }
     
-    public func logout() {
+    public func startAddingNewAccount() {
+        cancelOAuthLogin()
+        self.isAddingAccount = true
+    }
+    
+    public func cancelAddingAccount() {
+        self.isAddingAccount = false
+    }
+    
+    public func switchAccount(to accountId: String) {
+        guard let account = ConfigManager.shared.switchAccount(to: accountId) else { return }
+        self.isAddingAccount = false
+        self.session = account.session
+        self.selectedChat = nil
+        self.messages = []
+        self.chatMembers = []
+        self.chats = ConfigManager.shared.loadP2PChats(forAccountId: accountId)
+        
+        Task {
+            await self.loadUserInfo()
+            await self.loadChats(reset: true)
+        }
+    }
+    
+    public func removeAccount(id: String) {
+        ConfigManager.shared.removeAccount(id: id)
+        if let activeId = ConfigManager.shared.activeAccountId {
+            switchAccount(to: activeId)
+        } else {
+            logoutAllAccounts()
+        }
+    }
+    
+    public func logoutCurrentAccount() {
+        if let activeId = ConfigManager.shared.activeAccountId {
+            removeAccount(id: activeId)
+        } else {
+            logoutAllAccounts()
+        }
+    }
+    
+    public func logoutAllAccounts() {
         cancelOAuthLogin()
         self.session = nil
         self.chats = []
         self.selectedChat = nil
-        ConfigManager.shared.clearSession()
+        self.messages = []
+        self.chatMembers = []
+        self.isAddingAccount = false
+        ConfigManager.shared.clearAllAccounts()
+    }
+    
+    public func logout() {
+        logoutCurrentAccount()
     }
     
     // MARK: - Chat List Query
@@ -468,7 +531,6 @@ public final class AppState: ObservableObject {
                     self.selectedChat = updated
                 }
                 
-                // Batch fetch last message snippets for chat preview
                 let latestMap = await FeishuAPIClient.shared.batchFetchLatestMessages(
                     token: token,
                     chatIds: self.chats.map(\.chatId)
@@ -491,7 +553,6 @@ public final class AppState: ObservableObject {
         await loadChats(reset: false)
     }
     
-    /// Traverses all chat pages and queries chat_mode for every single chat to discover all p2p single chats
     public func deepScanAllChatsAndP2P() async {
         guard let token = session?.accessToken else { return }
         isScanningP2PChats = true
@@ -529,13 +590,10 @@ public final class AppState: ObservableObject {
         
         var targetChatId = chat.chatId
         
-        // If the item only has an Open ID (ou_...) instead of a Chat ID (oc_...),
-        // check if we have a known p2p chat for this user
         if !targetChatId.hasPrefix("oc_") {
             if let matched = self.chats.first(where: { $0.isP2P && $0.chatId.hasPrefix("oc_") && ($0.ownerId == chat.chatId || $0.ownerId == chat.ownerId) }) {
                 targetChatId = matched.chatId
             } else {
-                // Brand new direct contact without existing messages
                 self.messages = []
                 self.isLoadingMessages = false
                 return
@@ -558,13 +616,11 @@ public final class AppState: ObservableObject {
                 }
             }
             
-            // Sort batch chronologically (oldest at top, newest at bottom of batch)
             let sortedBatch = rawItems.sorted(by: { $0.createdDate < $1.createdDate })
             
             if reset {
                 self.messages = sortedBatch
             } else {
-                // Prepend older history batch to top
                 self.messages.insert(contentsOf: sortedBatch, at: 0)
             }
             
@@ -577,10 +633,8 @@ public final class AppState: ObservableObject {
                 self.lastMessages[chat.chatId] = latest
             }
             
-            // If P2P chat, resolve peer name & ID from messages
             if chat.isP2P {
                 let currentUserId = self.session?.user?.openId
-                
                 if let peerMsg = rawItems.first(where: { $0.sender?.id != currentUserId && $0.sender?.id != nil }) {
                     if let senderId = peerMsg.sender?.id {
                         let peerName = UserProfileManager.shared.resolveDisplayName(for: senderId, currentUserId: currentUserId)
@@ -617,6 +671,7 @@ public final class AppState: ObservableObject {
             self.isLoadingMessages = false
         }
     }
+    
     public func loadMoreMessages() async {
         guard let chat = selectedChat, !isLoadingMessages, hasMoreMessages, messagePageToken != nil else { return }
         await loadMessages(for: chat, reset: false)
@@ -653,7 +708,6 @@ public final class AppState: ObservableObject {
                 self.lastMessages[realChatId] = sentMsg
             }
             
-            // If we sent to an open_id and Feishu returned the new oc_... chat_id, update the chat
             if let newChatId = sentMsg.chatId, newChatId.hasPrefix("oc_") && chat.chatId != newChatId {
                 let updatedChat = FeishuChatItem(
                     chatId: newChatId,
@@ -671,7 +725,6 @@ public final class AppState: ObservableObject {
                     userCount: "2",
                     botCount: "0"
                 )
-                
                 if let idx = self.chats.firstIndex(where: { $0.chatId == chat.chatId }) {
                     self.chats[idx] = updatedChat
                 } else {
@@ -932,6 +985,7 @@ public final class AppState: ObservableObject {
             } else {
                 self.chatMembers.append(contentsOf: newItems)
             }
+            
             self.chatMemberPageToken = result.pageToken
             self.hasMoreChatMembers = result.hasMore ?? false
             if let total = result.memberTotal {
@@ -996,7 +1050,6 @@ public final class AppState: ObservableObject {
             actualType = "email"
         }
         
-        // First check if an existing P2P chat (with real oc_... id) already exists for this user
         if let existing = self.chats.first(where: { $0.isP2P && ($0.ownerId == cleanId || $0.chatId == cleanId) }) {
             self.selectedChat = existing
             return
@@ -1081,7 +1134,6 @@ public final class AppState: ObservableObject {
             }
         }
         
-        // Fallback: construct detailed user from cached profile
         let cached = UserProfileManager.shared.getProfile(for: openId)
         let current = self.session?.user
         let isSelf = (openId == current?.openId || openId == current?.userId)

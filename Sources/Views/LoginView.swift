@@ -9,6 +9,9 @@ public final class LoginViewModel: ObservableObject {
     @Published public var manualCodeInput: String = ""
     @Published public var showManualCodeInput: Bool = false
     @Published public var copiedCallbackToast: Bool = false
+    @Published public var scopePreset: Int = 0 // 0: 推荐全能, 1: 纯 IM 极简, 2: 自定义
+    @Published public var showCustomScopes: Bool = false
+    @Published public var selectedScopeKeys: Set<String> = Set(FeishuScopes.recommendedList.map(\.key))
     
     public init() {}
     
@@ -21,10 +24,35 @@ public final class LoginViewModel: ObservableObject {
             copiedCallbackToast = true
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
-            withAnimation {
+            if self?.copiedCallbackToast == true {
                 self?.copiedCallbackToast = false
             }
         }
+    }
+    
+    public func selectPreset(_ preset: Int, configManager: ConfigManager) {
+        self.scopePreset = preset
+        if preset == 0 {
+            self.selectedScopeKeys = Set(FeishuScopes.recommendedList.map(\.key))
+            configManager.config.scopes = FeishuScopes.recommendedString
+            self.showCustomScopes = false
+        } else if preset == 1 {
+            let minimal = FeishuScopes.recommendedList.filter { $0.isEssential }.map(\.key)
+            self.selectedScopeKeys = Set(minimal)
+            configManager.config.scopes = FeishuScopes.minimalIMString
+            self.showCustomScopes = false
+        } else {
+            self.showCustomScopes = true
+        }
+    }
+    
+    public func toggleScopeKey(_ key: String, configManager: ConfigManager) {
+        if selectedScopeKeys.contains(key) {
+            selectedScopeKeys.remove(key)
+        } else {
+            selectedScopeKeys.insert(key)
+        }
+        configManager.config.scopes = selectedScopeKeys.sorted().joined(separator: " ")
     }
 }
 
@@ -40,78 +68,131 @@ public struct LoginView: View {
             // Ambient Background
             backgroundGradient
             
-            VStack(spacing: 24) {
-                // Header Brand
-                headerView
-                
-                // Local Server Status Banner (On-demand)
-                localServerBanner
-                    .frame(maxWidth: 480)
-                
-                // Login Card
-                GlassCard(cornerRadius: 24, padding: 24) {
-                    VStack(spacing: 20) {
-                        // Login Modes Segmented Control
-                        Picker("", selection: $viewModel.selectedLoginTab) {
-                            Text("飞书网页授权").tag(0)
-                            Text("自建应用免登录").tag(1)
-                            Text("Direct Token").tag(2)
-                        }
-                        .pickerStyle(.segmented)
-                        .padding(.bottom, 4)
-                        
-                        // Mode Content
-                        if viewModel.selectedLoginTab == 0 {
-                            oauthLoginSection
-                        } else if viewModel.selectedLoginTab == 1 {
-                            appCredentialsSection
-                        } else {
-                            directTokenSection
-                        }
-                        
-                        // Status & Error Banner
-                        if let error = appState.authError {
-                            HStack(spacing: 8) {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundColor(.red)
-                                Text(error)
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.red)
-                                    .lineLimit(3)
+            ScrollView {
+                VStack(spacing: 20) {
+                    // Existing Accounts Switcher Banner (if accounts exist)
+                    if !configManager.accounts.isEmpty {
+                        existingAccountsBanner
+                            .frame(maxWidth: 520)
+                    }
+                    
+                    // Header Brand
+                    headerView
+                    
+                    // Local Server Status Banner
+                    localServerBanner
+                        .frame(maxWidth: 520)
+                    
+                    // Login Card
+                    GlassCard(cornerRadius: 24, padding: 24) {
+                        VStack(spacing: 20) {
+                            // Login Modes Segmented Control
+                            Picker("", selection: $viewModel.selectedLoginTab) {
+                                Text("飞书网页授权登录").tag(0)
+                                Text("自建应用免登录").tag(1)
+                                Text("Direct Token").tag(2)
                             }
-                            .padding(10)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color.red.opacity(0.1))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                        }
-                        
-                        if !appState.authStatusMessage.isEmpty {
-                            HStack(spacing: 8) {
-                                ProgressView()
-                                    .controlSize(.small)
-                                Text(appState.authStatusMessage)
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.secondary)
+                            .pickerStyle(.segmented)
+                            .padding(.bottom, 4)
+                            
+                            // Mode Content
+                            if viewModel.selectedLoginTab == 0 {
+                                oauthLoginSection
+                            } else if viewModel.selectedLoginTab == 1 {
+                                appCredentialsSection
+                            } else {
+                                directTokenSection
                             }
-                            .padding(10)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color.blue.opacity(0.08))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            
+                            // Status & Error Banner
+                            if let error = appState.authError {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundColor(.red)
+                                    Text(error)
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.red)
+                                        .lineLimit(3)
+                                }
+                                .padding(10)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color.red.opacity(0.1))
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                            }
+                            
+                            if !appState.authStatusMessage.isEmpty {
+                                HStack(spacing: 8) {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                    Text(appState.authStatusMessage)
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(10)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color.blue.opacity(0.08))
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                            }
+                        }
+                    }
+                    .frame(maxWidth: 520)
+                    
+                    // Footer
+                    footerLinks
+                }
+                .padding(.horizontal, 32)
+                .padding(.vertical, 24)
+            }
+        }
+        .frame(minWidth: 680, minHeight: 680)
+    }
+    
+    private var existingAccountsBanner: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "person.2.fill")
+                .foregroundColor(Color(hex: "3370FF"))
+            
+            Text("已保存 \(configManager.accounts.count) 个飞书账号")
+                .font(.system(size: 12, weight: .medium))
+            
+            Spacer()
+            
+            Menu {
+                ForEach(configManager.accounts) { acc in
+                    Button {
+                        appState.switchAccount(to: acc.id)
+                    } label: {
+                        HStack {
+                            Text(acc.displayName)
+                            if acc.id == configManager.activeAccountId {
+                                Image(systemName: "checkmark")
+                            }
                         }
                     }
                 }
-                .frame(maxWidth: 480)
-                
-                // Footer
-                footerLinks
+            } label: {
+                HStack(spacing: 4) {
+                    Text("切换已有账号")
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 9))
+                }
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(Color(hex: "3370FF"))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color(hex: "3370FF").opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
             }
-            .padding(32)
+            .menuStyle(.borderlessButton)
         }
-        .frame(minWidth: 640, minHeight: 660)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.6))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
     
     private var headerView: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 8) {
             ZStack {
                 Circle()
                     .fill(
@@ -121,18 +202,18 @@ public struct LoginView: View {
                             endPoint: .bottomTrailing
                         )
                     )
-                    .frame(width: 64, height: 64)
-                    .shadow(color: Color(hex: "3370FF").opacity(0.4), radius: 16, x: 0, y: 8)
+                    .frame(width: 56, height: 56)
+                    .shadow(color: Color(hex: "3370FF").opacity(0.4), radius: 14, x: 0, y: 6)
                 
                 Image(systemName: "bird.fill")
-                    .font(.system(size: 30, weight: .bold))
+                    .font(.system(size: 26, weight: .bold))
                     .foregroundColor(.white)
             }
             
             Text("Lark Native")
-                .font(.system(size: 24, weight: .bold, design: .rounded))
+                .font(.system(size: 22, weight: .bold, design: .rounded))
             
-            Text("极简 · 现代 · 本地原生飞书客户端 (无远程服务器)")
+            Text("多账号隔离 · 现代原生飞书客户端")
                 .font(.system(size: 12))
                 .foregroundColor(.secondary)
         }
@@ -205,6 +286,27 @@ public struct LoginView: View {
                     .font(.system(size: 11, design: .monospaced))
             }
             
+            // Scope Presets & Selection
+            VStack(alignment: .leading, spacing: 8) {
+                Text("申请权限 Scope 配置")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.primary)
+                
+                HStack(spacing: 6) {
+                    scopePresetPill(title: "⭐ 推荐全能权限", preset: 0)
+                    scopePresetPill(title: "💬 纯 IM 极简", preset: 1)
+                    scopePresetPill(title: "⚙️ 自定义勾选", preset: 2)
+                }
+                
+                if viewModel.showCustomScopes {
+                    customScopeChecklist
+                        .padding(.top, 4)
+                }
+            }
+            .padding(10)
+            .background(Color(nsColor: .quaternaryLabelColor).opacity(0.15))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            
             // Manual code paste toggle
             VStack(alignment: .leading, spacing: 6) {
                 Button {
@@ -263,6 +365,53 @@ public struct LoginView: View {
                 }
             }
         }
+    }
+    
+    private func scopePresetPill(title: String, preset: Int) -> some View {
+        let isSelected = viewModel.scopePreset == preset
+        return Button {
+            viewModel.selectPreset(preset, configManager: configManager)
+        } label: {
+            Text(title)
+                .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
+                .foregroundColor(isSelected ? Color(hex: "3370FF") : .secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(isSelected ? Color(hex: "3370FF").opacity(0.14) : Color(nsColor: .controlBackgroundColor))
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+    
+    private var customScopeChecklist: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(FeishuScopes.recommendedList) { scope in
+                Button {
+                    viewModel.toggleScopeKey(scope.key, configManager: configManager)
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: viewModel.selectedScopeKeys.contains(scope.key) ? "checkmark.square.fill" : "square")
+                            .foregroundColor(viewModel.selectedScopeKeys.contains(scope.key) ? Color(hex: "3370FF") : .secondary)
+                            .font(.system(size: 12))
+                        
+                        Text(scope.key)
+                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                            .foregroundColor(.primary)
+                        
+                        Text("(\(scope.name))")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.vertical, 4)
     }
     
     private var appCredentialsSection: some View {
