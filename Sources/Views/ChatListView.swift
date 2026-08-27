@@ -3,7 +3,7 @@ import SwiftUI
 @MainActor
 public final class ChatListViewModel: ObservableObject {
     @Published public var showAddChatSheet: Bool = false
-    @Published public var selectedIdType: String = "chat_id"
+    @Published public var selectedIdType: String = "auto"
     @Published public var directIdInput: String = ""
     @Published public var openChatError: String? = nil
     @Published public var isOpeningChat: Bool = false
@@ -83,7 +83,7 @@ public struct ChatListView: View {
                         .foregroundColor(Color(hex: "3370FF"))
                 }
                 .buttonStyle(.plain)
-                .help("按 Chat ID / Open ID 发起或查询私聊")
+                .help("按 Chat ID / Open ID / Message ID 发起或查询会话")
                 
                 // Refresh
                 Button {
@@ -206,7 +206,7 @@ public struct ChatListView: View {
                     Text("暂无活跃单聊会话")
                         .font(.system(size: 13, weight: .bold))
                     
-                    Text("飞书群列表 API 不包含单聊。您可以从下方选择联系人或点击上方「+」直接发起私聊：")
+                    Text("飞书群列表 API 默认不包含单聊。您可以从下方选择联系人或点击上方「+」直接发起私聊：")
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -253,7 +253,7 @@ public struct ChatListView: View {
                     }
                     .padding(.horizontal, 8)
                 } else {
-                    Button("输入 Chat ID / Open ID 发起单聊") {
+                    Button("输入 ID 发起单聊") {
                         viewModel.showAddChatSheet = true
                     }
                     .buttonStyle(.borderedProminent)
@@ -276,23 +276,33 @@ public struct ChatListView: View {
                 Spacer()
             }
             
-            Text("支持输入飞书会话 ID (`oc_...`) 或用户 Open ID (`ou_...`)、User ID 快速发起并打开单聊。")
+            Text("支持输入任意飞书标识符：会话 ID (`oc_...`)、消息 ID (`om_...`)、用户 Open ID (`ou_...`) 或邮箱，系统会自动识别并定位会话。")
                 .font(.system(size: 12))
                 .foregroundColor(.secondary)
                 .lineSpacing(3)
             
             Picker("查询模式", selection: $viewModel.selectedIdType) {
-                Text("Chat ID (oc_...)").tag("chat_id")
-                Text("User Open ID (ou_...)").tag("open_id")
+                Text("智能识别").tag("auto")
+                Text("Chat ID (oc_)").tag("chat_id")
+                Text("Message ID (om_)").tag("message_id")
+                Text("Open ID (ou_)").tag("open_id")
                 Text("User ID").tag("user_id")
-                Text("企业邮箱").tag("email")
+                Text("邮箱").tag("email")
             }
             .pickerStyle(.segmented)
             
             VStack(alignment: .leading, spacing: 6) {
-                Text(inputFieldLabel)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.secondary)
+                HStack {
+                    Text(inputFieldLabel)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    if let hint = detectedTypeHint {
+                        Text(hint)
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(Color(hex: "3370FF"))
+                    }
+                }
                 
                 TextField(inputFieldPlaceholder, text: $viewModel.directIdInput)
                     .textFieldStyle(.roundedBorder)
@@ -320,7 +330,7 @@ public struct ChatListView: View {
                 Spacer()
                 
                 PrimaryGradientButton(
-                    "发起 / 打开",
+                    "定位 / 打开会话",
                     icon: "arrow.right",
                     isLoading: viewModel.isOpeningChat
                 ) {
@@ -332,13 +342,31 @@ public struct ChatListView: View {
             }
         }
         .padding(20)
-        .frame(width: 440)
+        .frame(width: 480)
+    }
+    
+    private var detectedTypeHint: String? {
+        let trimmed = viewModel.directIdInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("om_") {
+            return "✓ 识别为 Message ID (将自动定位所属会话)"
+        } else if trimmed.hasPrefix("oc_") {
+            return "✓ 识别为 Chat ID"
+        } else if trimmed.hasPrefix("ou_") {
+            return "✓ 识别为 User Open ID (将发起单聊)"
+        } else if trimmed.hasPrefix("on_") {
+            return "✓ 识别为 Union ID"
+        } else if trimmed.contains("@") {
+            return "✓ 识别为 企业邮箱"
+        }
+        return nil
     }
     
     private var inputFieldLabel: String {
         switch viewModel.selectedIdType {
-        case "chat_id": return "输入会话 Chat ID"
-        case "open_id": return "输入用户 Open ID"
+        case "auto": return "输入任意 ID (oc_... / om_... / ou_... / 邮箱)"
+        case "chat_id": return "输入会话 Chat ID (oc_...)"
+        case "message_id": return "输入消息 Message ID (om_...)"
+        case "open_id": return "输入用户 Open ID (ou_...)"
         case "user_id": return "输入用户 User ID"
         case "email": return "输入用户企业邮箱"
         default: return "输入标识符"
@@ -347,7 +375,9 @@ public struct ChatListView: View {
     
     private var inputFieldPlaceholder: String {
         switch viewModel.selectedIdType {
+        case "auto": return "粘贴 oc_... 或 om_... 或 ou_..."
         case "chat_id": return "oc_xxxxxxxxxxxxxxxxxxxxxxxx"
+        case "message_id": return "om_xxxxxxxxxxxxxxxxxxxxxxxx"
         case "open_id": return "ou_xxxxxxxxxxxxxxxxxxxxxxxx"
         case "user_id": return "xxxxxxxx"
         case "email": return "user@company.com"

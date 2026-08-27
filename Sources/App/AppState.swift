@@ -518,14 +518,36 @@ public final class AppState: ObservableObject {
         let cleanId = idValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanId.isEmpty, let token = session?.accessToken else { return }
         
+        // Auto-detect Message ID (om_...)
+        if idType == "message_id" || cleanId.hasPrefix("om_") {
+            let msg = try await FeishuAPIClient.shared.fetchSingleMessage(token: token, messageId: cleanId)
+            if let targetChatId = msg.chatId, !targetChatId.isEmpty {
+                try await openDirectChat(chatId: targetChatId)
+                return
+            } else {
+                throw FeishuAPIClient.APIError.feishuError(code: 404, msg: "未能在消息中找到所属 Chat ID")
+            }
+        }
+        
+        // Auto-detect Chat ID (oc_...)
         if idType == "chat_id" || cleanId.hasPrefix("oc_") {
             try await openDirectChat(chatId: cleanId)
             return
         }
         
+        // Determine actual receive_id_type
+        var actualType = idType
+        if cleanId.hasPrefix("ou_") {
+            actualType = "open_id"
+        } else if cleanId.hasPrefix("on_") {
+            actualType = "union_id"
+        } else if cleanId.contains("@") {
+            actualType = "email"
+        }
+        
         let p2pChat = try await FeishuAPIClient.shared.createOrGetP2PChat(
             token: token,
-            receiveIdType: idType,
+            receiveIdType: actualType,
             receiveId: cleanId
         )
         

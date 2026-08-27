@@ -439,6 +439,40 @@ public final class FeishuAPIClient: Sendable {
         return decoded.data ?? FeishuMessageListData(items: [], pageToken: nil, hasMore: false)
     }
     
+    public func fetchSingleMessage(
+        token: String,
+        messageId: String
+    ) async throws -> FeishuMessageItem {
+        let encodedId = messageId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? messageId
+        guard let url = URL(string: "https://open.feishu.cn/open-apis/im/v1/messages/\(encodedId)") else {
+            throw APIError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+        
+        let decoded = try JSONDecoder().decode(FeishuMessageListResponse.self, from: data)
+        if decoded.code != 0 {
+            throw APIError.feishuError(code: decoded.code, msg: decoded.msg)
+        }
+        
+        guard let msg = decoded.data?.items?.first else {
+            throw APIError.invalidResponse
+        }
+        
+        return msg
+    }
+    
     // MARK: - Message Resource & Image
     
     public func fetchMessageResource(
