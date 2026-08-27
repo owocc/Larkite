@@ -2,17 +2,17 @@ import Foundation
 import AppKit
 
 /// Thread-safe in-memory and disk cache manager for message resource files (Images & Files)
+/// Features in-flight task deduplication and negative caching to prevent spamming requests.
 @MainActor
 public final class MessageResourceManager: ObservableObject {
     public static let shared = MessageResourceManager()
     
     private var imageMemoryCache = NSCache<NSString, NSImage>()
-    private var dataMemoryCache = NSCache<NSString, NSData>()
-    private var loadingKeys = Set<String>()
+    private var failedImageKeys = Set<String>()
+    private var inFlightTasks: [String: Task<NSImage?, Never>] = [:]
     
     private init() {
-        imageMemoryCache.countLimit = 200
-        dataMemoryCache.totalCostLimit = 100 * 1024 * 1024 // 100 MB
+        imageMemoryCache.countLimit = 300
     }
     
     /// Returns cached NSImage if available
@@ -28,44 +28,56 @@ public final class MessageResourceManager: ObservableObject {
     ) async -> NSImage? {
         let cacheKey = "\(messageId)_\(fileKey)"
         
+        // 1. Check memory cache
         if let cached = imageMemoryCache.object(forKey: cacheKey as NSString) {
             return cached
         }
         
-        if loadingKeys.contains(cacheKey) {
-            // Wait briefly if already loading
-            try? await Task.sleep(nanoseconds: 200_000_000)
-            return imageMemoryCache.object(forKey: cacheKey as NSString)
+        // 2. Check negative cache (do not re-request known failed/invalid keys)
+        if failedImageKeys.contains(cacheKey) {
+            return nil
         }
         
-        loadingKeys.insert(cacheKey)
-        defer { loadingKeys.remove(cacheKey) }
+        // 3. Deduplicate in-flight requests
+        if let existingTask = inFlightTasks[cacheKey] {
+            return await existingTask.value
+        }
         
-        do {
-            let data = try await FeishuAPIClient.shared.fetchMessageResource(
-                token: token,
-                messageId: messageId,
-                fileKey: fileKey,
-                type: "image"
-            )
+        // 4. Create single network task
+        let loadTask = Task<NSImage?, Never> {
+            do {
+                let data = try await FeishuAPIClient.shared.fetchMessageResource(
+                    token: token,
+                    messageId: messageId,
+                    fileKey: fileKey,
+                    type: "image"
+                )
+                
+                if let image = NSImage(data: data) {
+                    self.imageMemoryCache.setObject(image, forKey: cacheKey as NSString)
+                    return image
+                }
+            } catch {
+                // If message resource fails, try image download fallback once
+                if let fallbackData = try? await FeishuAPIClient.shared.downloadImage(token: token, imageKey: fileKey),
+                   let image = NSImage(data: fallbackData) {
+                    self.imageMemoryCache.setObject(image, forKey: cacheKey as NSString)
+                    return image
+                }
+            }
             
-            if let image = NSImage(data: data) {
-                imageMemoryCache.setObject(image, forKey: cacheKey as NSString)
-                return image
-            }
-        } catch {
-            // Try downloading with image API as fallback
-            if let fallbackData = try? await FeishuAPIClient.shared.downloadImage(token: token, imageKey: fileKey),
-               let image = NSImage(data: fallbackData) {
-                imageMemoryCache.setObject(image, forKey: cacheKey as NSString)
-                return image
-            }
+            // Mark as failed to avoid re-requesting on every scroll
+            self.failedImageKeys.insert(cacheKey)
+            return nil
         }
         
-        return nil
+        inFlightTasks[cacheKey] = loadTask
+        let result = await loadTask.value
+        inFlightTasks.removeValue(forKey: cacheKey)
+        return result
     }
     
-    /// Downloads and saves a message file to user's Downloads directory or prompt
+    /// Downloads and saves a message file to user's Downloads directory
     public func downloadAndSaveFile(
         token: String,
         messageId: String,
@@ -82,7 +94,6 @@ public final class MessageResourceManager: ObservableObject {
         let downloadsUrl = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first!
         var destinationUrl = downloadsUrl.appendingPathComponent(fileName)
         
-        // Avoid overwriting existing file
         var counter = 1
         let baseName = (fileName as NSString).deletingPathExtension
         let ext = (fileName as NSString).pathExtension
@@ -94,8 +105,6 @@ public final class MessageResourceManager: ObservableObject {
         }
         
         try data.write(to: destinationUrl)
-        
-        // Reveal in Finder
         NSWorkspace.shared.activateFileViewerSelecting([destinationUrl])
         
         return destinationUrl

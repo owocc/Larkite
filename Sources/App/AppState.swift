@@ -46,10 +46,11 @@ public final class AppState: ObservableObject {
     @Published public var chats: [FeishuChatItem] = []
     @Published public var selectedChat: FeishuChatItem? {
         didSet {
-            if let chat = selectedChat, oldValue?.id != chat.id {
-                Task {
+            guard let chat = selectedChat else { return }
+            if oldValue?.chatId != chat.chatId {
+                activeMessageLoadTask?.cancel()
+                activeMessageLoadTask = Task {
                     await loadMessages(for: chat, reset: true)
-                    await loadChatMembers(for: chat, reset: true)
                 }
             }
         }
@@ -84,6 +85,8 @@ public final class AppState: ObservableObject {
     @Published public var hasMoreChatMembers: Bool = false
     
     private var oauthServerTask: Task<Void, Never>?
+    private var activeMessageLoadTask: Task<Void, Never>?
+    private var activeMembersLoadTask: Task<Void, Never>?
     
     public var isLoggedIn: Bool {
         session != nil && !(session?.accessToken.isEmpty ?? true)
@@ -416,9 +419,6 @@ public final class AppState: ObservableObject {
             
             if selectedChat == nil, let first = self.chats.first {
                 self.selectedChat = first
-                Task {
-                    await self.loadMessages(for: first, reset: true)
-                }
             }
             
             Task {
@@ -447,7 +447,8 @@ public final class AppState: ObservableObject {
                 ConfigManager.shared.saveP2PChats(self.chats)
                 
                 if let selected = self.selectedChat,
-                   let updated = self.chats.first(where: { $0.chatId == selected.chatId }) {
+                   let updated = self.chats.first(where: { $0.chatId == selected.chatId }),
+                   selected != updated {
                     self.selectedChat = updated
                 }
             }
@@ -541,7 +542,6 @@ public final class AppState: ObservableObject {
         guard let token = session?.accessToken else { return }
         try await FeishuAPIClient.shared.recallMessage(token: token, messageId: message.messageId)
         
-        // Mark message as deleted locally
         if let index = self.messages.firstIndex(where: { $0.messageId == message.messageId }) {
             let original = self.messages[index]
             let updated = FeishuMessageItem(
@@ -572,9 +572,6 @@ public final class AppState: ObservableObject {
             emojiType: emojiType
         )
     }
-    
-    // MARK: - Direct / Single Chat (p2p)
-    
     
     // MARK: - Group Members Query
     
@@ -622,6 +619,9 @@ public final class AppState: ObservableObject {
         guard let chat = selectedChat, !isLoadingChatMembers, hasMoreChatMembers, chatMemberPageToken != nil else { return }
         await loadChatMembers(for: chat, reset: false)
     }
+    
+    // MARK: - Direct / Single Chat (p2p)
+    
     public func openDirectChat(chatId: String) async throws {
         let cleanId = chatId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanId.isEmpty, let token = session?.accessToken else { return }
@@ -641,7 +641,6 @@ public final class AppState: ObservableObject {
         let cleanId = idValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanId.isEmpty, let token = session?.accessToken else { return }
         
-        // Auto-detect Message ID (om_...)
         if idType == "message_id" || cleanId.hasPrefix("om_") {
             let msg = try await FeishuAPIClient.shared.fetchSingleMessage(token: token, messageId: cleanId)
             if let targetChatId = msg.chatId, !targetChatId.isEmpty {
@@ -652,13 +651,11 @@ public final class AppState: ObservableObject {
             }
         }
         
-        // Auto-detect Chat ID (oc_...)
         if idType == "chat_id" || cleanId.hasPrefix("oc_") {
             try await openDirectChat(chatId: cleanId)
             return
         }
         
-        // Determine actual receive_id_type
         var actualType = idType
         if cleanId.hasPrefix("ou_") {
             actualType = "open_id"

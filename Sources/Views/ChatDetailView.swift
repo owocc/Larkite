@@ -575,6 +575,13 @@ public struct ChatDetailView: View {
             }
             .padding(20)
         }
+        .onAppear {
+            if appState.chatMembers.isEmpty && !appState.isLoadingChatMembers {
+                Task {
+                    await appState.loadChatMembers(for: chat, reset: true)
+                }
+            }
+        }
     }
     
     private var filteredMembers: [FeishuChatMemberItem] {

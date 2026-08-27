@@ -8,19 +8,24 @@ public final class MessageImageViewModel: ObservableObject {
     @Published public var loadFailed: Bool = false
     @Published public var isHovered: Bool = false
     
+    private var hasAttempted: Bool = false
+    
     public init() {}
     
     public func loadImage(messageId: String, imageKey: String) {
-        guard !imageKey.isEmpty else { return }
+        guard !imageKey.isEmpty, !hasAttempted else { return }
         
         let token = AppState.shared.session?.accessToken ?? ""
         guard !token.isEmpty else { return }
         
-        if let cached = MessageResourceManager.shared.getCachedImage(key: "\(messageId)_\(imageKey)") {
+        let cacheKey = "\(messageId)_\(imageKey)"
+        if let cached = MessageResourceManager.shared.getCachedImage(key: cacheKey) {
             self.image = cached
+            self.hasAttempted = true
             return
         }
         
+        hasAttempted = true
         isLoading = true
         loadFailed = false
         
@@ -37,6 +42,11 @@ public final class MessageImageViewModel: ObservableObject {
                 self.isLoading = false
             }
         }
+    }
+    
+    public func retry(messageId: String, imageKey: String) {
+        hasAttempted = false
+        loadImage(messageId: messageId, imageKey: imageKey)
     }
     
     public func copyImageToClipboard() {
@@ -110,12 +120,12 @@ public struct MessageImageView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "photo.badge.exclamationmark")
                         .foregroundColor(.orange)
-                    Text("图片加载失败 (\(imageKey.prefix(8))...)")
+                    Text("图片未包含或无法下载")
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
                     
                     Button("重试") {
-                        viewModel.loadImage(messageId: messageId, imageKey: imageKey)
+                        viewModel.retry(messageId: messageId, imageKey: imageKey)
                     }
                     .buttonStyle(.link)
                     .font(.system(size: 11))
