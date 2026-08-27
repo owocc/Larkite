@@ -8,13 +8,11 @@ struct LarkiteApp: App {
     @StateObject private var configManager = ConfigManager.shared
     
     var body: some Scene {
-        WindowGroup {
-            MainView()
+        Settings {
+            SettingsView()
                 .environmentObject(appState)
                 .environmentObject(configManager)
         }
-        .windowStyle(.hiddenTitleBar)
-        .defaultSize(width: 1000, height: 660)
         .commands {
             CommandGroup(replacing: .appSettings) {
                 Button("设置...") {
@@ -51,22 +49,17 @@ struct LarkiteApp: App {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
-        if !AppState.shared.isLoggedIn {
-            DispatchQueue.main.async {
-                for window in NSApp.windows where window.title != "Larkite 账号与登录中心" && window.title != "设置" {
-                    window.orderOut(nil)
-                }
-                AccountWindowManager.shared.showLoginWindow()
-            }
+        if AppState.shared.isLoggedIn {
+            MainWindowManager.shared.showMainWindow()
+        } else {
+            AccountWindowManager.shared.showLoginWindow()
         }
     }
     
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !flag {
             if AppState.shared.isLoggedIn {
-                for window in NSApp.windows where window.title != "Larkite 账号与登录中心" && window.title != "设置" {
-                    window.makeKeyAndOrderFront(nil)
-                }
+                MainWindowManager.shared.showMainWindow()
             } else {
                 AccountWindowManager.shared.showLoginWindow()
             }

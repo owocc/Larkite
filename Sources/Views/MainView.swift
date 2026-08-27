@@ -7,46 +7,21 @@ public struct MainView: View {
     public init() {}
     
     public var body: some View {
-        Group {
-            if appState.isLoggedIn {
-                NavigationSplitView {
-                    ChatListView()
-                        .navigationSplitViewColumnWidth(min: 240, ideal: 290, max: 440)
-                } detail: {
-                    ChatDetailView(chat: appState.selectedChat)
-                }
-                .navigationSplitViewStyle(.balanced)
-            } else {
-                notLoggedInPlaceholderView
-            }
+        NavigationSplitView {
+            ChatListView()
+                .navigationSplitViewColumnWidth(min: 240, ideal: 290, max: 440)
+        } detail: {
+            ChatDetailView(chat: appState.selectedChat)
         }
+        .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 860, minHeight: 580)
-        .onAppear {
-            if !appState.isLoggedIn {
-                DispatchQueue.main.async {
-                    for window in NSApp.windows where window.title != "Larkite 账号与登录中心" && window.title != "设置" {
-                        window.orderOut(nil)
-                    }
-                    AccountWindowManager.shared.showLoginWindow()
-                }
-            }
-        }
         .onChange(of: appState.isLoggedIn) { wasLoggedIn, isLoggedIn in
             if isLoggedIn {
                 AccountWindowManager.shared.closeWindow()
-                DispatchQueue.main.async {
-                    for window in NSApp.windows where window.title != "Larkite 账号与登录中心" && window.title != "设置" {
-                        window.makeKeyAndOrderFront(nil)
-                    }
-                    NSApp.activate(ignoringOtherApps: true)
-                }
+                MainWindowManager.shared.showMainWindow()
             } else {
-                DispatchQueue.main.async {
-                    for window in NSApp.windows where window.title != "Larkite 账号与登录中心" && window.title != "设置" {
-                        window.orderOut(nil)
-                    }
-                    AccountWindowManager.shared.showLoginWindow()
-                }
+                MainWindowManager.shared.hideMainWindow()
+                AccountWindowManager.shared.showLoginWindow()
             }
         }
         .sheet(item: $appState.inspectedUser) { user in
@@ -56,52 +31,6 @@ public struct MainView: View {
             debugModalSheet
         }
     }
-    private var notLoggedInPlaceholderView: some View {
-        VStack(spacing: 16) {
-            if let appIcon = NSApp.applicationIconImage ?? NSImage(named: "AppIcon") {
-                Image(nsImage: appIcon)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 64, height: 64)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(Color(nsColor: .separatorColor).opacity(0.3), lineWidth: 1)
-                    )
-                    .shadow(color: Color.black.opacity(0.12), radius: 8, x: 0, y: 3)
-            } else {
-                Image(systemName: "person.crop.circle.badge.plus")
-                    .font(.system(size: 48))
-                    .foregroundColor(configManager.accentColorChoice.color)
-            }
-            Text("欢迎使用 Larkite")
-                .font(.system(size: 18, weight: .bold))
-            
-            Text("请在独立登录窗口中登录或选择企业账号，开始消息与会话管理")
-                .font(.system(size: 13))
-                .foregroundColor(.secondary)
-            Button {
-                AccountWindowManager.shared.showLoginWindow()
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "key.fill")
-                    Text("打开账号与登录窗口")
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.regular)
-            .padding(.top, 8)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(
-            VisualEffectBackground(material: .underWindowBackground, blendingMode: .behindWindow)
-                .ignoresSafeArea()
-        )
-    }
-    
-    
     
     private var debugModalSheet: some View {
         VStack(spacing: 0) {
