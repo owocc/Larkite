@@ -13,16 +13,16 @@ BG_IMG="Resources/dmg_background.png"
 # ==============================================================================
 # 📐 自定义安装窗口与背景图尺寸 (Custom DMG Window & Background Dimensions)
 # ==============================================================================
-WINDOW_WIDTH=660          # 安装窗口宽度 (以点/像素为单位)
-WINDOW_HEIGHT=400         # 安装窗口高度 (以点/像素为单位)
+WINDOW_WIDTH=800          # 安装窗口宽度 (以点/像素为单位)
+WINDOW_HEIGHT=533         # 安装窗口高度 (以点/像素为单位)
 ICON_SIZE=100             # 图标渲染尺寸 (点)
 
 # 📍 两个图标的放置坐标 (X, Y，以窗口左上角为原点)
-APP_ICON_X=180            # 左侧 Larkite.app 图标 X 坐标
-APP_ICON_Y=240            # 左侧 Larkite.app 图标 Y 坐标
+APP_ICON_X=308            # 左侧 Larkite.app 图标 X 坐标
+APP_ICON_Y=231            # 左侧 Larkite.app 图标 Y 坐标
 
-APPS_FOLDER_X=480         # 右侧 Applications 替身 X 坐标
-APPS_FOLDER_Y=240         # 右侧 Applications 替身 Y 坐标
+APPS_FOLDER_X=558         # 右侧 Applications 替身 X 坐标
+APPS_FOLDER_Y=231         # 右侧 Applications 替身 Y 坐标
 # ==============================================================================
 
 # 1. Build the .app bundle first
@@ -72,13 +72,13 @@ tell application "Finder"
         set current view of container window to icon view
         set toolbar visible of container window to false
         set statusbar visible of container window to false
-        
+
         set winLeft to 320
         set winTop to 180
         set winRight to winLeft + ${WINDOW_WIDTH}
         set winBottom to winTop + ${WINDOW_HEIGHT}
         set the bounds of container window to {winLeft, winTop, winRight, winBottom}
-        
+
         set theViewOptions to the icon view options of container window
         set arrangement of theViewOptions to not arranged
         set icon size of theViewOptions to ${ICON_SIZE}
@@ -88,10 +88,9 @@ tell application "Finder"
         delay 1
         set position of item "${APP_NAME}.app" of container window to {${APP_ICON_X}, ${APP_ICON_Y}}
         set position of item "Applications" of container window to {${APPS_FOLDER_X}, ${APPS_FOLDER_Y}}
-        close
-        open
         update without registering applications
         delay 1
+        close
     end tell
 end tell
 EOF
