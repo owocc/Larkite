@@ -11,7 +11,6 @@ struct LarkNativeApp: App {
             MainView()
                 .environmentObject(appState)
                 .environmentObject(configManager)
-                .preferredColorScheme(configManager.themeMode.colorScheme)
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1000, height: 660)

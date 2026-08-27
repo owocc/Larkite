@@ -71,7 +71,7 @@ public final class ConfigManager: ObservableObject {
     @Published public var themeMode: ThemeMode = .system {
         didSet {
             UserDefaults.standard.set(themeMode.rawValue, forKey: themeModeKey)
-            updateAppAppearance()
+            applyAppAppearance()
         }
     }
     @Published public var accentColorChoice: AccentColorChoice = .system {
@@ -79,14 +79,18 @@ public final class ConfigManager: ObservableObject {
             UserDefaults.standard.set(accentColorChoice.rawValue, forKey: accentColorKey)
         }
     }
-    public func updateAppAppearance() {
-        switch themeMode {
-        case .system:
-            NSApp.appearance = nil
-        case .light:
-            NSApp.appearance = NSAppearance(named: .aqua)
-        case .dark:
-            NSApp.appearance = NSAppearance(named: .darkAqua)
+    
+    public func applyAppAppearance() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            switch self.themeMode {
+            case .system:
+                NSApp.appearance = nil
+            case .light:
+                NSApp.appearance = NSAppearance(named: .aqua)
+            case .dark:
+                NSApp.appearance = NSAppearance(named: .darkAqua)
+            }
         }
     }
     private init() {

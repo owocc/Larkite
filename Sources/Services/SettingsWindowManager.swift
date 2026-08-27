@@ -57,6 +57,5 @@ public struct SettingsWindowContentView: View {
     
     public var body: some View {
         SettingsView()
-            .preferredColorScheme(configManager.themeMode.colorScheme)
     }
 }

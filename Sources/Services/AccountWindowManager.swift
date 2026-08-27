@@ -60,6 +60,5 @@ public struct AccountWindowContentView: View {
     
     public var body: some View {
         LoginView()
-            .preferredColorScheme(configManager.themeMode.colorScheme)
     }
 }
