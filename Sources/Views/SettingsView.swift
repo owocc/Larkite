@@ -161,8 +161,15 @@ public struct SettingsView: View {
                         .foregroundColor(Color(hex: "3370FF"))
                     Text("飞书开发者凭证配置")
                         .font(.system(size: 13, weight: .semibold))
+                    
+                    Spacer()
+                    
+                    StatusBadge("当前账号独立凭据沙箱", color: .green, icon: "lock.shield.fill")
                 }
                 
+                Text("提示：此凭据配置独立绑定至当前账号 / 组织，切换账号时将自动加载对应组织的应用密钥。")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
                 Divider()
                 
                 VStack(alignment: .leading, spacing: 6) {

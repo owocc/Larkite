@@ -4,6 +4,9 @@ import AppKit
 @MainActor
 public final class LoginViewModel: ObservableObject {
     @Published public var selectedLoginTab: Int = 0
+    @Published public var draftAppId: String = ""
+    @Published public var draftAppSecret: String = ""
+    @Published public var draftRedirectUri: String = "http://127.0.0.1:8989/callback"
     @Published public var directTokenInput: String = ""
     @Published public var directTokenType: UserSession.TokenType = .userAccessToken
     @Published public var manualCodeInput: String = ""
@@ -14,6 +17,24 @@ public final class LoginViewModel: ObservableObject {
     @Published public var selectedScopeKeys: Set<String> = Set(FeishuScopes.recommendedList.map(\.key))
     
     public init() {}
+    
+    public func initDrafts(config: AppConfig) {
+        if draftAppId.isEmpty && !config.appId.isEmpty {
+            draftAppId = config.appId
+            draftAppSecret = config.appSecret
+            draftRedirectUri = config.redirectUri
+        }
+    }
+    
+    public func buildDraftConfig() -> AppConfig {
+        AppConfig(
+            appId: draftAppId.trimmingCharacters(in: .whitespacesAndNewlines),
+            appSecret: draftAppSecret.trimmingCharacters(in: .whitespacesAndNewlines),
+            redirectUri: draftRedirectUri.trimmingCharacters(in: .whitespacesAndNewlines),
+            scopes: selectedScopeKeys.sorted().joined(separator: " "),
+            port: 8989
+        )
+    }
     
     public func copyCallbackUrl(url: String) {
         let pasteboard = NSPasteboard.general
@@ -30,29 +51,26 @@ public final class LoginViewModel: ObservableObject {
         }
     }
     
-    public func selectPreset(_ preset: Int, configManager: ConfigManager) {
+    public func selectPreset(_ preset: Int) {
         self.scopePreset = preset
         if preset == 0 {
             self.selectedScopeKeys = Set(FeishuScopes.recommendedList.map(\.key))
-            configManager.config.scopes = FeishuScopes.recommendedString
             self.showCustomScopes = false
         } else if preset == 1 {
             let minimal = FeishuScopes.recommendedList.filter { $0.isEssential }.map(\.key)
             self.selectedScopeKeys = Set(minimal)
-            configManager.config.scopes = FeishuScopes.minimalIMString
             self.showCustomScopes = false
         } else {
             self.showCustomScopes = true
         }
     }
     
-    public func toggleScopeKey(_ key: String, configManager: ConfigManager) {
+    public func toggleScopeKey(_ key: String) {
         if selectedScopeKeys.contains(key) {
             selectedScopeKeys.remove(key)
         } else {
             selectedScopeKeys.insert(key)
         }
-        configManager.config.scopes = selectedScopeKeys.sorted().joined(separator: " ")
     }
 }
 
@@ -101,6 +119,7 @@ public struct LoginView: View {
                         existingAccountsBanner
                             .frame(maxWidth: 520)
                     }
+                    
                     // Header Brand
                     headerView
                     
@@ -170,6 +189,9 @@ public struct LoginView: View {
             }
         }
         .frame(minWidth: 680, minHeight: 680)
+        .onAppear {
+            viewModel.initDrafts(config: configManager.config)
+        }
     }
     
     private var existingAccountsBanner: some View {
@@ -256,7 +278,7 @@ public struct LoginView: View {
             Text("Lark Native")
                 .font(.system(size: 22, weight: .bold, design: .rounded))
             
-            Text("多账号隔离 · 现代原生飞书客户端")
+            Text("多组织 · 多应用凭证独立隔离 · 现代原生飞书客户端")
                 .font(.system(size: 12))
                 .foregroundColor(.secondary)
         }
@@ -275,7 +297,7 @@ public struct LoginView: View {
             Spacer()
             
             Button {
-                viewModel.copyCallbackUrl(url: configManager.config.redirectUri)
+                viewModel.copyCallbackUrl(url: viewModel.draftRedirectUri)
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: viewModel.copiedCallbackToast ? "checkmark" : "doc.on.doc")
@@ -299,18 +321,18 @@ public struct LoginView: View {
                 .foregroundColor(.primary)
             
             VStack(alignment: .leading, spacing: 6) {
-                Text("App ID")
+                Text("App ID (当前组织应用标识)")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.secondary)
-                TextField("cli_xxxxxxxx", text: $configManager.config.appId)
+                TextField("cli_xxxxxxxx", text: $viewModel.draftAppId)
                     .textFieldStyle(.roundedBorder)
             }
             
             VStack(alignment: .leading, spacing: 6) {
-                Text("App Secret")
+                Text("App Secret (当前应用密钥)")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.secondary)
-                SecureField("输入应用 Secret", text: $configManager.config.appSecret)
+                SecureField("输入应用 Secret", text: $viewModel.draftAppSecret)
                     .textFieldStyle(.roundedBorder)
             }
             
@@ -324,7 +346,7 @@ public struct LoginView: View {
                         .font(.system(size: 10))
                         .foregroundColor(.green)
                 }
-                TextField("http://127.0.0.1:8989/callback", text: $configManager.config.redirectUri)
+                TextField("http://127.0.0.1:8989/callback", text: $viewModel.draftRedirectUri)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 11, design: .monospaced))
             }
@@ -375,7 +397,10 @@ public struct LoginView: View {
                         
                         Button("确认") {
                             Task {
-                                await appState.handleIncomingAuthCode(viewModel.manualCodeInput)
+                                await appState.handleIncomingAuthCode(
+                                    viewModel.manualCodeInput,
+                                    customConfig: viewModel.buildDraftConfig()
+                                )
                             }
                         }
                         .buttonStyle(.borderedProminent)
@@ -404,7 +429,7 @@ public struct LoginView: View {
                     icon: "arrow.up.right.square.fill",
                     isLoading: appState.isAuthenticating
                 ) {
-                    appState.startOAuthLogin()
+                    appState.startOAuthLogin(customConfig: viewModel.buildDraftConfig())
                 }
             }
         }
@@ -413,7 +438,7 @@ public struct LoginView: View {
     private func scopePresetPill(title: String, preset: Int) -> some View {
         let isSelected = viewModel.scopePreset == preset
         return Button {
-            viewModel.selectPreset(preset, configManager: configManager)
+            viewModel.selectPreset(preset)
         } label: {
             Text(title)
                 .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
@@ -433,7 +458,7 @@ public struct LoginView: View {
         VStack(alignment: .leading, spacing: 6) {
             ForEach(FeishuScopes.recommendedList) { scope in
                 Button {
-                    viewModel.toggleScopeKey(scope.key, configManager: configManager)
+                    viewModel.toggleScopeKey(scope.key)
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: viewModel.selectedScopeKeys.contains(scope.key) ? "checkmark.square.fill" : "square")
@@ -470,7 +495,7 @@ public struct LoginView: View {
                 Text("App ID")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.secondary)
-                TextField("cli_xxxxxxxx", text: $configManager.config.appId)
+                TextField("cli_xxxxxxxx", text: $viewModel.draftAppId)
                     .textFieldStyle(.roundedBorder)
             }
             
@@ -478,7 +503,7 @@ public struct LoginView: View {
                 Text("App Secret")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.secondary)
-                SecureField("输入应用 Secret", text: $configManager.config.appSecret)
+                SecureField("输入应用 Secret", text: $viewModel.draftAppSecret)
                     .textFieldStyle(.roundedBorder)
             }
             
@@ -493,8 +518,8 @@ public struct LoginView: View {
                 ) {
                     Task {
                         await appState.loginWithAppCredentials(
-                            appId: configManager.config.appId,
-                            appSecret: configManager.config.appSecret
+                            appId: viewModel.draftAppId,
+                            appSecret: viewModel.draftAppSecret
                         )
                     }
                 }

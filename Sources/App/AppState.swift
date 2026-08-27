@@ -149,8 +149,8 @@ public final class AppState: ObservableObject {
     
     // MARK: - OAuth Login Flow (On-Demand Local Server)
     
-    public func startOAuthLogin() {
-        let config = ConfigManager.shared.config
+    public func startOAuthLogin(customConfig: AppConfig? = nil) {
+        let config = customConfig ?? ConfigManager.shared.config
         localServerPort = config.port
         
         guard !config.appId.isEmpty, !config.appSecret.isEmpty else {
@@ -181,7 +181,7 @@ public final class AppState: ObservableObject {
                 await LocalCallbackServer.shared.stop()
                 self.isLocalServerRunning = false
                 
-                await handleIncomingAuthCode(code)
+                await handleIncomingAuthCode(code, customConfig: config)
             } catch {
                 await LocalCallbackServer.shared.stop()
                 self.isLocalServerRunning = false
@@ -195,7 +195,7 @@ public final class AppState: ObservableObject {
         }
     }
     
-    public func handleIncomingAuthCode(_ rawInput: String) async {
+    public func handleIncomingAuthCode(_ rawInput: String, customConfig: AppConfig? = nil) async {
         await LocalCallbackServer.shared.stop()
         self.isLocalServerRunning = false
         
@@ -206,7 +206,7 @@ public final class AppState: ObservableObject {
             return
         }
         
-        let config = ConfigManager.shared.config
+        let config = customConfig ?? ConfigManager.shared.config
         guard !config.appId.isEmpty, !config.appSecret.isEmpty else {
             authError = "请先配置 App ID 和 App Secret"
             isAuthenticating = false

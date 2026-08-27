@@ -26,36 +26,34 @@ public final class ConfigManager: ObservableObject {
         self.activeAccountId = savedActiveId
         
         // 2. Load accounts list
+        let loadedAccounts: [AccountSession]
         if let data = UserDefaults.standard.data(forKey: accountsKey),
            let list = try? JSONDecoder().decode([AccountSession].self, from: data) {
-            self.accounts = list
+            loadedAccounts = list
         } else {
-            self.accounts = []
+            loadedAccounts = []
         }
+        self.accounts = loadedAccounts
         
-        // 3. Load active config
-        if let data = UserDefaults.standard.data(forKey: userDefaultsKey),
-           let saved = try? JSONDecoder().decode(AppConfig.self, from: data) {
+        // 3. Load active account config or fallback default
+        if let activeId = savedActiveId,
+           let activeAccount = loadedAccounts.first(where: { $0.id == activeId }) {
+            var loaded = activeAccount.config
+            if let secret = KeychainHelper.readString(key: "\(appSecretKeychainKey)_\(activeId)") ?? KeychainHelper.readString(key: appSecretKeychainKey) {
+                loaded.appSecret = secret
+            }
+            self.config = loaded
+        } else if let data = UserDefaults.standard.data(forKey: userDefaultsKey),
+                  let saved = try? JSONDecoder().decode(AppConfig.self, from: data) {
             var loaded = saved
             if let secret = KeychainHelper.readString(key: appSecretKeychainKey) {
                 loaded.appSecret = secret
             }
-            
-            var currentScopes = Set(loaded.scopes.components(separatedBy: " ").filter { !$0.isEmpty })
-            currentScopes.remove("im:message.history:readonly")
-            
-            let essential = FeishuScopes.recommendedList.filter { $0.isEssential }.map(\.key)
-            for key in essential {
-                currentScopes.insert(key)
-            }
-            loaded.scopes = currentScopes.sorted().joined(separator: " ")
             self.config = loaded
         } else {
             self.config = .default
         }
     }
-    
-    // MARK: - Multi-Account Management
     
     public func saveAccountSession(
         user: FeishuUserInfo?,
@@ -69,7 +67,7 @@ public final class ConfigManager: ObservableObject {
             return !config.appId.isEmpty ? config.appId : UUID().uuidString
         }()
         
-        let accountName = user?.displayName ?? "飞书用户"
+        let accountName = user?.displayName ?? "飞书账号 (\(config.appId.prefix(6)))"
         
         var account = AccountSession(
             id: accountId,
@@ -96,8 +94,13 @@ public final class ConfigManager: ObservableObject {
         self.activeAccountId = accountId
         self.config = config
         
-        persistAccounts()
+        // Save isolated Keychain secret & session & config
+        if !config.appSecret.isEmpty {
+            _ = KeychainHelper.saveString(key: "\(appSecretKeychainKey)_\(accountId)", value: config.appSecret)
+        }
         saveSession(session, forAccountId: accountId)
+        saveAccountConfig(config, forAccountId: accountId)
+        persistAccounts()
         
         return account
     }
@@ -105,11 +108,17 @@ public final class ConfigManager: ObservableObject {
     public func switchAccount(to accountId: String) -> AccountSession? {
         guard let account = accounts.first(where: { $0.id == accountId }) else { return nil }
         self.activeAccountId = accountId
-        self.config = account.config
         
-        // Update lastActiveAt
+        // Load isolated credentials for this account
+        var accountConfig = account.config
+        if let secret = KeychainHelper.readString(key: "\(appSecretKeychainKey)_\(accountId)") {
+            accountConfig.appSecret = secret
+        }
+        self.config = accountConfig
+        
         if let idx = accounts.firstIndex(where: { $0.id == accountId }) {
             accounts[idx].lastActiveAt = Date()
+            accounts[idx].config = accountConfig
         }
         
         persistAccounts()
@@ -119,6 +128,8 @@ public final class ConfigManager: ObservableObject {
     public func removeAccount(id: String) {
         accounts.removeAll(where: { $0.id == id })
         _ = KeychainHelper.delete(key: "\(sessionKey)_\(id)")
+        _ = KeychainHelper.delete(key: "\(appSecretKeychainKey)_\(id)")
+        UserDefaults.standard.removeObject(forKey: "\(userDefaultsKey)_\(id)")
         UserDefaults.standard.removeObject(forKey: "\(p2pChatsPrefix)\(id)")
         
         if activeAccountId == id {
@@ -136,6 +147,8 @@ public final class ConfigManager: ObservableObject {
     public func clearAllAccounts() {
         for acc in accounts {
             _ = KeychainHelper.delete(key: "\(sessionKey)_\(acc.id)")
+            _ = KeychainHelper.delete(key: "\(appSecretKeychainKey)_\(acc.id)")
+            UserDefaults.standard.removeObject(forKey: "\(userDefaultsKey)_\(acc.id)")
             UserDefaults.standard.removeObject(forKey: "\(p2pChatsPrefix)\(acc.id)")
         }
         accounts = []
@@ -152,16 +165,23 @@ public final class ConfigManager: ObservableObject {
         UserDefaults.standard.set(activeAccountId, forKey: activeAccountIdKey)
     }
     
-    // MARK: - Scopes Configuration
+    // MARK: - Isolated Config Storage
     
-    public func resetToMinimalIMScopes() {
-        self.config.scopes = FeishuScopes.minimalIMString
-        saveConfig()
+    public func saveAccountConfig(_ cfg: AppConfig, forAccountId: String) {
+        if let data = try? JSONEncoder().encode(cfg) {
+            UserDefaults.standard.set(data, forKey: "\(userDefaultsKey)_\(forAccountId)")
+        }
     }
     
-    public func resetToRecommendedScopes() {
-        self.config.scopes = FeishuScopes.recommendedString
-        saveConfig()
+    public func loadAccountConfig(forAccountId: String) -> AppConfig? {
+        guard let data = UserDefaults.standard.data(forKey: "\(userDefaultsKey)_\(forAccountId)"),
+              var cfg = try? JSONDecoder().decode(AppConfig.self, from: data) else {
+            return nil
+        }
+        if let secret = KeychainHelper.readString(key: "\(appSecretKeychainKey)_\(forAccountId)") {
+            cfg.appSecret = secret
+        }
+        return cfg
     }
     
     public func saveConfig() {
@@ -172,11 +192,24 @@ public final class ConfigManager: ObservableObject {
             _ = KeychainHelper.saveString(key: appSecretKeychainKey, value: config.appSecret)
         }
         
-        // Sync to active account if present
         if let activeId = activeAccountId, let idx = accounts.firstIndex(where: { $0.id == activeId }) {
             accounts[idx].config = config
+            saveAccountConfig(config, forAccountId: activeId)
+            if !config.appSecret.isEmpty {
+                _ = KeychainHelper.saveString(key: "\(appSecretKeychainKey)_\(activeId)", value: config.appSecret)
+            }
             persistAccounts()
         }
+    }
+    
+    public func resetToMinimalIMScopes() {
+        self.config.scopes = FeishuScopes.minimalIMString
+        saveConfig()
+    }
+    
+    public func resetToRecommendedScopes() {
+        self.config.scopes = FeishuScopes.recommendedString
+        saveConfig()
     }
     
     // MARK: - Isolated Session Storage
