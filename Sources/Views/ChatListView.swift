@@ -38,32 +38,36 @@ public struct ChatListView: View {
     public init() {}
     
     public var body: some View {
-        VStack(spacing: 0) {
-            // Search & Active Filter Chip
-            headerSection
-                .padding(.horizontal, 10)
-                .padding(.top, 8)
-                .padding(.bottom, 6)
-            
-            Divider()
-            
-            // Content
-            if appState.isLoadingChats && appState.chats.isEmpty {
-                loadingView
-            } else if let error = appState.chatError, appState.chats.isEmpty {
-                errorView(error: error)
-            } else if appState.filterMode == .p2p && appState.filteredChats.isEmpty {
-                p2pEmptyAndContactsView
-            } else if appState.filteredChats.isEmpty {
-                emptyView
-            } else {
-                chatListContent
+        ZStack(alignment: .bottomLeading) {
+            // 100% Full-Height Scrollable Sidebar Column
+            VStack(spacing: 0) {
+                // Search & Active Filter Chip
+                headerSection
+                    .padding(.horizontal, 10)
+                    .padding(.top, 8)
+                    .padding(.bottom, 6)
+                
+                Divider()
+                
+                // Content
+                if appState.isLoadingChats && appState.chats.isEmpty {
+                    loadingView
+                } else if let error = appState.chatError, appState.chats.isEmpty {
+                    errorView(error: error)
+                } else if appState.filterMode == .p2p && appState.filteredChats.isEmpty {
+                    p2pEmptyAndContactsView
+                } else if appState.filteredChats.isEmpty {
+                    emptyView
+                } else {
+                    chatListContent
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             
-            Spacer(minLength: 0)
-            
-            // Bottom Docked Account & Settings Toolbar
-            sidebarBottomSection
+            // Floating Liquid Glass Avatar Button (Matching Sidebar Button Size: 34x34)
+            floatingSidebarBottomButton
+                .padding(.leading, 12)
+                .padding(.bottom, 12)
         }
         .background(
             VisualEffectBackground(material: .sidebar, blendingMode: .behindWindow)
@@ -216,6 +220,10 @@ public struct ChatListView: View {
                     }
                     .buttonStyle(.plain)
                 }
+                
+                // Bottom breathing space for floating avatar button
+                Color.clear
+                    .frame(height: 54)
             }
             .padding(8)
         }
@@ -309,47 +317,42 @@ public struct ChatListView: View {
     
     // MARK: - Sidebar Bottom Docked Toolbar
     
-    private var sidebarBottomSection: some View {
-        HStack {
-            // Liquid Glass Avatar Button (matching sidebar & top bar style)
-            Button {
-                viewModel.showAccountMenu.toggle()
-            } label: {
-                ZStack {
-                    if let user = appState.session?.user {
-                        AvatarView(urlString: user.bestAvatarUrl, name: user.displayName, size: 22)
-                    } else if let activeId = configManager.activeAccountId, let acc = configManager.accounts.first(where: { $0.id == activeId }) {
-                        AvatarView(urlString: acc.avatarUrl, name: acc.displayName, size: 22)
-                    } else {
-                        Image(systemName: "person.crop.circle.fill")
-                            .font(.system(size: 13))
-                            .foregroundColor(.secondary)
-                    }
+    // MARK: - Floating Sidebar Bottom Button (Enlarged 34x34 Liquid Glass)
+    
+    private var floatingSidebarBottomButton: some View {
+        Button {
+            viewModel.showAccountMenu.toggle()
+        } label: {
+            ZStack {
+                if let user = appState.session?.user {
+                    AvatarView(urlString: user.bestAvatarUrl, name: user.displayName, size: 26)
+                } else if let activeId = configManager.activeAccountId, let acc = configManager.accounts.first(where: { $0.id == activeId }) {
+                    AvatarView(urlString: acc.avatarUrl, name: acc.displayName, size: 26)
+                } else {
+                    Image(systemName: "person.crop.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundColor(.secondary)
                 }
-                .frame(width: 28, height: 28)
-                .background(
-                    ZStack {
-                        VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
-                        Color(nsColor: .controlBackgroundColor).opacity(0.55)
-                    }
-                    .clipShape(Circle())
-                )
-                .overlay(
-                    Circle()
-                        .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
-                )
-                .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 1.5)
             }
-            .buttonStyle(.plain)
-            .help("账号管理与应用设置")
-            .popover(isPresented: $viewModel.showAccountMenu, arrowEdge: .top) {
-                accountSwitcherPopover
-            }
-            
-            Spacer()
+            .frame(width: 34, height: 34)
+            .background(
+                ZStack {
+                    VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
+                    Color(nsColor: .controlBackgroundColor).opacity(0.65)
+                }
+                .clipShape(Circle())
+            )
+            .overlay(
+                Circle()
+                    .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1.2)
+            )
+            .shadow(color: Color.black.opacity(0.12), radius: 6, x: 0, y: 2)
         }
-        .padding(.horizontal, 12)
-        .padding(.bottom, 10)
+        .buttonStyle(.plain)
+        .help("账号管理与应用设置")
+        .popover(isPresented: $viewModel.showAccountMenu, arrowEdge: .top) {
+            accountSwitcherPopover
+        }
     }
     
     private var accountSwitcherPopover: some View {
