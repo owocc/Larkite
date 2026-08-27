@@ -119,14 +119,11 @@ public struct SettingsView: View {
     
     public var body: some View {
         VStack(spacing: 0) {
-            // Top Tab Toolbar (macOS 26+ Liquid Glass Segmented Tabs)
+            // Centered Native Preferences Tabs (Seamless, No Dividers)
             topTabBar
                 .padding(.horizontal, 16)
-                .padding(.top, 14)
-                .padding(.bottom, 12)
-                .background(Color(nsColor: .controlBackgroundColor).opacity(0.3))
-            
-            Divider()
+                .padding(.top, 10)
+                .padding(.bottom, 10)
             
             // Tab Content
             ScrollView {
@@ -152,22 +149,28 @@ public struct SettingsView: View {
     // MARK: - Top Tab Bar (macOS Native Preferences Style)
     
     private var topTabBar: some View {
-        HStack(spacing: 12) {
-            tabButton(title: "账号", icon: "person.crop.circle", tab: 0)
-            tabButton(title: "外观", icon: "paintbrush.fill", tab: 1)
-            tabButton(title: "权限", icon: "lock.shield.fill", tab: 2)
-            
+        HStack {
             Spacer()
             
+            HStack(spacing: 8) {
+                tabButton(title: "账号", icon: "person.crop.circle", tab: 0)
+                tabButton(title: "外观", icon: "paintbrush.fill", tab: 1)
+                tabButton(title: "权限", icon: "lock.shield.fill", tab: 2)
+            }
+            
+            Spacer()
+        }
+        .overlay(alignment: .trailing) {
             if viewModel.showSavedToast {
                 HStack(spacing: 4) {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundColor(.green)
-                    Text("已自动保存")
-                        .font(.system(size: 11, weight: .medium))
+                    Text("已保存")
+                        .font(.system(size: 10, weight: .medium))
                         .foregroundColor(.secondary)
                 }
                 .transition(.opacity)
+                .padding(.trailing, 12)
             }
         }
     }
@@ -190,20 +193,20 @@ public struct SettingsView: View {
             .padding(.vertical, 6)
             .background(
                 Capsule()
-                    .fill(isSelected ? Color(hex: "3370FF") : Color(nsColor: .controlBackgroundColor).opacity(0.5))
+                    .fill(isSelected ? configManager.accentColorChoice.color : Color(nsColor: .controlBackgroundColor).opacity(0.45))
             )
             .overlay(
                 Group {
                     if isSelected {
                         Capsule()
-                            .strokeBorder(Color.white.opacity(0.2), lineWidth: 1)
+                            .strokeBorder(Color.white.opacity(0.25), lineWidth: 1)
                     } else {
                         Capsule()
                             .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
                     }
                 }
             )
-            .shadow(color: isSelected ? Color(hex: "3370FF").opacity(0.3) : Color.black.opacity(0.04), radius: 4, x: 0, y: 1.5)
+            .shadow(color: isSelected ? configManager.accentColorChoice.color.opacity(0.35) : Color.black.opacity(0.04), radius: 4, x: 0, y: 1.5)
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -293,9 +296,6 @@ public struct SettingsView: View {
                 }
             }
             
-            Divider()
-            
-            // Action Buttons
             HStack(spacing: 12) {
                 Button {
                     AccountWindowManager.shared.showLoginWindow()
