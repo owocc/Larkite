@@ -22,16 +22,16 @@ public final class SettingsWindowManager: NSObject, NSWindowDelegate {
         let hostingController = NSHostingController(rootView: contentView)
         
         let newWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 620, height: 660),
+            contentRect: NSRect(x: 0, y: 0, width: 520, height: 560),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
-        newWindow.title = "偏好设置与权限管理"
+        newWindow.title = "偏好设置"
         newWindow.titleVisibility = .hidden
         newWindow.titlebarAppearsTransparent = true
         newWindow.isReleasedWhenClosed = false
-        newWindow.minSize = NSSize(width: 540, height: 500)
+        newWindow.minSize = NSSize(width: 480, height: 460)
         newWindow.center()
         newWindow.contentViewController = hostingController
         newWindow.delegate = self
@@ -58,28 +58,7 @@ public struct SettingsWindowContentView: View {
     public init() {}
     
     public var body: some View {
-        VStack(spacing: 0) {
-            // Header Bar
-            HStack {
-                Text("偏好设置与权限")
-                    .font(.system(size: 14, weight: .bold))
-                Spacer()
-                Button("完成") {
-                    SettingsWindowManager.shared.closeWindow()
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 14)
-            .padding(.bottom, 12)
-            .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
-            
-            Divider()
-            
-            SettingsView()
-        }
-        .frame(minWidth: 540, minHeight: 520)
-        .preferredColorScheme(configManager.themeMode.colorScheme)
+        SettingsView()
+            .preferredColorScheme(configManager.themeMode.colorScheme)
     }
 }
