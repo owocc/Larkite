@@ -23,8 +23,10 @@ public final class ConfigManager: ObservableObject {
                 loaded.appSecret = secret
             }
             
-            // Auto-merge missing essential IM scopes (pure IM messaging without forcing address book)
+            // Auto-merge missing essential IM scopes and remove legacy deprecated scopes
             var currentScopes = Set(loaded.scopes.components(separatedBy: " ").filter { !$0.isEmpty })
+            currentScopes.remove("im:message.history:readonly") // Remove legacy key
+            
             let essential = FeishuScopes.recommendedList.filter { $0.isEssential }.map(\.key)
             for key in essential {
                 currentScopes.insert(key)

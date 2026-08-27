@@ -65,7 +65,6 @@ public enum FeishuScopes {
         // 消息与会话
         FeishuScopeInfo(key: "im:message", name: "获取与发送单聊、群组消息", description: "接收和发送私聊与群聊消息", category: .message, isEssential: true),
         FeishuScopeInfo(key: "im:message:readonly", name: "读取单聊、群组消息", description: "只读获取私聊与群聊消息", category: .message, isEssential: true),
-        FeishuScopeInfo(key: "im:message.history:readonly", name: "读取历史消息", description: "获取会话历史聊天记录", category: .message, isEssential: true),
         FeishuScopeInfo(key: "im:message.p2p_msg:get_as_user", name: "以用户身份获取单聊消息", description: "以当前用户权限读取私聊消息", category: .message, isEssential: true),
         FeishuScopeInfo(key: "im:message.group_msg:get_as_user", name: "以用户身份获取群聊消息", description: "以当前用户权限读取群聊消息", category: .message, isEssential: true),
         FeishuScopeInfo(key: "im:message.send_as_user", name: "以用户身份发送消息", description: "以当前用户身份发送私聊/群聊消息", category: .message, isEssential: false),
