@@ -479,10 +479,25 @@ public final class AppState: ObservableObject {
             messages = []
         }
         
+        var targetChatId = chat.chatId
+        
+        // If the item only has an Open ID (ou_...) instead of a Chat ID (oc_...),
+        // check if we have a known p2p chat for this user
+        if !targetChatId.hasPrefix("oc_") {
+            if let matched = self.chats.first(where: { $0.isP2P && $0.chatId.hasPrefix("oc_") && ($0.ownerId == chat.chatId || $0.ownerId == chat.ownerId) }) {
+                targetChatId = matched.chatId
+            } else {
+                // Brand new direct contact without existing messages
+                self.messages = []
+                self.isLoadingMessages = false
+                return
+            }
+        }
+        
         do {
             let result = try await FeishuAPIClient.shared.fetchChatMessages(
                 token: token,
-                chatId: chat.chatId,
+                chatId: targetChatId,
                 sortType: "ByCreateTimeAsc",
                 pageToken: reset ? nil : messagePageToken,
                 pageSize: 40
@@ -527,7 +542,7 @@ public final class AppState: ObservableObject {
             self.messages.append(sentMsg)
             self.replyingToMessage = nil
         } else {
-            let receiveIdType = chat.isP2P && chat.chatId.hasPrefix("ou_") ? "open_id" : "chat_id"
+            let receiveIdType = chat.isP2P && !chat.chatId.hasPrefix("oc_") ? "open_id" : "chat_id"
             let sentMsg = try await FeishuAPIClient.shared.sendMessage(
                 token: token,
                 receiveIdType: receiveIdType,
@@ -535,6 +550,34 @@ public final class AppState: ObservableObject {
                 text: cleanText
             )
             self.messages.append(sentMsg)
+            
+            // If we sent to an open_id and Feishu returned the new oc_... chat_id, update the chat
+            if let newChatId = sentMsg.chatId, newChatId.hasPrefix("oc_") && chat.chatId != newChatId {
+                let updatedChat = FeishuChatItem(
+                    chatId: newChatId,
+                    avatar: chat.avatar,
+                    name: chat.name,
+                    description: chat.description,
+                    ownerId: chat.ownerId ?? chat.chatId,
+                    ownerIdType: chat.ownerIdType ?? "open_id",
+                    external: chat.external,
+                    tenantKey: chat.tenantKey,
+                    chatStatus: chat.chatStatus,
+                    chatMode: "p2p",
+                    chatType: "private",
+                    chatTag: "p2p",
+                    userCount: "2",
+                    botCount: "0"
+                )
+                
+                if let idx = self.chats.firstIndex(where: { $0.chatId == chat.chatId }) {
+                    self.chats[idx] = updatedChat
+                } else {
+                    self.chats.insert(updatedChat, at: 0)
+                }
+                self.selectedChat = updatedChat
+                ConfigManager.shared.saveP2PChats(self.chats)
+            }
         }
     }
     
