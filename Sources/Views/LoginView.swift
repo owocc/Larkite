@@ -233,18 +233,17 @@ public struct LoginView: View {
                                     }
                                     
                                     Spacer()
-                                    
                                     if isActive {
                                         Image(systemName: "checkmark.circle.fill")
                                             .font(.system(size: 12))
-                                            .foregroundColor(.green)
+                                            .foregroundColor(configManager.accentColorChoice.color)
                                     }
                                 }
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 6)
                                 .background(
                                     RoundedRectangle(cornerRadius: 6)
-                                        .fill(isActive ? Color(hex: "3370FF").opacity(0.12) : Color(nsColor: .quaternaryLabelColor).opacity(0.1))
+                                        .fill(isActive ? configManager.accentColorChoice.color.opacity(0.14) : Color(nsColor: .quaternaryLabelColor).opacity(0.1))
                                 )
                                 .contentShape(Rectangle())
                             }
@@ -264,10 +263,10 @@ public struct LoginView: View {
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "person.crop.circle.badge.plus")
-                        .foregroundColor(Color(hex: "3370FF"))
+                        .foregroundColor(configManager.accentColorChoice.color)
                     Text("登录新账号 / 添加新企业")
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(Color(hex: "3370FF"))
+                        .foregroundColor(configManager.accentColorChoice.color)
                 }
             }
             .buttonStyle(.plain)
@@ -336,7 +335,7 @@ public struct LoginView: View {
             HStack(spacing: 10) {
                 ZStack {
                     Circle()
-                        .fill(Color(hex: "3370FF"))
+                        .fill(configManager.accentColorChoice.color)
                         .frame(width: 36, height: 36)
                     
                     Image(systemName: "bird.fill")
@@ -379,7 +378,7 @@ public struct LoginView: View {
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .frame(height: 36)
-                    .background(Color(hex: "3370FF"))
+                    .background(configManager.accentColorChoice.color)
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
                 .buttonStyle(.plain)
@@ -486,10 +485,10 @@ public struct LoginView: View {
                     Text(viewModel.copiedCallbackToast ? "已复制" : "复制")
                 }
                 .font(.system(size: 9, weight: .medium))
-                .foregroundColor(viewModel.copiedCallbackToast ? .green : Color(hex: "3370FF"))
+                .foregroundColor(viewModel.copiedCallbackToast ? .green : configManager.accentColorChoice.color)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
-                .background(Color(hex: "3370FF").opacity(0.1))
+                .background(configManager.accentColorChoice.color.opacity(0.12))
                 .clipShape(Capsule())
             }
             .buttonStyle(.plain)

@@ -386,14 +386,14 @@ public struct ChatListView: View {
                                 if isActive {
                                     Image(systemName: "checkmark.circle.fill")
                                         .font(.system(size: 12))
-                                        .foregroundColor(.green)
+                                        .foregroundColor(configManager.accentColorChoice.color)
                                 }
                             }
                             .padding(.horizontal, 8)
                             .padding(.vertical, 6)
                             .background(
                                 RoundedRectangle(cornerRadius: 6)
-                                    .fill(isActive ? Color(hex: "3370FF").opacity(0.12) : Color(nsColor: .quaternaryLabelColor).opacity(0.1))
+                                    .fill(isActive ? configManager.accentColorChoice.color.opacity(0.14) : Color(nsColor: .quaternaryLabelColor).opacity(0.1))
                             )
                             .contentShape(Rectangle())
                         }

@@ -283,13 +283,12 @@ public struct SettingsView: View {
                             Spacer()
                             
                             if isActive {
-                                StatusBadge("当前使用", color: .green)
+                                StatusBadge("当前使用", color: configManager.accentColorChoice.color)
                             }
                         }
                         .padding(8)
-                        .background(isActive ? Color(hex: "3370FF").opacity(0.1) : Color(nsColor: .controlBackgroundColor).opacity(0.5))
+                        .background(isActive ? configManager.accentColorChoice.color.opacity(0.14) : Color(nsColor: .controlBackgroundColor).opacity(0.5))
                         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .help("点击直接切换至「\(acc.displayName)」")
