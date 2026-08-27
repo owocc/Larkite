@@ -33,10 +33,10 @@ public struct AvatarView: View {
             }
         }
         .frame(width: size, height: size)
-        .clipShape(RoundedRectangle(cornerRadius: size * 0.28, style: .continuous))
+        .clipShape(Circle())
         .overlay(
-            RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
-                .stroke(Color.white.opacity(0.15), lineWidth: 1)
+            Circle()
+                .stroke(Color(nsColor: .separatorColor).opacity(0.3), lineWidth: 1)
         )
     }
     
