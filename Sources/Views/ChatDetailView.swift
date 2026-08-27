@@ -118,21 +118,21 @@ public struct ChatDetailView: View {
     public var body: some View {
         if let chat = chat {
             HStack(spacing: 0) {
-                // Main Chat Column with Floating Hover Header & Liquid Glass Dock
+                // Main Chat Column with Floating Header & Liquid Glass Dock
                 ZStack(alignment: .top) {
                     Color(nsColor: .windowBackgroundColor)
                         .ignoresSafeArea()
                     
-                    // Messages Stream
+                    // Messages Stream with exact matching top padding
                     messagesStreamView(chat: chat)
-                        .padding(.top, 50)
+                        .padding(.top, 44)
                     
-                    // Floating Modern macOS Header Bar
+                    // Floating Modern macOS Header Bar aligned with sidebar
                     floatingHeaderBar(chat: chat)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 
-                // Collapsible Right-Side Inspector Panel
+                // Collapsible Right-Side Inspector Panel (Apple Messages Style)
                 if viewModel.isShowingRightPanel {
                     Divider()
                     rightSideInspectorPanel(chat: chat)
@@ -146,7 +146,7 @@ public struct ChatDetailView: View {
         }
     }
     
-    // MARK: - Floating Modern Header Bar (Apple Messages Style)
+    // MARK: - Floating Modern Header Bar (Apple Messages & Liquid Glass Style)
     
     private func floatingHeaderBar(chat: FeishuChatItem) -> some View {
         let currentUser = appState.session?.user
@@ -157,28 +157,40 @@ public struct ChatDetailView: View {
         let avatarUrl = chat.resolvedAvatarUrl(currentUserId: currentUser?.openId)
         
         return HStack(spacing: 12) {
-            // Far Left: Refresh Button
+            // Far Left: Refresh Liquid Glass Capsule Button
             Button {
                 Task {
                     await appState.loadMessages(for: chat, reset: true)
                     await appState.loadChatMembers(for: chat, reset: true)
                 }
             } label: {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(appState.isLoadingMessages || appState.isLoadingChatMembers ? Color(hex: "3370FF") : .secondary)
-                    .rotationEffect(.degrees(appState.isLoadingMessages || appState.isLoadingChatMembers ? 360 : 0))
-                    .animation(appState.isLoadingMessages || appState.isLoadingChatMembers ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: appState.isLoadingMessages)
-                    .padding(6)
-                    .background(viewModel.isHeaderHovered ? Color(nsColor: .quaternaryLabelColor).opacity(0.35) : Color.clear)
+                HStack(spacing: 3) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(appState.isLoadingMessages || appState.isLoadingChatMembers ? Color(hex: "3370FF") : .secondary)
+                        .rotationEffect(.degrees(appState.isLoadingMessages || appState.isLoadingChatMembers ? 360 : 0))
+                        .animation(appState.isLoadingMessages || appState.isLoadingChatMembers ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: appState.isLoadingMessages)
+                }
+                .padding(6)
+                .background(
+                    ZStack {
+                        VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
+                        Color(nsColor: .controlBackgroundColor).opacity(0.55)
+                    }
                     .clipShape(Circle())
+                )
+                .overlay(
+                    Circle()
+                        .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.12), radius: 6, x: 0, y: 2)
             }
             .buttonStyle(.plain)
             .help("刷新消息与成员")
             
             Spacer()
             
-            // Center: Floating Circular Avatar + Name Pill with '>'
+            // Center: Floating Liquid Glass Avatar + Name Pill with '>'
             Button {
                 withAnimation {
                     viewModel.isShowingRightPanel.toggle()
@@ -189,32 +201,40 @@ public struct ChatDetailView: View {
                     }
                 }
             } label: {
-                VStack(spacing: 2) {
-                    AvatarView(urlString: avatarUrl, name: title, size: 28)
+                HStack(spacing: 6) {
+                    AvatarView(urlString: avatarUrl, name: title, size: 20)
                     
-                    HStack(spacing: 3) {
-                        Text(title)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(.primary)
-                            .lineLimit(1)
-                        
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 8, weight: .bold))
-                            .foregroundColor(.secondary.opacity(0.8))
-                    }
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 1)
-                    .background(viewModel.isHeaderHovered ? Color(nsColor: .quaternaryLabelColor).opacity(0.3) : Color.clear)
-                    .clipShape(Capsule())
+                    Text(title)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.primary)
+                        .lineLimit(1)
+                    
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundColor(.secondary.opacity(0.8))
                 }
-                .contentShape(Rectangle())
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(
+                    ZStack {
+                        VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
+                        Color(nsColor: .controlBackgroundColor).opacity(0.55)
+                    }
+                    .clipShape(Capsule())
+                )
+                .overlay(
+                    Capsule()
+                        .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.12), radius: 6, x: 0, y: 2)
+                .contentShape(Capsule())
             }
             .buttonStyle(.plain)
             .help("点击打开侧边详细信息与成员面板")
             
             Spacer()
             
-            // Far Right: Dropdown Action Menu
+            // Far Right: Dropdown Action Menu Liquid Glass Capsule
             Menu {
                 Button {
                     viewModel.copyToClipboard(text: chat.chatId, field: "header_\(chat.chatId)")
@@ -253,32 +273,35 @@ public struct ChatDetailView: View {
                     Label("重新拉取消息", systemImage: "arrow.clockwise")
                 }
             } label: {
-                Image(systemName: viewModel.isShowingRightPanel ? "sidebar.right" : "ellipsis.circle")
-                    .font(.system(size: 15))
-                    .foregroundColor(viewModel.isShowingRightPanel ? Color(hex: "3370FF") : .secondary)
-                    .padding(6)
-                    .background(viewModel.isHeaderHovered ? Color(nsColor: .quaternaryLabelColor).opacity(0.35) : Color.clear)
-                    .clipShape(Circle())
+                HStack(spacing: 3) {
+                    Image(systemName: viewModel.isShowingRightPanel ? "sidebar.right" : "ellipsis")
+                        .font(.system(size: 11, weight: .semibold))
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 7, weight: .bold))
+                        .opacity(0.6)
+                }
+                .foregroundColor(viewModel.isShowingRightPanel ? Color(hex: "3370FF") : .secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(
+                    ZStack {
+                        VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
+                        Color(nsColor: .controlBackgroundColor).opacity(0.55)
+                    }
+                    .clipShape(Capsule())
+                )
+                .overlay(
+                    Capsule()
+                        .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.12), radius: 6, x: 0, y: 2)
             }
             .menuStyle(.borderlessButton)
-            .help("更多会话操作")
+            .help("会话选项与信息面板")
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 6)
-        .background(
-            ZStack {
-                if viewModel.isHeaderHovered {
-                    VisualEffectBackground(material: .headerView, blendingMode: .withinWindow)
-                        .background(Color(nsColor: .windowBackgroundColor).opacity(0.75))
-                } else {
-                    Color.clear
-                }
-            }
-            .animation(.easeInOut(duration: 0.18), value: viewModel.isHeaderHovered)
-        )
-        .onHover { hovering in
-            viewModel.isHeaderHovered = hovering
-        }
+        .padding(.horizontal, 14)
+        .padding(.top, 14)
+        .padding(.bottom, 8)
     }
     
     // MARK: - Messages Stream View
