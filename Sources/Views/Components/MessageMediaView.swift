@@ -3,12 +3,40 @@ import AppKit
 
 @MainActor
 public final class MessageMediaViewModel: ObservableObject {
+    @Published public var thumbnailImage: NSImage?
     @Published public var isPreviewing: Bool = false
     @Published public var isDownloading: Bool = false
     @Published public var isHovered: Bool = false
     @Published public var actionToast: String? = nil
     
+    private var hasAttemptedThumbnail: Bool = false
+    
     public init() {}
+    
+    public func loadThumbnail(messageId: String, imageKey: String?) {
+        guard let key = imageKey, !key.isEmpty, !hasAttemptedThumbnail else { return }
+        
+        let token = AppState.shared.session?.accessToken ?? ""
+        guard !token.isEmpty else { return }
+        
+        let cacheKey = "\(messageId)_\(key)"
+        if let cached = MessageResourceManager.shared.getCachedImage(key: cacheKey) {
+            self.thumbnailImage = cached
+            self.hasAttemptedThumbnail = true
+            return
+        }
+        
+        hasAttemptedThumbnail = true
+        Task {
+            if let loaded = await MessageResourceManager.shared.loadImage(
+                token: token,
+                messageId: messageId,
+                fileKey: key
+            ) {
+                self.thumbnailImage = loaded
+            }
+        }
+    }
     
     public func previewMedia(messageId: String, fileKey: String, fileName: String?) {
         let token = AppState.shared.session?.accessToken ?? ""
@@ -88,14 +116,25 @@ public struct MessageMediaView: View {
     
     public var body: some View {
         VStack(alignment: .leading, spacing: 4) {
+            let displaySize = calculateDisplaySize(for: viewModel.thumbnailImage)
+            
             // Video Thumbnail & Player Card
             ZStack(alignment: .center) {
-                if let imgKey = imageKey, !imgKey.isEmpty {
-                    MessageImageView(messageId: messageId, imageKey: imgKey)
+                // Background Cover / Placeholder
+                if let img = viewModel.thumbnailImage {
+                    Image(nsImage: img)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: displaySize.width, height: displaySize.height)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(Color(nsColor: .separatorColor).opacity(0.25), lineWidth: 0.8)
+                        )
                 } else {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color(nsColor: .controlBackgroundColor).opacity(0.8))
-                        .frame(width: 240, height: 160)
+                        .fill(Color(nsColor: .controlBackgroundColor).opacity(0.85))
+                        .frame(width: displaySize.width, height: displaySize.height)
                         .overlay(
                             RoundedRectangle(cornerRadius: 16, style: .continuous)
                                 .stroke(Color(nsColor: .separatorColor).opacity(0.25), lineWidth: 0.8)
@@ -110,6 +149,7 @@ public struct MessageMediaView: View {
                         Circle()
                             .fill(Color.black.opacity(0.65))
                             .frame(width: 44, height: 44)
+                        
                         if viewModel.isPreviewing {
                             ProgressView()
                                 .controlSize(.small)
@@ -123,9 +163,9 @@ public struct MessageMediaView: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .help("调用 macOS 默认播放器预览 (QuickTime Player)")
+                .help("在 QuickTime 中打开播放")
                 
-                // Duration Badge (Bottom-Left)
+                // Duration Badge (Bottom-Left Corner inside thumbnail)
                 if let sec = durationSec {
                     VStack {
                         Spacer()
@@ -137,10 +177,11 @@ public struct MessageMediaView: View {
                                 .padding(.vertical, 2)
                                 .background(Color.black.opacity(0.75))
                                 .clipShape(Capsule())
-                                .padding(8)
+                                .padding(6)
                             Spacer()
                         }
                     }
+                    .frame(width: displaySize.width, height: displaySize.height)
                 }
                 
                 // Top-Right Hover Action Toolbar (Telegram macOS Style)
@@ -154,7 +195,13 @@ public struct MessageMediaView: View {
                         }
                         Spacer()
                     }
+                    .frame(width: displaySize.width, height: displaySize.height)
                 }
+            }
+            .frame(width: displaySize.width, height: displaySize.height)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                viewModel.previewMedia(messageId: messageId, fileKey: fileKey, fileName: fileName)
             }
             .onHover { hovering in
                 withAnimation(.easeInOut(duration: 0.15)) {
@@ -165,7 +212,7 @@ public struct MessageMediaView: View {
                 Button {
                     viewModel.previewMedia(messageId: messageId, fileKey: fileKey, fileName: fileName)
                 } label: {
-                    Label("在 QuickTime 中打开预览", systemImage: "play.fill")
+                    Label("在 QuickTime 中播放", systemImage: "play.fill")
                 }
                 
                 Button {
@@ -182,6 +229,30 @@ public struct MessageMediaView: View {
                     .padding(.horizontal, 4)
             }
         }
+        .onAppear {
+            viewModel.loadThumbnail(messageId: messageId, imageKey: imageKey)
+        }
+    }
+    
+    private func calculateDisplaySize(for img: NSImage?) -> CGSize {
+        guard let img = img else {
+            return CGSize(width: 220, height: 140)
+        }
+        let originalWidth = max(1, img.size.width)
+        let originalHeight = max(1, img.size.height)
+        let maxWidth: CGFloat = 300
+        let maxHeight: CGFloat = 360
+        let minWidth: CGFloat = 100
+        let minHeight: CGFloat = 80
+        
+        let widthRatio = maxWidth / originalWidth
+        let heightRatio = maxHeight / originalHeight
+        let scale = min(1.0, min(widthRatio, heightRatio))
+        
+        let targetWidth = max(minWidth, min(maxWidth, originalWidth * scale))
+        let targetHeight = max(minHeight, min(maxHeight, originalHeight * scale))
+        
+        return CGSize(width: targetWidth, height: targetHeight)
     }
     
     private var hoverMediaToolbar: some View {
