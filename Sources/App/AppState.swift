@@ -533,27 +533,33 @@ public final class AppState: ObservableObject {
             let result = try await FeishuAPIClient.shared.fetchChatMessages(
                 token: token,
                 chatId: targetChatId,
-                sortType: "ByCreateTimeAsc",
+                sortType: "ByCreateTimeDesc",
                 pageToken: reset ? nil : messagePageToken,
                 pageSize: 40
             )
             
-            let newItems = result.items ?? []
-            for item in newItems {
+            let rawItems = result.items ?? []
+            for item in rawItems {
                 if let mentions = item.mentions {
                     UserProfileManager.shared.seedWithMentions(mentions)
                 }
             }
             
+            // Sort batch chronologically (oldest at top, newest at bottom of batch)
+            let sortedBatch = rawItems.sorted(by: { $0.createdDate < $1.createdDate })
+            
             if reset {
-                self.messages = newItems
+                self.messages = sortedBatch
             } else {
-                self.messages.insert(contentsOf: newItems, at: 0)
+                // Prepend older history batch to top
+                self.messages.insert(contentsOf: sortedBatch, at: 0)
             }
+            
+            self.messagePageToken = result.pageToken
             self.hasMoreMessages = result.hasMore ?? false
             self.isLoadingMessages = false
             
-            if let latest = newItems.last {
+            if let latest = sortedBatch.last {
                 self.lastMessages[targetChatId] = latest
                 self.lastMessages[chat.chatId] = latest
             }
