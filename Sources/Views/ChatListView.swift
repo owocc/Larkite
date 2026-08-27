@@ -310,84 +310,53 @@ public struct ChatListView: View {
     // MARK: - Sidebar Bottom Docked Toolbar
     
     private var sidebarBottomSection: some View {
-        VStack(spacing: 6) {
-            Divider()
-            
-            HStack(spacing: 8) {
-                // User Profile Button & Account Switcher
-                Button {
-                    viewModel.showAccountMenu.toggle()
-                } label: {
-                    HStack(spacing: 8) {
-                        if let user = appState.session?.user {
-                            AvatarView(urlString: user.bestAvatarUrl, name: user.displayName, size: 26)
-                            
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(user.displayName)
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .lineLimit(1)
-                                Text(user.email ?? (appState.session?.tokenType.rawValue ?? "已连接"))
-                                    .font(.system(size: 9))
-                                    .foregroundColor(.secondary)
-                                    .lineLimit(1)
-                            }
-                        } else {
-                            AvatarView(urlString: nil, name: "飞书", size: 26)
-                            Text("飞书账号")
-                                .font(.system(size: 11, weight: .semibold))
-                        }
-                        
-                        Image(systemName: "chevron.up.chevron.down")
-                            .font(.system(size: 8))
-                            .foregroundColor(.secondary.opacity(0.7))
+        HStack {
+            // Liquid Glass Avatar Button (matching sidebar & top bar style)
+            Button {
+                viewModel.showAccountMenu.toggle()
+            } label: {
+                ZStack {
+                    if let user = appState.session?.user {
+                        AvatarView(urlString: user.bestAvatarUrl, name: user.displayName, size: 22)
+                    } else if let activeId = configManager.activeAccountId, let acc = configManager.accounts.first(where: { $0.id == activeId }) {
+                        AvatarView(urlString: acc.avatarUrl, name: acc.displayName, size: 22)
+                    } else {
+                        Image(systemName: "person.crop.circle.fill")
+                            .font(.system(size: 13))
+                            .foregroundColor(.secondary)
                     }
-                    .padding(4)
-                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-                .help("点击切换账号或管理凭据")
-                .popover(isPresented: $viewModel.showAccountMenu, arrowEdge: .top) {
-                    accountSwitcherPopover
-                }
-                
-                Spacer()
-                
-                // Settings Button
-                Button {
-                    appState.isShowingSettings = true
-                } label: {
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: 13))
-                        .foregroundColor(.secondary)
-                        .padding(5)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .help("应用设置与权限")
-                
-                // Debugger Button
-                Button {
-                    appState.isShowingDebug = true
-                } label: {
-                    Image(systemName: "curlybraces.square.fill")
-                        .font(.system(size: 13))
-                        .foregroundColor(.secondary)
-                        .padding(5)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .help("OpenAPI 接口调试台")
+                .frame(width: 28, height: 28)
+                .background(
+                    ZStack {
+                        VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
+                        Color(nsColor: .controlBackgroundColor).opacity(0.55)
+                    }
+                    .clipShape(Circle())
+                )
+                .overlay(
+                    Circle()
+                        .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 1.5)
             }
-            .padding(.horizontal, 10)
-            .padding(.bottom, 6)
+            .buttonStyle(.plain)
+            .help("账号管理与应用设置")
+            .popover(isPresented: $viewModel.showAccountMenu, arrowEdge: .top) {
+                accountSwitcherPopover
+            }
+            
+            Spacer()
         }
+        .padding(.horizontal, 12)
+        .padding(.bottom, 10)
     }
     
     private var accountSwitcherPopover: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("飞书账号管理")
-                    .font(.system(size: 13, weight: .bold))
+                Text("飞书账号与企业管理")
+                    .font(.system(size: 12, weight: .bold))
                 Spacer()
                 Text("\(configManager.accounts.count) 个已保存")
                     .font(.system(size: 10))
@@ -397,70 +366,55 @@ public struct ChatListView: View {
             
             Divider()
             
-            // Accounts List
+            // Accounts List with 1-Click Whole-Row Selection
             ScrollView {
                 VStack(spacing: 4) {
                     ForEach(configManager.accounts) { acc in
                         let isActive = acc.id == configManager.activeAccountId
-                        HStack(spacing: 8) {
-                            AvatarView(urlString: acc.avatarUrl, name: acc.displayName, size: 26)
-                            
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(acc.displayName)
-                                    .font(.system(size: 11, weight: isActive ? .bold : .medium))
-                                    .foregroundColor(.primary)
-                                    .lineLimit(1)
+                        Button {
+                            appState.switchAccount(to: acc.id)
+                            viewModel.showAccountMenu = false
+                        } label: {
+                            HStack(spacing: 8) {
+                                AvatarView(urlString: acc.avatarUrl, name: acc.displayName, size: 26)
                                 
-                                Text(acc.email ?? acc.id)
-                                    .font(.system(size: 9))
-                                    .foregroundColor(.secondary)
-                                    .lineLimit(1)
-                            }
-                            
-                            Spacer()
-                            
-                            if isActive {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .font(.system(size: 11))
-                                    .foregroundColor(.green)
-                            } else {
-                                Button {
-                                    appState.switchAccount(to: acc.id)
-                                    viewModel.showAccountMenu = false
-                                } label: {
-                                    Text("切换")
-                                        .font(.system(size: 10, weight: .semibold))
-                                        .foregroundColor(Color(hex: "3370FF"))
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .background(Color(hex: "3370FF").opacity(0.12))
-                                        .clipShape(RoundedRectangle(cornerRadius: 4))
-                                }
-                                .buttonStyle(.plain)
-                                
-                                Button {
-                                    appState.removeAccount(id: acc.id)
-                                } label: {
-                                    Image(systemName: "xmark.circle")
-                                        .font(.system(size: 11))
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(acc.displayName)
+                                        .font(.system(size: 11, weight: isActive ? .bold : .medium))
+                                        .foregroundColor(.primary)
+                                        .lineLimit(1)
+                                    Text(acc.email ?? acc.id)
+                                        .font(.system(size: 9))
                                         .foregroundColor(.secondary)
+                                        .lineLimit(1)
                                 }
-                                .buttonStyle(.plain)
-                                .help("移除该账号")
+                                
+                                Spacer()
+                                
+                                if isActive {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.green)
+                                }
                             }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(isActive ? Color(hex: "3370FF").opacity(0.12) : Color(nsColor: .quaternaryLabelColor).opacity(0.1))
+                            )
+                            .contentShape(Rectangle())
                         }
-                        .padding(5)
-                        .background(isActive ? Color(hex: "3370FF").opacity(0.1) : Color.clear)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .contentShape(Rectangle())
+                        .buttonStyle(.plain)
+                        .help("点击直接切换至「\(acc.displayName)」")
                     }
                 }
             }
-            .frame(maxHeight: 160)
+            .frame(maxHeight: 150)
             
             Divider()
             
-            // Actions
+            // Consolidated Actions (Login, Profile, Settings, Debug, Logout)
             VStack(alignment: .leading, spacing: 6) {
                 Button {
                     viewModel.showAccountMenu = false
@@ -475,6 +429,7 @@ public struct ChatListView: View {
                     }
                 }
                 .buttonStyle(.plain)
+                
                 if let user = appState.session?.user {
                     Button {
                         viewModel.showAccountMenu = false
@@ -497,6 +452,41 @@ public struct ChatListView: View {
                     .buttonStyle(.plain)
                 }
                 
+                Divider()
+                
+                // Settings Action
+                Button {
+                    viewModel.showAccountMenu = false
+                    appState.isShowingSettings = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "gearshape.fill")
+                            .foregroundColor(.secondary)
+                        Text("应用设置与权限管理")
+                            .font(.system(size: 11))
+                            .foregroundColor(.primary)
+                    }
+                }
+                .buttonStyle(.plain)
+                
+                // OpenAPI Debug Console Action
+                Button {
+                    viewModel.showAccountMenu = false
+                    appState.isShowingDebug = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "curlybraces.square.fill")
+                            .foregroundColor(.secondary)
+                        Text("OpenAPI 接口调试台")
+                            .font(.system(size: 11))
+                            .foregroundColor(.primary)
+                    }
+                }
+                .buttonStyle(.plain)
+                
+                Divider()
+                
+                // Logout Action
                 Button(role: .destructive) {
                     viewModel.showAccountMenu = false
                     appState.logoutCurrentAccount()
