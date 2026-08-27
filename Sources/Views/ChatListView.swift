@@ -357,17 +357,6 @@ public struct ChatListView: View {
     
     private var accountSwitcherPopover: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("飞书账号与企业管理")
-                    .font(.system(size: 12, weight: .bold))
-                Spacer()
-                Text("\(configManager.accounts.count) 个已保存")
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
-            }
-            .padding(.bottom, 2)
-            
-            Divider()
             
             // Accounts List with 1-Click Whole-Row Selection
             ScrollView {
@@ -457,10 +446,10 @@ public struct ChatListView: View {
                 
                 Divider()
                 
-                // Settings Action
+                // Settings Action (Standalone Preferences Window)
                 Button {
                     viewModel.showAccountMenu = false
-                    appState.isShowingSettings = true
+                    SettingsWindowManager.shared.showSettingsWindow()
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "gearshape.fill")
