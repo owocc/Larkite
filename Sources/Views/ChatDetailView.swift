@@ -340,9 +340,8 @@ public struct ChatDetailView: View {
     }
     
     private var messageInputBar: some View {
-        VStack(spacing: 0) {
-            Divider()
-            
+        VStack(spacing: 8) {
+            // Floating Reply Bar
             if let replying = appState.replyingToMessage {
                 HStack(spacing: 8) {
                     Image(systemName: "arrowshape.turn.up.left.fill")
@@ -360,16 +359,29 @@ public struct ChatDetailView: View {
                         appState.replyingToMessage = nil
                     } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 11))
+                            .font(.system(size: 12))
                             .foregroundColor(.secondary)
                     }
                     .buttonStyle(.plain)
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 14)
                 .padding(.vertical, 6)
-                .background(Color(hex: "3370FF").opacity(0.08))
+                .background(
+                    ZStack {
+                        VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
+                        Color(nsColor: .controlBackgroundColor).opacity(0.75)
+                    }
+                    .clipShape(Capsule())
+                )
+                .overlay(
+                    Capsule()
+                        .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 3)
+                .padding(.horizontal, 16)
             }
             
+            // Error toast if any
             if let error = viewModel.sendError {
                 HStack(spacing: 6) {
                     Image(systemName: "exclamationmark.circle.fill")
@@ -380,59 +392,19 @@ public struct ChatDetailView: View {
                         .lineLimit(1)
                     Spacer()
                 }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 5)
+                .background(Color.red.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
                 .padding(.horizontal, 16)
-                .padding(.vertical, 4)
-                .background(Color.red.opacity(0.08))
             }
             
-            HStack(spacing: 6) {
-                // Image Attachment Button
-                Button {
-                    viewModel.pickAndSendImage(appState: appState)
-                } label: {
-                    Image(systemName: "photo.on.rectangle.angled")
-                        .font(.system(size: 14))
-                        .foregroundColor(Color(hex: "3370FF"))
-                        .padding(6)
-                        .background(Color(hex: "3370FF").opacity(0.12))
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .disabled(appState.isSendingMessage)
-                .help("发送图片")
-                
-                // File Attachment Button
-                Button {
-                    viewModel.pickAndSendFile(appState: appState)
-                } label: {
-                    Image(systemName: "paperclip")
-                        .font(.system(size: 14))
-                        .foregroundColor(Color(hex: "3370FF"))
-                        .padding(6)
-                        .background(Color(hex: "3370FF").opacity(0.12))
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .disabled(appState.isSendingMessage)
-                .help("发送文件 / 附件 (PDF, Word, Excel, ZIP等)")
-                
-                // Paste Clipboard Button
-                Button {
-                    viewModel.sendClipboard(appState: appState)
-                } label: {
-                    Image(systemName: "doc.on.clipboard")
-                        .font(.system(size: 13))
-                        .foregroundColor(Color(hex: "3370FF"))
-                        .padding(6)
-                        .background(Color(hex: "3370FF").opacity(0.12))
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .disabled(appState.isSendingMessage)
-                .help("发送剪贴板中的截屏图片或文件")
+            // Liquid Glass Floating Dock Container
+            VStack(spacing: 8) {
+                // Typing Input Field
                 PasteableMessageField(
                     text: $viewModel.inputMessageText,
-                    placeholder: appState.replyingToMessage != nil ? "输入回复 (Enter 发送, Cmd+V 贴图/文件)..." : "发送消息 (Enter 发送, Cmd+V 贴图/文件)...",
+                    placeholder: appState.replyingToMessage != nil ? "输入回复内容 (Enter 发送)..." : "输入消息 (Enter 发送)...",
                     onCommit: {
                         Task {
                             await viewModel.sendMessage(appState: appState)
@@ -457,30 +429,157 @@ public struct ChatDetailView: View {
                         }
                     }
                 )
-                .frame(height: 24)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(Color(nsColor: .controlBackgroundColor))
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-                )
+                .frame(minHeight: 28)
+                .padding(.horizontal, 14)
+                .padding(.top, 8)
                 
-                PrimaryGradientButton(
-                    "发送",
-                    icon: "paperplane.fill",
-                    isLoading: appState.isSendingMessage
-                ) {
-                    Task {
-                        await viewModel.sendMessage(appState: appState)
+                // Bottom Action Capsule Toolbar
+                HStack(spacing: 8) {
+                    // Left Capsule Pill Toolbar (Aa, Emoji, Undo/Reply, AI)
+                    HStack(spacing: 2) {
+                        if appState.replyingToMessage != nil {
+                            LiquidGlassToolbarButton(icon: "arrow.uturn.left") {
+                                appState.replyingToMessage = nil
+                            }
+                            .help("取消回复")
+                        }
+                        
+                        LiquidGlassToolbarButton(title: "Aa") {
+                            // Formatting
+                        }
+                        .help("文字格式")
+                        
+                        Menu {
+                            Button("👍 点赞") { viewModel.inputMessageText += "👍" }
+                            Button("❤️ 爱心") { viewModel.inputMessageText += "❤️" }
+                            Button("👏 鼓掌") { viewModel.inputMessageText += "👏" }
+                            Button("😄 开心") { viewModel.inputMessageText += "😄" }
+                            Button("🎉 庆祝") { viewModel.inputMessageText += "🎉" }
+                            Button("🔥 火力") { viewModel.inputMessageText += "🔥" }
+                        } label: {
+                            HStack(spacing: 2) {
+                                Image(systemName: "face.smiling")
+                                    .font(.system(size: 13, weight: .medium))
+                            }
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 7)
+                        }
+                        .menuStyle(.borderlessButton)
+                        .help("表情")
+                        
+                        LiquidGlassToolbarButton(icon: "sparkles") {
+                            // AI Assistant
+                        }
+                        .help("智能助手")
+                    }
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 2)
+                    .background(
+                        Capsule()
+                            .fill(Color(nsColor: .controlBackgroundColor).opacity(0.4))
+                    )
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
+                    )
+                    
+                    Spacer()
+                    
+                    // Right Action Capsules
+                    HStack(spacing: 8) {
+                        // Clipboard Paste Capsule
+                        Button {
+                            viewModel.sendClipboard(appState: appState)
+                        } label: {
+                            HStack(spacing: 3) {
+                                Image(systemName: "doc.on.clipboard")
+                                    .font(.system(size: 12))
+                                Image(systemName: "chevron.down")
+                                    .font(.system(size: 8, weight: .bold))
+                                    .opacity(0.6)
+                            }
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                            .background(
+                                Capsule()
+                                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.4))
+                            )
+                            .overlay(
+                                Capsule()
+                                    .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
+                            )
+                            .contentShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .help("发送剪贴板中的截屏图片或文件")
+                        
+                        // Attachment Capsule (Image & File Picker)
+                        Menu {
+                            Button {
+                                viewModel.pickAndSendImage(appState: appState)
+                            } label: {
+                                Label("发送图片...", systemImage: "photo.on.rectangle.angled")
+                            }
+                            
+                            Button {
+                                viewModel.pickAndSendFile(appState: appState)
+                            } label: {
+                                Label("发送文档与附件 (PDF/Word/ZIP)...", systemImage: "paperclip")
+                            }
+                        } label: {
+                            HStack(spacing: 3) {
+                                Image(systemName: "paperclip")
+                                    .font(.system(size: 13))
+                                Image(systemName: "chevron.down")
+                                    .font(.system(size: 8, weight: .bold))
+                                    .opacity(0.6)
+                            }
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                            .background(
+                                Capsule()
+                                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.4))
+                            )
+                            .overlay(
+                                Capsule()
+                                    .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
+                            )
+                            .contentShape(Capsule())
+                        }
+                        .menuStyle(.borderlessButton)
+                        .help("添加图片或文件附件")
+                        
+                        // Liquid Glass Send Button
+                        LiquidGlassSendButton(
+                            isLoading: appState.isSendingMessage,
+                            isDisabled: viewModel.inputMessageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        ) {
+                            Task {
+                                await viewModel.sendMessage(appState: appState)
+                            }
+                        }
                     }
                 }
-                .disabled(viewModel.inputMessageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || appState.isSendingMessage)
+                .padding(.horizontal, 10)
+                .padding(.bottom, 8)
             }
+            .background(
+                ZStack {
+                    VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
+                    Color(nsColor: .controlBackgroundColor).opacity(0.65)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1.2)
+            )
+            .shadow(color: Color.black.opacity(0.14), radius: 14, x: 0, y: 5)
             .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(Color(nsColor: .windowBackgroundColor))
+            .padding(.bottom, 12)
         }
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
             guard let provider = providers.first else { return false }
