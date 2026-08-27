@@ -2,20 +2,20 @@
 import PackageDescription
 
 let package = Package(
-    name: "LarkNative",
+    name: "Larkite",
     platforms: [
         .macOS(.v14)
     ],
     products: [
         .executable(
-            name: "LarkNative",
-            targets: ["LarkNative"]
+            name: "Larkite",
+            targets: ["Larkite"]
         )
     ],
     dependencies: [],
     targets: [
         .executableTarget(
-            name: "LarkNative",
+            name: "Larkite",
             dependencies: [],
             path: "Sources"
         )

@@ -51,13 +51,12 @@ public struct MainView: View {
                     .font(.system(size: 48))
                     .foregroundColor(configManager.accentColorChoice.color)
             }
-            
-            Text("欢迎使用 Lark Native")
+            Text("欢迎使用 Larkite")
                 .font(.system(size: 18, weight: .bold))
+            
             Text("请在独立登录窗口中登录或选择企业账号，开始消息与会话管理")
                 .font(.system(size: 13))
                 .foregroundColor(.secondary)
-            
             Button {
                 AccountWindowManager.shared.showLoginWindow()
             } label: {

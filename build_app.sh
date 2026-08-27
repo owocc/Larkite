@@ -4,7 +4,7 @@ set -e
 DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "${DIR}"
 
-APP_NAME="LarkNative"
+APP_NAME="Larkite"
 BUNDLE_DIR="${APP_NAME}.app"
 CONTENTS_DIR="${BUNDLE_DIR}/Contents"
 MACOS_DIR="${CONTENTS_DIR}/MacOS"
@@ -36,17 +36,17 @@ cat << 'EOF' > "${CONTENTS_DIR}/Info.plist"
     <key>CFBundleDevelopmentRegion</key>
     <string>zh_CN</string>
     <key>CFBundleExecutable</key>
-    <string>LarkNative</string>
+    <string>Larkite</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
-    <string>com.owocc.LarkNative</string>
+    <string>com.owocc.Larkite</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>LarkNative</string>
+    <string>Larkite</string>
     <key>CFBundleDisplayName</key>
-    <string>Lark Native</string>
+    <string>Larkite</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>

@@ -2,10 +2,9 @@ import SwiftUI
 import AppKit
 
 @main
-struct LarkNativeApp: App {
+struct LarkiteApp: App {
     @StateObject private var appState = AppState.shared
     @StateObject private var configManager = ConfigManager.shared
-    
     var body: some Scene {
         WindowGroup {
             MainView()

@@ -1,8 +1,7 @@
-# Lark Native 🐦
+# Larkite 🐦
 
 > **极简 · 现代 · 高性能 macOS 原生飞书客户端**  
 > 基于 Swift 6 + SwiftUI 构建，专为 macOS 设计的极简飞书客户端。
-
 ---
 
 ## 🌟 核心特性
@@ -26,15 +25,14 @@
 ## 📁 目录架构
 
 ```
-LarkNative/
+Larkite/
 ├── Package.swift               # SPM 配置
 ├── build_app.sh                # 原生 macOS .app 打包脚本
-├── LarkNative.app/             # 编译生成的 macOS 应用包
+├── Larkite.app/                # 编译生成的 macOS 应用包
 └── Sources/
     ├── App/
-    │   ├── LarkNativeApp.swift # 应用入口
+    │   ├── LarkiteApp.swift    # 应用入口
     │   └── AppState.swift      # 全局响应式状态管理 (Auth & Chat)
-    ├── Models/
     │   ├── AuthModels.swift    # OAuth / Token / Session 数据结构
     │   ├── UserModels.swift    # 飞书用户与个人资料模型
     │   └── ChatModels.swift    # 群组 / 会话数据结构
@@ -67,7 +65,7 @@ LarkNative/
 ```bash
 cd LarkNative
 ./build_app.sh
-open LarkNative.app
+open Larkite.app
 ```
 
 ### 2. 飞书开放平台配置说明

@@ -190,8 +190,7 @@ public actor LocalCallbackServer {
         <html>
         <head>
             <meta charset="utf-8">
-            <title>Lark Native 授权完成</title>
-            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Larkite 授权完成</title>
             <style>
                 body {
                     margin: 0; padding: 0; background: #0b0f19; color: #f8fafc;
@@ -225,15 +224,14 @@ public actor LocalCallbackServer {
         </head>
         <body>
             <div class="card">
-                <div class="badge">Lark Native 临时授权服务</div>
+                <div class="badge">Larkite 临时授权服务</div>
                 <div class="icon">
                     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
                         <polyline points="20 6 9 17 4 12"></polyline>
                     </svg>
                 </div>
                 <h1>飞书授权成功！</h1>
-                <p>已成功捕获授权码，临时服务已自动关闭。<br>您可以关闭此网页并返回 Lark Native 客户端开始使用。</p>
-                <div class="code-box">Auth Code: \(code.prefix(12))...\(code.suffix(8))</div>
+                <p>已成功捕获授权码，临时服务已自动关闭。<br>您可以关闭此网页并返回 Larkite 客户端开始使用。</p>
             </div>
         </body>
         </html>
@@ -246,8 +244,7 @@ public actor LocalCallbackServer {
         <html>
         <head>
             <meta charset="utf-8">
-            <title>Lark Native 授权未完成</title>
-            <style>
+            <title>Larkite 授权未完成</title>
                 body {
                     margin: 0; padding: 0; background: #0b0f19; color: #f8fafc;
                     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;

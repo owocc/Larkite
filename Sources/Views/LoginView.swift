@@ -371,10 +371,9 @@ public struct LoginView: View {
                 }
                 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Lark Native")
+                    Text("Larkite")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(.primary)
-                    
                     Text("极简原生飞书 / Lark 客户端")
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)

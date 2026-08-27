@@ -85,9 +85,8 @@ public final class SettingsViewModel: ObservableObject {
     }
     
     public func clearMediaCache() {
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("LarkNative", isDirectory: true)
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("Larkite", isDirectory: true)
         try? FileManager.default.removeItem(at: tempDir)
-        
         withAnimation {
             clearedCacheToast = true
         }

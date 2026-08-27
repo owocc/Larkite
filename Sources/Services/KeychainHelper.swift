@@ -3,8 +3,7 @@ import Security
 
 /// Thread-safe Keychain wrapper for credentials and tokens
 public enum KeychainHelper {
-    private static let serviceName = "com.owocc.LarkNative"
-    
+    private static let serviceName = "com.owocc.Larkite"
     public static func save(key: String, data: Data) -> Bool {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,

@@ -27,7 +27,7 @@ public final class AccountWindowManager: NSObject, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "Lark Native 账号与登录中心"
+        window.title = "Larkite 账号与登录中心"
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false

@@ -101,9 +101,8 @@ public final class MessageResourceManager: ObservableObject {
     ) async throws {
         let data = try await fetchRawResourceData(token: token, messageId: messageId, fileKey: imageKey, type: "image")
         
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("LarkNative/Images", isDirectory: true)
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("Larkite/Images", isDirectory: true)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-        
         let fileUrl = tempDir.appendingPathComponent("img_\(imageKey.suffix(12)).png")
         try data.write(to: fileUrl)
         
@@ -121,9 +120,8 @@ public final class MessageResourceManager: ObservableObject {
     ) async throws {
         let data = try await fetchRawResourceData(token: token, messageId: messageId, fileKey: fileKey, type: "file")
         
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("LarkNative/Videos", isDirectory: true)
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("Larkite/Videos", isDirectory: true)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-        
         let resolvedName = fileName ?? "video_\(fileKey.suffix(12)).mp4"
         let fileUrl = tempDir.appendingPathComponent(resolvedName)
         try data.write(to: fileUrl)
@@ -142,9 +140,8 @@ public final class MessageResourceManager: ObservableObject {
     ) async throws {
         let data = try await fetchRawResourceData(token: token, messageId: messageId, fileKey: fileKey, type: "file")
         
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("LarkNative/Files", isDirectory: true)
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("Larkite/Files", isDirectory: true)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-        
         let fileUrl = tempDir.appendingPathComponent(fileName)
         try data.write(to: fileUrl)
         
