@@ -1,6 +1,22 @@
 import SwiftUI
 import AppKit
 
+extension Color {
+    /// Native Apple Messages Incoming Bubble Color (Light: #E9E9EB, Dark: #26252A)
+    public static let appleMessagesIncomingBubble = Color(
+        nsColor: NSColor(name: nil) { appearance in
+            let match = appearance.bestMatch(from: [.aqua, .darkAqua, .vibrantLight, .vibrantDark])
+            if match == .darkAqua || match == .vibrantDark || appearance.name.rawValue.lowercased().contains("dark") {
+                // Dark Mode: Apple Messages Charcoal Grey #26252A
+                return NSColor(red: 38.0 / 255.0, green: 37.0 / 255.0, blue: 42.0 / 255.0, alpha: 1.0)
+            } else {
+                // Light Mode: Apple Messages Light Grey #E9E9EB
+                return NSColor(red: 233.0 / 255.0, green: 233.0 / 255.0, blue: 235.0 / 255.0, alpha: 1.0)
+            }
+        }
+    )
+}
+
 @MainActor
 public final class MessageBubbleViewModel: ObservableObject {
     @Published public var isHovered: Bool = false
@@ -289,11 +305,11 @@ public struct MessageBubbleView: View {
                 .padding(.vertical, 9)
                 .background(
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(isSelf ? configManager.accentColorChoice.color : Color(nsColor: .controlBackgroundColor).opacity(0.95))
+                        .fill(isSelf ? configManager.accentColorChoice.color : Color.appleMessagesIncomingBubble)
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(isSelf ? Color.white.opacity(0.12) : Color(nsColor: .separatorColor).opacity(0.3), lineWidth: 0.8)
+                        .stroke(isSelf ? Color.white.opacity(0.12) : Color.clear, lineWidth: 0.8)
                 )
         case .image(let imageKey):
             // Apple Messages style: Frameless edge-to-edge image attachment
@@ -341,11 +357,11 @@ public struct MessageBubbleView: View {
             .padding(.vertical, 9)
             .background(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(isSelf ? configManager.accentColorChoice.color : Color(nsColor: .controlBackgroundColor).opacity(0.85))
+                    .fill(isSelf ? configManager.accentColorChoice.color : Color.appleMessagesIncomingBubble)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(isSelf ? Color.white.opacity(0.15) : Color(nsColor: .separatorColor).opacity(0.35), lineWidth: 1)
+                    .stroke(isSelf ? Color.white.opacity(0.12) : Color.clear, lineWidth: 0.8)
             )
             
         case .media(let fileKey, let imageKey, let fileName, let durationSec):
@@ -372,11 +388,11 @@ public struct MessageBubbleView: View {
             .padding(14)
             .background(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(isSelf ? configManager.accentColorChoice.color : Color(nsColor: .controlBackgroundColor).opacity(0.85))
+                    .fill(isSelf ? configManager.accentColorChoice.color : Color.appleMessagesIncomingBubble)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(isSelf ? Color.white.opacity(0.15) : Color(nsColor: .separatorColor).opacity(0.35), lineWidth: 1)
+                    .stroke(isSelf ? Color.white.opacity(0.12) : Color.clear, lineWidth: 0.8)
             )
             
         case .card(let rawJson):
@@ -396,11 +412,7 @@ public struct MessageBubbleView: View {
             .padding(12)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.85))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color(nsColor: .separatorColor).opacity(0.35), lineWidth: 1)
+                    .fill(Color.appleMessagesIncomingBubble)
             )
             
         case .shareChat(let chatId):
@@ -413,11 +425,7 @@ public struct MessageBubbleView: View {
             .padding(10)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.85))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color(nsColor: .separatorColor).opacity(0.35), lineWidth: 1)
+                    .fill(Color.appleMessagesIncomingBubble)
             )
             
         case .rawText(let raw):
@@ -426,11 +434,7 @@ public struct MessageBubbleView: View {
                 .padding(10)
                 .background(
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color(nsColor: .controlBackgroundColor).opacity(0.85))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(Color(nsColor: .separatorColor).opacity(0.35), lineWidth: 1)
+                        .fill(Color.appleMessagesIncomingBubble)
                 )
                 
         default:
@@ -438,7 +442,7 @@ public struct MessageBubbleView: View {
                 .font(.system(size: 11))
                 .foregroundColor(.secondary)
                 .padding(8)
-                .background(Color(nsColor: .controlBackgroundColor).opacity(0.6))
+                .background(Color.appleMessagesIncomingBubble)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
     }
