@@ -83,7 +83,7 @@ public final class AppState: ObservableObject {
     }
     
     private init() {
-        // Restore session
+        // Restore session if exists
         if let savedSession = ConfigManager.shared.loadSession() {
             self.session = savedSession
             Task {
@@ -91,35 +91,14 @@ public final class AppState: ObservableObject {
                 await self.loadChats(reset: true)
             }
         }
-        
-        // Start background local server
-        startLocalBackgroundServer()
     }
     
-    // MARK: - Local Background Server
-    
-    public func startLocalBackgroundServer() {
-        let config = ConfigManager.shared.config
-        localServerPort = config.port
-        
-        Task { [weak self] in
-            do {
-                try await LocalCallbackServer.shared.start(port: config.port) { code in
-                    Task { @MainActor in
-                        await AppState.shared.handleIncomingAuthCode(code)
-                    }
-                }
-                self?.isLocalServerRunning = true
-            } catch {
-                self?.isLocalServerRunning = false
-            }
-        }
-    }
-    
-    // MARK: - OAuth Login Flow
+    // MARK: - OAuth Login Flow (On-Demand Local Server)
     
     public func startOAuthLogin() {
         let config = ConfigManager.shared.config
+        localServerPort = config.port
+        
         guard !config.appId.isEmpty, !config.appSecret.isEmpty else {
             authError = "请先输入 App ID 和 App Secret"
             return
@@ -135,21 +114,26 @@ public final class AppState: ObservableObject {
         }
         
         isAuthenticating = true
+        isLocalServerRunning = true
         authError = nil
-        authStatusMessage = "正在通过本地 127.0.0.1:\(config.port) 监听并在浏览器打开授权..."
+        authStatusMessage = "已临时启动本地 127.0.0.1:\(config.port) 监听，正在打开授权页面..."
         
-        // Ensure local server is listening
-        startLocalBackgroundServer()
-        
-        // Open browser
+        // Open default browser
         NSWorkspace.shared.open(authUrl)
         
         oauthServerTask?.cancel()
         oauthServerTask = Task {
             do {
-                let code = try await LocalCallbackServer.shared.waitForAuthorizationCode()
+                // Starts server temporarily, waits for callback, auto stops
+                let code = try await LocalCallbackServer.shared.startAndListen(port: config.port)
+                await LocalCallbackServer.shared.stop()
+                self.isLocalServerRunning = false
+                
                 await handleIncomingAuthCode(code)
             } catch {
+                await LocalCallbackServer.shared.stop()
+                self.isLocalServerRunning = false
+                
                 if !Task.isCancelled {
                     self.authError = error.localizedDescription
                     self.isAuthenticating = false
@@ -160,6 +144,10 @@ public final class AppState: ObservableObject {
     }
     
     public func handleIncomingAuthCode(_ rawInput: String) async {
+        // Clean up server if it was running
+        await LocalCallbackServer.shared.stop()
+        self.isLocalServerRunning = false
+        
         let code = extractAuthCode(from: rawInput)
         guard !code.isEmpty else {
             authError = "未能从输入中提取到有效的 authorization code"
@@ -235,8 +223,12 @@ public final class AppState: ObservableObject {
     
     public func cancelOAuthLogin() {
         oauthServerTask?.cancel()
-        self.isAuthenticating = false
-        self.authStatusMessage = ""
+        Task {
+            await LocalCallbackServer.shared.stop()
+            self.isLocalServerRunning = false
+            self.isAuthenticating = false
+            self.authStatusMessage = ""
+        }
     }
     
     // MARK: - Direct Token Login

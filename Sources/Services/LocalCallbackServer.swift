@@ -1,8 +1,8 @@
 import Foundation
 import Network
 
-/// Lightweight Local Background HTTP Server for OAuth callbacks & local webhooks
-/// Runs 100% locally on 127.0.0.1 with ZERO remote server dependency.
+/// Lightweight On-Demand Local HTTP Server for OAuth callbacks
+/// Starts ONLY during active authorization and stops immediately upon completion.
 public actor LocalCallbackServer {
     public static let shared = LocalCallbackServer()
     
@@ -26,9 +26,9 @@ public actor LocalCallbackServer {
         public var errorDescription: String? {
             switch self {
             case .portUnavailable(let port):
-                return "本地端口 \(port) 被占用，请在设置中更换端口"
+                return "本地端口 \(port) 被占用，无法启动临时回调服务"
             case .stopped:
-                return "本地后台服务已停止"
+                return "本地授权服务已结束"
             case .accessDenied(let desc):
                 return "飞书授权被拒绝: \(desc)"
             case .invalidRequest:
@@ -41,16 +41,10 @@ public actor LocalCallbackServer {
         (isRunning, activePort)
     }
     
-    /// Starts the background listener on 127.0.0.1
-    public func start(port: UInt16 = 8989, codeHandler: ((String) -> Void)? = nil) throws {
-        if isRunning && listener != nil && activePort == port {
-            self.onCodeReceived = codeHandler
-            return
-        }
-        
+    /// Starts the temporary listener on 127.0.0.1 and waits for callback
+    public func startAndListen(port: UInt16 = 8989, timeoutSeconds: TimeInterval = 180) async throws -> String {
         stop()
         self.activePort = port
-        self.onCodeReceived = codeHandler
         
         guard let nwPort = NWEndpoint.Port(rawValue: port) else {
             throw ServerError.portUnavailable(port)
@@ -59,41 +53,39 @@ public actor LocalCallbackServer {
         let parameters = NWParameters.tcp
         parameters.allowLocalEndpointReuse = true
         
-        let newListener = try NWListener(using: parameters, on: nwPort)
-        
-        newListener.newConnectionHandler = { [weak self] connection in
-            Task {
-                await self?.handleConnection(connection)
-            }
+        let newListener: NWListener
+        do {
+            newListener = try NWListener(using: parameters, on: nwPort)
+        } catch {
+            throw ServerError.portUnavailable(port)
         }
         
-        newListener.stateUpdateHandler = { [weak self] state in
-            Task {
-                switch state {
-                case .ready:
-                    break
-                case .failed:
-                    await self?.stop()
-                default:
-                    break
-                }
-            }
-        }
-        
-        newListener.start(queue: .global(qos: .userInitiated))
         self.listener = newListener
         self.isRunning = true
-    }
-    
-    /// Waits asynchronously for a single code exchange
-    public func waitForAuthorizationCode(timeoutSeconds: TimeInterval = 300) async throws -> String {
+        
         return try await withCheckedThrowingContinuation { cont in
             self.continuation = cont
-            self.onCodeReceived = { [weak self] code in
+            
+            newListener.newConnectionHandler = { [weak self] connection in
                 Task {
-                    await self?.resumeContinuationWith(code: code)
+                    await self?.handleConnection(connection)
                 }
             }
+            
+            newListener.stateUpdateHandler = { [weak self] state in
+                Task {
+                    switch state {
+                    case .ready:
+                        break
+                    case .failed:
+                        await self?.finishWithError(ServerError.portUnavailable(port))
+                    default:
+                        break
+                    }
+                }
+            }
+            
+            newListener.start(queue: .global(qos: .userInitiated))
         }
     }
     
@@ -108,11 +100,25 @@ public actor LocalCallbackServer {
         onCodeReceived = nil
     }
     
-    private func resumeContinuationWith(code: String) {
+    private func finishWithCode(_ code: String) {
         if let cont = continuation {
             continuation = nil
             cont.resume(returning: code)
         }
+        // Auto teardown server
+        listener?.cancel()
+        listener = nil
+        isRunning = false
+    }
+    
+    private func finishWithError(_ error: Error) {
+        if let cont = continuation {
+            continuation = nil
+            cont.resume(throwing: error)
+        }
+        listener?.cancel()
+        listener = nil
+        isRunning = false
     }
     
     private func handleConnection(_ connection: NWConnection) {
@@ -142,13 +148,6 @@ public actor LocalCallbackServer {
         
         let rawPath = parts[1]
         
-        // Status check
-        if rawPath.starts(with: "/status") {
-            sendResponse(connection: connection, html: htmlStatus)
-            return
-        }
-        
-        // Callback parsing
         guard let url = URL(string: "http://127.0.0.1:\(activePort)" + rawPath) else {
             sendResponse(connection: connection, html: htmlFailure(msg: "无法解析请求 URL"))
             return
@@ -160,17 +159,17 @@ public actor LocalCallbackServer {
         if let error = queryItems.first(where: { $0.name == "error" })?.value {
             let errorDesc = queryItems.first(where: { $0.name == "error_description" })?.value ?? error
             sendResponse(connection: connection, html: htmlFailure(msg: "授权被拒绝: \(errorDesc)"))
+            finishWithError(ServerError.accessDenied(errorDesc))
             return
         }
         
         if let code = queryItems.first(where: { $0.name == "code" })?.value {
             sendResponse(connection: connection, html: htmlSuccess(code: code))
-            onCodeReceived?(code)
+            finishWithCode(code)
             return
         }
         
-        // Default root endpoint
-        sendResponse(connection: connection, html: htmlRoot)
+        sendResponse(connection: connection, html: htmlFailure(msg: "未包含有效的 code 参数"))
     }
     
     private func sendResponse(connection: NWConnection, html: String) {
@@ -191,7 +190,7 @@ public actor LocalCallbackServer {
         <html>
         <head>
             <meta charset="utf-8">
-            <title>Lark Native 本地授权成功</title>
+            <title>Lark Native 授权完成</title>
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <style>
                 body {
@@ -226,14 +225,14 @@ public actor LocalCallbackServer {
         </head>
         <body>
             <div class="card">
-                <div class="badge">Lark Native 本地服务 (127.0.0.1)</div>
+                <div class="badge">Lark Native 临时授权服务</div>
                 <div class="icon">
                     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
                         <polyline points="20 6 9 17 4 12"></polyline>
                     </svg>
                 </div>
                 <h1>飞书授权成功！</h1>
-                <p>本地后台服务已自动捕获授权码，Lark Native 正在完成 Token 换取与会话初始化。<br>您可以关闭此标签页并返回客户端。</p>
+                <p>已成功捕获授权码，临时服务已自动关闭。<br>您可以关闭此网页并返回 Lark Native 客户端开始使用。</p>
                 <div class="code-box">Auth Code: \(code.prefix(12))...\(code.suffix(8))</div>
             </div>
         </body>
@@ -247,7 +246,7 @@ public actor LocalCallbackServer {
         <html>
         <head>
             <meta charset="utf-8">
-            <title>Lark Native 授权失败</title>
+            <title>Lark Native 授权未完成</title>
             <style>
                 body {
                     margin: 0; padding: 0; background: #0b0f19; color: #f8fafc;
@@ -269,33 +268,6 @@ public actor LocalCallbackServer {
                 <h1>授权未能完成</h1>
                 <p>\(msg)</p>
             </div>
-        </body>
-        </html>
-        """
-    }
-    
-    private var htmlStatus: String {
-        """
-        <!DOCTYPE html>
-        <html>
-        <head><meta charset="utf-8"><title>Lark Native 本地后台服务状态</title></head>
-        <body style="background:#0b0f19;color:#fff;font-family:sans-serif;padding:40px;text-align:center;">
-            <h2>🟢 Lark Native 本地回调服务正常运行中</h2>
-            <p style="color:#94a3b8;">监听地址: <code>http://127.0.0.1:\(activePort)/callback</code></p>
-            <p style="color:#64748b;">本服务仅在您的 Mac 本机内存中运行，无需任何远程服务器。</p>
-        </body>
-        </html>
-        """
-    }
-    
-    private var htmlRoot: String {
-        """
-        <!DOCTYPE html>
-        <html>
-        <head><meta charset="utf-8"><title>Lark Native 本地服务</title></head>
-        <body style="background:#0b0f19;color:#fff;font-family:sans-serif;padding:40px;text-align:center;">
-            <h2>🐦 Lark Native 本地后台服务</h2>
-            <p style="color:#94a3b8;">用于接收飞书 OAuth 2.0 本地授权回调与本机 Webhook 调度。</p>
         </body>
         </html>
         """

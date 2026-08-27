@@ -44,7 +44,7 @@ public struct LoginView: View {
                 // Header Brand
                 headerView
                 
-                // Local Server Status Banner
+                // Local Server Status Banner (On-demand)
                 localServerBanner
                     .frame(maxWidth: 480)
                 
@@ -141,12 +141,12 @@ public struct LoginView: View {
     private var localServerBanner: some View {
         HStack(spacing: 8) {
             Circle()
-                .fill(appState.isLocalServerRunning ? Color.green : Color.orange)
+                .fill(appState.isLocalServerRunning ? Color.green : Color.secondary.opacity(0.6))
                 .frame(width: 8, height: 8)
             
-            Text(appState.isLocalServerRunning ? "本地回调服务: 运行中 (127.0.0.1:\(appState.localServerPort))" : "本地服务启动中...")
+            Text(appState.isLocalServerRunning ? "本地回调服务: 临时监听中 (127.0.0.1:\(appState.localServerPort))" : "本地回调服务: 按需启动 (点击授权时临时唤起)")
                 .font(.system(size: 11, weight: .medium))
-                .foregroundColor(.secondary)
+                .foregroundColor(appState.isLocalServerRunning ? .primary : .secondary)
             
             Spacer()
             
@@ -192,7 +192,7 @@ public struct LoginView: View {
             
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
-                    Text("重定向回调 URL (本地监听)")
+                    Text("重定向回调 URL (本地临时监听)")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(.secondary)
                     Spacer()
