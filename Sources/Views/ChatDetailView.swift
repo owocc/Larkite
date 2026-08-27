@@ -38,6 +38,10 @@ public final class ChatDetailViewModel: ObservableObject {
         do {
             try await appState.sendTextMessage(clean)
             self.inputMessageText = ""
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                self.isEditorExpanded = false
+                self.editorContentHeight = 24
+            }
         } catch {
             self.sendError = error.localizedDescription
         }
