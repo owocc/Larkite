@@ -101,42 +101,23 @@ public struct ChatBubbleShape: Shape {
     }
 }
 
-@MainActor
-public final class MessageBubbleViewModel: ObservableObject {
-    @Published public var isHovered: Bool = false
-    @Published public var showEmojiPicker: Bool = false
-    @Published public var copiedToast: Bool = false
-    @Published public var actionMessage: String? = nil
-    
-    public init() {}
-    
-    public func copyText(text: String) {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
-        
-        withAnimation {
-            copiedToast = true
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
-            withAnimation {
-                self?.copiedToast = false
-            }
-        }
-    }
-}
-
-public struct MessageBubbleView: View {
+public struct MessageBubbleView: View, Equatable {
     let message: FeishuMessageItem
     let isCurrentUser: Bool
     
     @ObservedObject var appState: AppState = .shared
     @ObservedObject var configManager: ConfigManager = .shared
-    @StateObject private var viewModel = MessageBubbleViewModel()
     
     public init(message: FeishuMessageItem, isCurrentUser: Bool = false) {
         self.message = message
         self.isCurrentUser = isCurrentUser
+    }
+    
+    public static func == (lhs: MessageBubbleView, rhs: MessageBubbleView) -> Bool {
+        lhs.message.id == rhs.message.id &&
+        lhs.message.updateTime == rhs.message.updateTime &&
+        lhs.isCurrentUser == rhs.isCurrentUser &&
+        lhs.configManager.accentColorChoice == rhs.configManager.accentColorChoice
     }
     
     private var isSelfMessage: Bool {
@@ -161,7 +142,6 @@ public struct MessageBubbleView: View {
             otherMessageRow(content: content)
         }
     }
-    
     // MARK: - My Messages (Right Aligned, Accent Colored)
     
     private func myMessageRow(content: ParsedMessageContent) -> some View {
@@ -169,21 +149,11 @@ public struct MessageBubbleView: View {
             Spacer(minLength: 48)
             
             VStack(alignment: .trailing, spacing: 4) {
-                // Time & Status Header
-                HStack(spacing: 6) {
-                    if let status = viewModel.actionMessage {
-                        Text(status)
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(configManager.accentColorChoice.color)
-                            .transition(.opacity)
-                    }
-                    
-                    Text(message.formattedTime)
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                }
-                .frame(height: 14)
-                
+                // Time Header
+                Text(message.formattedTime)
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                    .frame(height: 14)
                 // Bubble Content with Right-Click Context Menu
                 bubbleContent(content: content, isSelf: true)
                     .contextMenu {
@@ -236,13 +206,6 @@ public struct MessageBubbleView: View {
                     Text(message.formattedTime)
                         .font(.system(size: 10))
                         .foregroundColor(.secondary)
-                    
-                    if let status = viewModel.actionMessage {
-                        Text("• \(status)")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(Color(hex: "3370FF"))
-                            .transition(.opacity)
-                    }
                 }
                 .frame(height: 14)
                 
@@ -266,22 +229,22 @@ public struct MessageBubbleView: View {
     private func messageContextMenu(content: ParsedMessageContent, isSelf: Bool) -> some View {
         Section("回应表情") {
             Button("👍 点赞") {
-                sendReaction("THUMBSUP", name: "👍 点赞")
+                sendReaction("THUMBSUP")
             }
             Button("❤️ 爱心") {
-                sendReaction("HEART", name: "❤️ 爱心")
+                sendReaction("HEART")
             }
             Button("👏 鼓掌") {
-                sendReaction("APPLAUD", name: "👏 鼓掌")
+                sendReaction("APPLAUD")
             }
             Button("😄 开心") {
-                sendReaction("JOY", name: "😄 开心")
+                sendReaction("JOY")
             }
             Button("🎉 庆祝") {
-                sendReaction("PARTY", name: "🎉 庆祝")
+                sendReaction("PARTY")
             }
             Button("🔥 火力") {
-                sendReaction("FIRE", name: "🔥 火力")
+                sendReaction("FIRE")
             }
         }
         
@@ -295,14 +258,14 @@ public struct MessageBubbleView: View {
         
         if case .text(let text) = content {
             Button {
-                viewModel.copyText(text: text)
+                copyToClipboard(text: text)
             } label: {
                 Label("复制文本内容", systemImage: "doc.on.doc")
             }
         }
         
         Button {
-            viewModel.copyText(text: message.messageId)
+            copyToClipboard(text: message.messageId)
         } label: {
             Label("复制 Message ID", systemImage: "number")
         }
@@ -311,12 +274,7 @@ public struct MessageBubbleView: View {
             Divider()
             Button(role: .destructive) {
                 Task {
-                    do {
-                        try await appState.recallMessageItem(message)
-                        withAnimation { viewModel.actionMessage = "已撤回" }
-                    } catch {
-                        withAnimation { viewModel.actionMessage = "撤回失败: \(error.localizedDescription)" }
-                    }
+                    try? await appState.recallMessageItem(message)
                 }
             } label: {
                 Label("撤回消息", systemImage: "trash")
@@ -339,19 +297,18 @@ public struct MessageBubbleView: View {
         }
     }
     
-    private func sendReaction(_ type: String, name: String) {
+    private func copyToClipboard(text: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+    }
+    
+    private func sendReaction(_ type: String) {
         Task {
-            do {
-                try await appState.addReaction(to: message, emojiType: type)
-                withAnimation { viewModel.actionMessage = "已回应 \(name)" }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                    withAnimation { viewModel.actionMessage = nil }
-                }
-            } catch {
-                withAnimation { viewModel.actionMessage = "回应失败: \(error.localizedDescription)" }
-            }
+            try? await appState.addReaction(to: message, emojiType: type)
         }
     }
+    
     
     @ViewBuilder
     private func bubbleContent(content: ParsedMessageContent, isSelf: Bool) -> some View {
@@ -376,7 +333,7 @@ public struct MessageBubbleView: View {
             MessageImageView(messageId: message.messageId, imageKey: imageKey)
                 .contextMenu {
                     Button("复制 Message ID") {
-                        viewModel.copyText(text: message.messageId)
+                        copyToClipboard(text: message.messageId)
                     }
                     Button("回复此图片") {
                         appState.replyingToMessage = message
@@ -392,7 +349,7 @@ public struct MessageBubbleView: View {
             )
             .contextMenu {
                 Button("复制 Message ID") {
-                    viewModel.copyText(text: message.messageId)
+                    copyToClipboard(text: message.messageId)
                 }
                 Button("回复此文件") {
                     appState.replyingToMessage = message

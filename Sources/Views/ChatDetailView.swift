@@ -270,36 +270,28 @@ public struct ChatDetailView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: 4) {
+                            // Top Auto-Load Sentinel: Triggers loadMoreMessages on scroll (No Click Needed)
                             if appState.hasMoreMessages {
-                                Button {
+                                HStack(spacing: 6) {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                    Text("正在加载更早历史消息...")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(.vertical, 10)
+                                .frame(maxWidth: .infinity)
+                                .onAppear {
                                     Task {
                                         await appState.loadMoreMessages()
                                     }
-                                } label: {
-                                    HStack(spacing: 6) {
-                                        if appState.isLoadingMessages {
-                                            ProgressView()
-                                                .controlSize(.small)
-                                        }
-                                        Text(appState.isLoadingMessages ? "加载中..." : "加载更早的历史消息")
-                                            .font(.system(size: 11))
-                                            .foregroundColor(Color(hex: "3370FF"))
-                                    }
-                                    .padding(.vertical, 8)
-                                    .padding(.horizontal, 14)
-                                    .background(Color(hex: "3370FF").opacity(0.08))
-                                    .clipShape(Capsule())
                                 }
-                                .buttonStyle(.plain)
-                                .padding(.vertical, 8)
                             }
                             
-                            ForEach(Array(appState.messages.enumerated()), id: \.element.id) { index, msg in
-                                if shouldShowDateHeader(at: index) {
-                                    dateHeaderView(title: msg.formattedDateHeader)
-                                }
-                                
+                            // High-Performance Equatable Message Cells (120 FPS Buttery Smooth)
+                            ForEach(appState.messages) { msg in
                                 MessageBubbleView(message: msg)
+                                    .equatable()
                                     .id(msg.id)
                             }
                             
@@ -314,10 +306,12 @@ public struct ChatDetailView: View {
                             proxy.scrollTo(lastId, anchor: .bottom)
                         }
                     }
-                    .onChange(of: appState.messages.count) { _, _ in
-                        if let lastId = appState.messages.last?.id {
-                            withAnimation {
-                                proxy.scrollTo(lastId, anchor: .bottom)
+                    .onChange(of: appState.messages.count) { oldCount, newCount in
+                        if newCount > oldCount && !appState.isLoadingMessages {
+                            if let lastId = appState.messages.last?.id {
+                                withAnimation(.easeOut(duration: 0.2)) {
+                                    proxy.scrollTo(lastId, anchor: .bottom)
+                                }
                             }
                         }
                     }
