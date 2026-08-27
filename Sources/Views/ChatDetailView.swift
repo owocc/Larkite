@@ -496,7 +496,7 @@ public struct ChatDetailView: View {
                     }
                     
                     // Middle: Auto-Expanding Liquid Glass Message Container
-                    ZStack(alignment: .bottomTrailing) {
+                    ZStack(alignment: .trailing) {
                         PasteableMessageField(
                             text: $viewModel.inputMessageText,
                             placeholder: appState.replyingToMessage != nil ? "输入回复内容 (Enter 发送, Shift+Enter 换行)..." : "输入消息 (Enter 发送, Shift+Enter 换行)...",
@@ -531,10 +531,10 @@ public struct ChatDetailView: View {
                         .padding(.vertical, 4)
                         .frame(height: dynamicEditorHeight)
                         
-                        // Action Buttons inside Editor: Expand (Top-Right) & Emoji (Bottom-Right)
-                        VStack {
-                            // Top-Right: Expand / Collapse Button
-                            if viewModel.editorContentHeight > 40 || viewModel.isEditorExpanded {
+                        // Action Buttons inside Editor:
+                        if viewModel.editorContentHeight > 40 || viewModel.isEditorExpanded {
+                            // Multi-line / Expanded Mode: Expand button at top-right, Emoji button at bottom-right
+                            VStack {
                                 HStack {
                                     Spacer()
                                     Button {
@@ -550,40 +550,46 @@ public struct ChatDetailView: View {
                                     }
                                     .buttonStyle(.plain)
                                     .help(viewModel.isEditorExpanded ? "收起输入框" : "展开大书写空间 (窗口1/2)")
-                                    .padding(.top, 3)
+                                    .padding(.top, 4)
+                                    .padding(.trailing, 4)
+                                }
+                                
+                                Spacer()
+                                
+                                HStack {
+                                    Spacer()
+                                    Button {
+                                        NSApp.orderFrontCharacterPalette(nil)
+                                    } label: {
+                                        Image(systemName: "face.smiling")
+                                            .font(.system(size: 16, weight: .medium))
+                                            .foregroundColor(.secondary)
+                                            .frame(width: 28, height: 28)
+                                            .contentShape(Circle())
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("唤起 macOS 原生表情面板 (Cmd+Ctrl+Space)")
+                                    .padding(.bottom, 4)
                                     .padding(.trailing, 4)
                                 }
                             }
-                            
-                            Spacer()
-                            
-                            // Bottom-Right: Native Emoji Palette Button (Centered vertically in single-line, bottom-aligned in multi-line)
-                            HStack {
-                                Spacer()
-                                Button {
-                                    NSApp.orderFrontCharacterPalette(nil)
-                                } label: {
-                                    Image(systemName: "face.smiling")
-                                        .font(.system(size: 16, weight: .medium))
-                                        .foregroundColor(.secondary)
-                                        .frame(width: 28, height: 28)
-                                        .contentShape(Circle())
-                                }
-                                .buttonStyle(.plain)
-                                .help("唤起 macOS 原生表情面板 (Cmd+Ctrl+Space)")
-                                .padding(.trailing, 4)
-                                .padding(.bottom, (viewModel.editorContentHeight > 40 || viewModel.isEditorExpanded) ? 3 : 0)
+                            .frame(height: dynamicEditorHeight)
+                        } else {
+                            // Single-line Mode: Pure 100% Vertical & Horizontal Centering within Capsule Curve
+                            Button {
+                                NSApp.orderFrontCharacterPalette(nil)
+                            } label: {
+                                Image(systemName: "face.smiling")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(.secondary)
+                                    .frame(width: 28, height: 28)
+                                    .contentShape(Circle())
                             }
+                            .buttonStyle(.plain)
+                            .help("唤起 macOS 原生表情面板 (Cmd+Ctrl+Space)")
+                            .padding(.trailing, 4)
                         }
-                        .frame(height: dynamicEditorHeight)
                     }
-                    .background(
-                        ZStack {
-                            VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
-                            Color(nsColor: .controlBackgroundColor).opacity(0.65)
-                        }
-                        .clipShape(RoundedRectangle(cornerRadius: viewModel.isEditorExpanded ? 18 : 18, style: .continuous))
-                    )
                     .overlay(
                         RoundedRectangle(cornerRadius: viewModel.isEditorExpanded ? 18 : 18, style: .continuous)
                             .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1.2)
