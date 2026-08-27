@@ -42,8 +42,8 @@ public final class AccountWindowManager: NSObject, NSWindowDelegate {
         controller.showWindow(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
-    
     public func closeWindow() {
+        AppState.shared.cancelOAuthLogin()
         windowController?.close()
         DispatchQueue.main.async { [weak self] in
             self?.windowController = nil
@@ -51,6 +51,7 @@ public final class AccountWindowManager: NSObject, NSWindowDelegate {
     }
     
     public func windowWillClose(_ notification: Notification) {
+        AppState.shared.cancelOAuthLogin()
         DispatchQueue.main.async { [weak self] in
             self?.windowController = nil
         }

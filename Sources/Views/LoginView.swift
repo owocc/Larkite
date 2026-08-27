@@ -2,9 +2,15 @@ import SwiftUI
 import AppKit
 
 @MainActor
+public enum LoginScreenMode {
+    case primaryButtons
+    case directToken
+}
+
+@MainActor
 public final class LoginViewModel: ObservableObject {
+    @Published public var screenMode: LoginScreenMode = .primaryButtons
     @Published public var showProfileSheet: Bool = false
-    @Published public var showDirectTokenSheet: Bool = false
     @Published public var showScopesSheet: Bool = false
     @Published public var showAccountPopover: Bool = false
     @Published public var showServerPopover: Bool = false
@@ -117,9 +123,6 @@ public struct LoginView: View {
         .sheet(isPresented: $viewModel.showProfileSheet) {
             appProfileConfigSheet
         }
-        .sheet(isPresented: $viewModel.showDirectTokenSheet) {
-            directTokenInputSheet
-        }
         .sheet(isPresented: $viewModel.showScopesSheet) {
             scopeSettingsSheet
         }
@@ -211,7 +214,7 @@ public struct LoginView: View {
             } else {
                 ScrollView {
                     VStack(spacing: 4) {
-                        ForEach(configManager.accounts) { acc in
+                        ForEach(configManager.accounts, id: \.id) { acc in
                             let isActive = acc.id == configManager.activeAccountId
                             Button {
                                 appState.switchAccount(to: acc.id)
@@ -330,6 +333,17 @@ public struct LoginView: View {
     // MARK: - Main Login Body (3 Clean Action Buttons)
     
     private var mainContentSection: some View {
+        Group {
+            if viewModel.screenMode == .primaryButtons {
+                primaryButtonsView
+            } else {
+                inPlaceDirectTokenView
+            }
+        }
+        .animation(.spring(response: 0.32, dampingFraction: 0.85), value: viewModel.screenMode)
+    }
+    
+    private var primaryButtonsView: some View {
         VStack(spacing: 16) {
             // Brand Logo & Title
             HStack(spacing: 10) {
@@ -412,9 +426,12 @@ public struct LoginView: View {
                 .buttonStyle(.plain)
                 .disabled(appState.isAuthenticating)
                 .help("使用 App ID 和 App Secret 直接获取 tenant_access_token 免登录进入")
-                // Button 3: Direct User Access Token Input
+                
+                // Button 3: Direct User Access Token Input (In-Place Transition)
                 Button {
-                    viewModel.showDirectTokenSheet = true
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) {
+                        viewModel.screenMode = .directToken
+                    }
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "key.fill")
@@ -433,7 +450,7 @@ public struct LoginView: View {
             }
             .frame(maxWidth: 380)
             
-            // Status & Error Toast
+            // Status, Error Toast, & Prominent OAuth Server Cancel Button
             if let error = appState.authError {
                 HStack(spacing: 6) {
                     Image(systemName: "exclamationmark.triangle.fill")
@@ -447,19 +464,106 @@ public struct LoginView: View {
                 .padding(.vertical, 4)
                 .background(Color.red.opacity(0.1))
                 .clipShape(RoundedRectangle(cornerRadius: 6))
-            } else if !appState.authStatusMessage.isEmpty {
-                HStack(spacing: 6) {
-                    ProgressView().controlSize(.small)
-                    Text(appState.authStatusMessage)
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
+            } else if appState.isAuthenticating {
+                VStack(spacing: 6) {
+                    HStack(spacing: 6) {
+                        ProgressView().controlSize(.small)
+                        Text(appState.authStatusMessage)
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Button {
+                        appState.cancelOAuthLogin()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "xmark.circle.fill")
+                            Text("取消授权并关闭本地服务 (8989)")
+                        }
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.red)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(Color.red.opacity(0.12))
+                        .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .help("停止 127.0.0.1:8989 本地监听服务")
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(Color.blue.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
             }
         }
+    }
+    
+    // MARK: - In-Place Direct Token Input Component (No Sheet Stacking)
+    
+    private var inPlaceDirectTokenView: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Button {
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) {
+                        viewModel.screenMode = .primaryButtons
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.left")
+                            .font(.system(size: 10, weight: .bold))
+                        Text("返回选择")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .foregroundColor(configManager.accentColorChoice.color)
+                }
+                .buttonStyle(.plain)
+                
+                Spacer()
+                
+                Text("录入访问凭证")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.secondary)
+            }
+            
+            Picker("", selection: $viewModel.directTokenType) {
+                Text("User Access Token (u-xxxx)").tag(UserSession.TokenType.userAccessToken)
+                Text("Tenant Access Token (t-xxxx)").tag(UserSession.TokenType.tenantAccessToken)
+            }
+            .pickerStyle(.segmented)
+            
+            TextField("粘贴 u-xxxx 或 t-xxxx 凭证...", text: $viewModel.directTokenInput)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 12, design: .monospaced))
+            
+            HStack(spacing: 10) {
+                Button {
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) {
+                        viewModel.screenMode = .primaryButtons
+                    }
+                } label: {
+                    Text("取消")
+                        .font(.system(size: 12))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 32)
+                }
+                .buttonStyle(.bordered)
+                
+                Button {
+                    let clean = viewModel.directTokenInput.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !clean.isEmpty else { return }
+                    Task {
+                        await appState.loginWithDirectToken(token: clean, tokenType: viewModel.directTokenType)
+                    }
+                } label: {
+                    Text("确认登录")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 32)
+                        .background(configManager.accentColorChoice.color)
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(viewModel.directTokenInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .frame(maxWidth: 380)
     }
     
     // MARK: - Bottom Callback Info Bar with 1-Click Copy
@@ -554,66 +658,6 @@ public struct LoginView: View {
             .padding(16)
         }
         .frame(width: 440, height: 320)
-    }
-    
-    // MARK: - Direct Token Input Sheet
-    
-    private var directTokenInputSheet: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text("录入访问凭证 (Direct Token)")
-                    .font(.system(size: 14, weight: .bold))
-                Spacer()
-                Button("关闭") {
-                    viewModel.showDirectTokenSheet = false
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
-            
-            Divider()
-            
-            VStack(alignment: .leading, spacing: 14) {
-                Picker("凭证类型", selection: $viewModel.directTokenType) {
-                    Text("User Access Token (u-xxxx)").tag(UserSession.TokenType.userAccessToken)
-                    Text("Tenant Access Token (t-xxxx)").tag(UserSession.TokenType.tenantAccessToken)
-                }
-                .pickerStyle(.segmented)
-                
-                TextEditor(text: $viewModel.directTokenInput)
-                    .font(.system(size: 12, design: .monospaced))
-                    .frame(height: 100)
-                    .padding(4)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 0.8)
-                    )
-                
-                Button {
-                    let clean = viewModel.directTokenInput.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !clean.isEmpty else { return }
-                    viewModel.showDirectTokenSheet = false
-                    Task {
-                        await appState.loginWithDirectToken(token: clean, tokenType: viewModel.directTokenType)
-                    }
-                } label: {
-                    Text("确认登录并连接")
-                        .font(.system(size: 12, weight: .semibold))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 32)
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(viewModel.directTokenInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                
-                Spacer()
-            }
-            .padding(16)
-        }
-        .frame(width: 440, height: 300)
     }
     
     // MARK: - Scopes Setting Sheet
