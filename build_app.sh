@@ -13,6 +13,10 @@ RESOURCES_DIR="${CONTENTS_DIR}/Resources"
 echo "==> Preparing bundle directory structure..."
 mkdir -p "${MACOS_DIR}" "${RESOURCES_DIR}"
 
+if [ -f "Resources/AppIcon.icns" ]; then
+    echo "==> Copying AppIcon.icns to Resources..."
+    cp "Resources/AppIcon.icns" "${RESOURCES_DIR}/AppIcon.icns"
+fi
 echo "==> Building ${APP_NAME} binary with swiftc..."
 SWIFT_SOURCES=$(find Sources -name "*.swift")
 
