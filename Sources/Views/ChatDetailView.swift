@@ -430,25 +430,42 @@ public struct ChatDetailView: View {
                 .buttonStyle(.plain)
                 .disabled(appState.isSendingMessage)
                 .help("发送剪贴板中的截屏图片或文件")
-                TextField(
-                    appState.replyingToMessage != nil ? "输入回复内容 (Enter 发送)..." : "发送消息 (Enter 发送)...",
-                    text: $viewModel.inputMessageText
+                PasteableMessageField(
+                    text: $viewModel.inputMessageText,
+                    placeholder: appState.replyingToMessage != nil ? "输入回复 (Enter 发送, Cmd+V 贴图/文件)..." : "发送消息 (Enter 发送, Cmd+V 贴图/文件)...",
+                    onCommit: {
+                        Task {
+                            await viewModel.sendMessage(appState: appState)
+                        }
+                    },
+                    onPasteImage: { data, fileName in
+                        Task {
+                            do {
+                                try await appState.sendImage(imageData: data, fileName: fileName)
+                            } catch {
+                                viewModel.sendError = "发送图片失败: \(error.localizedDescription)"
+                            }
+                        }
+                    },
+                    onPasteFile: { data, fileName in
+                        Task {
+                            do {
+                                try await appState.sendFile(fileData: data, fileName: fileName)
+                            } catch {
+                                viewModel.sendError = "发送文件失败: \(error.localizedDescription)"
+                            }
+                        }
+                    }
                 )
-                .textFieldStyle(.plain)
-                .font(.system(size: 13))
+                .frame(height: 24)
                 .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+                .padding(.vertical, 6)
                 .background(Color(nsColor: .controlBackgroundColor))
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
                 )
-                .onSubmit {
-                    Task {
-                        await viewModel.sendMessage(appState: appState)
-                    }
-                }
                 
                 PrimaryGradientButton(
                     "发送",
