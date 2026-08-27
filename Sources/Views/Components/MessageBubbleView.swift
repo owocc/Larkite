@@ -75,7 +75,7 @@ public struct MessageBubbleView: View {
             .help("点击查看「\(senderDisplayName)」详细资料")
             
             VStack(alignment: .leading, spacing: 4) {
-                // Header (Sender Name, Bot Badge, Time, ID Copy)
+                // Header (Sender Name, Bot Badge, Time) - Fixed height to avoid jitter
                 HStack(spacing: 6) {
                     Text(senderDisplayName)
                         .font(.system(size: 12, weight: .semibold))
@@ -89,35 +89,44 @@ public struct MessageBubbleView: View {
                         .font(.system(size: 10))
                         .foregroundColor(.secondary)
                     
-                    if viewModel.isHovered {
-                        hoverQuickActions
+                    if let status = viewModel.actionMessage {
+                        Text("• \(status)")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(Color(hex: "3370FF"))
+                            .transition(.opacity)
                     }
                 }
+                .frame(height: 16)
                 
                 // Content Bubble
                 bubbleContent(content: content)
-                
-                // Action status if any
-                if let status = viewModel.actionMessage {
-                    Text(status)
-                        .font(.system(size: 10))
-                        .foregroundColor(Color(hex: "3370FF"))
-                }
             }
             
             Spacer(minLength: 40)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
-        .background(viewModel.isHovered ? Color(nsColor: .quaternaryLabelColor).opacity(0.15) : Color.clear)
+        .frame(minHeight: 48, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(viewModel.isHovered ? Color(nsColor: .quaternaryLabelColor).opacity(0.15) : Color.clear)
+        )
+        .overlay(alignment: .topTrailing) {
+            // Floating Hover Actions Overlay (zero layout shift, fixed positioning)
+            hoverQuickActions
+                .padding(.trailing, 16)
+                .padding(.top, 4)
+                .opacity(viewModel.isHovered ? 1.0 : 0.0)
+                .animation(.easeInOut(duration: 0.12), value: viewModel.isHovered)
+        }
         .onHover { hovering in
             viewModel.isHovered = hovering
         }
     }
     
     private var hoverQuickActions: some View {
-        HStack(spacing: 6) {
-            // Copy ID
+        HStack(spacing: 4) {
+            // Copy Message ID
             Button {
                 viewModel.copyText(text: message.messageId)
             } label: {
@@ -127,6 +136,8 @@ public struct MessageBubbleView: View {
                 }
                 .font(.system(size: 9))
                 .foregroundColor(viewModel.copiedToast ? .green : .secondary)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 3)
             }
             .buttonStyle(.plain)
             .help("复制 Message ID")
@@ -141,6 +152,8 @@ public struct MessageBubbleView: View {
                 }
                 .font(.system(size: 9))
                 .foregroundColor(Color(hex: "3370FF"))
+                .padding(.horizontal, 5)
+                .padding(.vertical, 3)
             }
             .buttonStyle(.plain)
             .help("回复此消息")
@@ -150,17 +163,19 @@ public struct MessageBubbleView: View {
                 Task {
                     do {
                         try await appState.addReaction(to: message, emojiType: "THUMBSUP")
-                        viewModel.actionMessage = "已点赞 👍"
+                        withAnimation { viewModel.actionMessage = "已点赞 👍" }
                         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                            viewModel.actionMessage = nil
+                            withAnimation { viewModel.actionMessage = nil }
                         }
                     } catch {
-                        viewModel.actionMessage = "表情回复: \(error.localizedDescription)"
+                        withAnimation { viewModel.actionMessage = "表情回复: \(error.localizedDescription)" }
                     }
                 }
             } label: {
                 Text("👍")
                     .font(.system(size: 10))
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 2)
             }
             .buttonStyle(.plain)
             .help("快捷点赞")
@@ -170,9 +185,9 @@ public struct MessageBubbleView: View {
                 Task {
                     do {
                         try await appState.recallMessageItem(message)
-                        viewModel.actionMessage = "已撤回"
+                        withAnimation { viewModel.actionMessage = "已撤回" }
                     } catch {
-                        viewModel.actionMessage = "撤回失败: \(error.localizedDescription)"
+                        withAnimation { viewModel.actionMessage = "撤回失败: \(error.localizedDescription)" }
                     }
                 }
             } label: {
@@ -182,14 +197,23 @@ public struct MessageBubbleView: View {
                 }
                 .font(.system(size: 9))
                 .foregroundColor(.secondary)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 3)
             }
             .buttonStyle(.plain)
             .help("撤回此消息 (需权限)")
         }
-        .padding(.horizontal, 6)
+        .padding(.horizontal, 4)
         .padding(.vertical, 2)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.8))
-        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.92))
+                .shadow(color: Color.black.opacity(0.12), radius: 6, x: 0, y: 2)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .stroke(Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 0.8)
+        )
     }
     
     @ViewBuilder
