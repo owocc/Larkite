@@ -120,14 +120,16 @@ public struct MessageImageView: View {
         VStack(alignment: .leading, spacing: 4) {
             Group {
                 if let img = viewModel.image {
+                    let size = calculateDisplaySize(for: img)
+                    
                     ZStack(alignment: .bottomTrailing) {
                         Image(nsImage: img)
                             .resizable()
                             .scaledToFit()
-                            .frame(maxWidth: 340, maxHeight: 280)
-                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .frame(width: size.width, height: size.height)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
                                     .stroke(Color(nsColor: .separatorColor).opacity(0.25), lineWidth: 0.8)
                             )
                             .contentShape(Rectangle())
@@ -139,6 +141,7 @@ public struct MessageImageView: View {
                             hoverToolbar
                         }
                     }
+                    .frame(width: size.width, height: size.height)
                     .onHover { hovering in
                         viewModel.isHovered = hovering
                     }
@@ -209,41 +212,50 @@ public struct MessageImageView: View {
             viewModel.loadImage(messageId: messageId, imageKey: imageKey)
         }
     }
+    private func calculateDisplaySize(for img: NSImage) -> CGSize {
+        let originalWidth = max(1, img.size.width)
+        let originalHeight = max(1, img.size.height)
+        let maxWidth: CGFloat = 300
+        let maxHeight: CGFloat = 360
+        let minWidth: CGFloat = 80
+        let minHeight: CGFloat = 60
+        
+        let widthRatio = maxWidth / originalWidth
+        let heightRatio = maxHeight / originalHeight
+        let scale = min(1.0, min(widthRatio, heightRatio))
+        
+        let targetWidth = max(minWidth, min(maxWidth, originalWidth * scale))
+        let targetHeight = max(minHeight, min(maxHeight, originalHeight * scale))
+        
+        return CGSize(width: targetWidth, height: targetHeight)
+    }
     
     private var hoverToolbar: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 4) {
             // Preview in system default
             Button {
                 viewModel.previewInSystem(messageId: messageId, imageKey: imageKey)
             } label: {
-                HStack(spacing: 3) {
-                    Image(systemName: "eye.fill")
-                    Text("系统预览")
-                }
-                .font(.system(size: 10, weight: .medium))
-                .foregroundColor(.white)
-                .padding(.horizontal, 7)
-                .padding(.vertical, 4)
-                .background(Color.black.opacity(0.75))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+                Image(systemName: "eye.fill")
+                    .font(.system(size: 10))
+                    .foregroundColor(.white)
+                    .padding(5)
+                    .background(Color.black.opacity(0.75))
+                    .clipShape(Circle())
             }
             .buttonStyle(.plain)
-            .help("调用 macOS 默认预览工具打开")
+            .help("系统默认预览 (Preview.app)")
             
             // Download to disk
             Button {
                 viewModel.downloadImage(messageId: messageId, imageKey: imageKey)
             } label: {
-                HStack(spacing: 3) {
-                    Image(systemName: "arrow.down.circle.fill")
-                    Text("下载")
-                }
-                .font(.system(size: 10, weight: .medium))
-                .foregroundColor(.white)
-                .padding(.horizontal, 7)
-                .padding(.vertical, 4)
-                .background(Color.black.opacity(0.75))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+                Image(systemName: "arrow.down.circle.fill")
+                    .font(.system(size: 10))
+                    .foregroundColor(.white)
+                    .padding(5)
+                    .background(Color.black.opacity(0.75))
+                    .clipShape(Circle())
             }
             .buttonStyle(.plain)
             .help("保存至下载目录并在 Finder 显示")
@@ -262,6 +274,6 @@ public struct MessageImageView: View {
             .buttonStyle(.plain)
             .help("复制图片")
         }
-        .padding(8)
+        .padding(6)
     }
 }
