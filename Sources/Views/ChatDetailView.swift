@@ -160,29 +160,15 @@ public struct ChatDetailView: View {
                             AvatarView(urlString: avatarUrl, name: title, size: 20)
                             
                             Text(title)
-                                .font(.system(size: 12, weight: .semibold))
+                                .font(.system(size: 13, weight: .semibold))
                                 .foregroundColor(.primary)
                                 .lineLimit(1)
                             
                             Image(systemName: "chevron.right")
                                 .font(.system(size: 8, weight: .bold))
-                                .foregroundColor(.secondary.opacity(0.8))
+                                .foregroundColor(.secondary.opacity(0.7))
                         }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(
-                            ZStack {
-                                VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
-                                Color(nsColor: .controlBackgroundColor).opacity(0.55)
-                            }
-                            .clipShape(Capsule())
-                        )
-                        .overlay(
-                            Capsule()
-                                .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
-                        )
-                        .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 1.5)
-                        .contentShape(Capsule())
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .help("点击打开侧边详细信息与成员面板")
@@ -242,7 +228,7 @@ public struct ChatDetailView: View {
                             Label("重新拉取消息", systemImage: "arrow.clockwise")
                         }
                     } label: {
-                        Image(systemName: "ellipsis.circle")
+                        Image(systemName: "ellipsis")
                     }
                     .help("会话更多选项")
                     
@@ -562,34 +548,27 @@ public struct ChatDetailView: View {
                     
                     // Right Action Capsules
                     HStack(spacing: 8) {
-                        // Clipboard Paste Capsule
+                        // Clipboard Paste Button
                         Button {
                             viewModel.sendClipboard(appState: appState)
                         } label: {
-                            HStack(spacing: 3) {
-                                Image(systemName: "doc.on.clipboard")
-                                    .font(.system(size: 12))
-                                Image(systemName: "chevron.down")
-                                    .font(.system(size: 8, weight: .bold))
-                                    .opacity(0.6)
-                            }
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 6)
-                            .background(
-                                Capsule()
-                                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.4))
-                            )
-                            .overlay(
-                                Capsule()
-                                    .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
-                            )
-                            .contentShape(Capsule())
+                            Image(systemName: "doc.on.clipboard")
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                                .padding(6)
+                                .background(
+                                    Circle()
+                                        .fill(Color(nsColor: .controlBackgroundColor).opacity(0.4))
+                                )
+                                .overlay(
+                                    Circle()
+                                        .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
+                                )
                         }
                         .buttonStyle(.plain)
                         .help("发送剪贴板中的截屏图片或文件")
                         
-                        // Attachment Capsule (Image & File Picker)
+                        // Attachment Menu Button (Single Icon)
                         Menu {
                             Button {
                                 viewModel.pickAndSendImage(appState: appState)
@@ -603,25 +582,18 @@ public struct ChatDetailView: View {
                                 Label("发送文档与附件 (PDF/Word/ZIP)...", systemImage: "paperclip")
                             }
                         } label: {
-                            HStack(spacing: 3) {
-                                Image(systemName: "paperclip")
-                                    .font(.system(size: 13))
-                                Image(systemName: "chevron.down")
-                                    .font(.system(size: 8, weight: .bold))
-                                    .opacity(0.6)
-                            }
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 6)
-                            .background(
-                                Capsule()
-                                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.4))
-                            )
-                            .overlay(
-                                Capsule()
-                                    .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
-                            )
-                            .contentShape(Capsule())
+                            Image(systemName: "paperclip")
+                                .font(.system(size: 13))
+                                .foregroundColor(.secondary)
+                                .padding(6)
+                                .background(
+                                    Circle()
+                                        .fill(Color(nsColor: .controlBackgroundColor).opacity(0.4))
+                                )
+                                .overlay(
+                                    Circle()
+                                        .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
+                                )
                         }
                         .menuStyle(.borderlessButton)
                         .help("添加图片或文件附件")
