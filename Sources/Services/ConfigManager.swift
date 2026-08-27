@@ -80,26 +80,13 @@ public final class ConfigManager: ObservableObject {
         }
     }
     public func updateAppAppearance() {
-        Task { @MainActor in
-            switch themeMode {
-            case .system:
-                NSApp.appearance = nil
-                for window in NSApp.windows {
-                    window.appearance = nil
-                }
-            case .light:
-                let appearance = NSAppearance(named: .aqua)
-                NSApp.appearance = appearance
-                for window in NSApp.windows {
-                    window.appearance = appearance
-                }
-            case .dark:
-                let appearance = NSAppearance(named: .darkAqua)
-                NSApp.appearance = appearance
-                for window in NSApp.windows {
-                    window.appearance = appearance
-                }
-            }
+        switch themeMode {
+        case .system:
+            NSApp.appearance = nil
+        case .light:
+            NSApp.appearance = NSAppearance(named: .aqua)
+        case .dark:
+            NSApp.appearance = NSAppearance(named: .darkAqua)
         }
     }
     private init() {
