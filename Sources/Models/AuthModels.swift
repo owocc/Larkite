@@ -42,6 +42,21 @@ public struct FeishuTenantTokenResponse: Codable, Sendable {
     }
 }
 
+/// Feishu Upload Image API Response
+public struct FeishuUploadImageResponse: Codable, Sendable {
+    public let code: Int
+    public let msg: String
+    public let data: FeishuUploadImageData?
+}
+
+public struct FeishuUploadImageData: Codable, Sendable {
+    public let imageKey: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case imageKey = "image_key"
+    }
+}
+
 public enum FeishuScopeCategory: String, CaseIterable, Identifiable, Sendable {
     case message = "消息与会话"
     case chat = "群组与群成员"
@@ -72,6 +87,7 @@ public enum FeishuScopes {
         FeishuScopeInfo(key: "im:message:recall", name: "撤回消息", description: "撤回已发送的消息", category: .message, isEssential: false),
         FeishuScopeInfo(key: "im:message.reactions:write_only", name: "添加表情回复", description: "为消息添加 Emoji 点赞表情", category: .message, isEssential: false),
         
+        FeishuScopeInfo(key: "im:resource", name: "上传与读取图片文件", description: "上传图片并在聊天中发送图片消息", category: .message, isEssential: true),
         // 群组与群成员
         FeishuScopeInfo(key: "im:chat", name: "获取与更新群信息", description: "获取群组属性并管理群组", category: .chat, isEssential: true),
         FeishuScopeInfo(key: "im:chat:readonly", name: "获取群信息 (只读)", description: "查询群名称、头像与属性", category: .chat, isEssential: true),

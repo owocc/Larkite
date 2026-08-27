@@ -645,6 +645,138 @@ public final class FeishuAPIClient: Sendable {
         return msg
     }
     
+    
+    // MARK: - Image Upload & Image Message
+    
+    public func uploadImage(
+        token: String,
+        imageData: Data,
+        fileName: String = "image.png",
+        mimeType: String = "image/png"
+    ) async throws -> String {
+        guard let url = URL(string: "https://open.feishu.cn/open-apis/im/v1/images") else {
+            throw APIError.invalidURL
+        }
+        
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        var body = Data()
+        
+        // image_type="message"
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"image_type\"\r\n\r\n".data(using: .utf8)!)
+        body.append("message\r\n".data(using: .utf8)!)
+        
+        // image
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"image\"; filename=\"\(fileName)\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: \(mimeType)\r\n\r\n".data(using: .utf8)!)
+        body.append(imageData)
+        body.append("\r\n".data(using: .utf8)!)
+        
+        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+        request.httpBody = body
+        
+        let (data, response) = try await session.data(for: request)
+        guard (response as? HTTPURLResponse) != nil else {
+            throw APIError.invalidResponse
+        }
+        
+        let decoded = try JSONDecoder().decode(FeishuUploadImageResponse.self, from: data)
+        if decoded.code != 0 {
+            throw APIError.feishuError(code: decoded.code, msg: decoded.msg)
+        }
+        
+        guard let key = decoded.data?.imageKey else {
+            throw APIError.invalidResponse
+        }
+        
+        return key
+    }
+    
+    public func sendImageMessage(
+        token: String,
+        receiveIdType: String,
+        receiveId: String,
+        imageKey: String
+    ) async throws -> FeishuMessageItem {
+        var components = URLComponents(string: "https://open.feishu.cn/open-apis/im/v1/messages")
+        components?.queryItems = [
+            URLQueryItem(name: "receive_id_type", value: receiveIdType)
+        ]
+        
+        guard let url = components?.url else {
+            throw APIError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        let contentString = "{\"image_key\":\"\(imageKey)\"}"
+        let body: [String: Any] = [
+            "receive_id": receiveId,
+            "msg_type": "image",
+            "content": contentString
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        
+        let (data, response) = try await session.data(for: request)
+        guard (response as? HTTPURLResponse) != nil else {
+            throw APIError.invalidResponse
+        }
+        
+        let decoded = try JSONDecoder().decode(FeishuSingleMessageResponse.self, from: data)
+        if decoded.code != 0 {
+            throw APIError.feishuError(code: decoded.code, msg: decoded.msg)
+        }
+        guard let msg = decoded.data else {
+            throw APIError.invalidResponse
+        }
+        return msg
+    }
+    
+    public func replyImageMessage(
+        token: String,
+        messageId: String,
+        imageKey: String
+    ) async throws -> FeishuMessageItem {
+        let encodedId = messageId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? messageId
+        guard let url = URL(string: "https://open.feishu.cn/open-apis/im/v1/messages/\(encodedId)/reply") else {
+            throw APIError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        let contentString = "{\"image_key\":\"\(imageKey)\"}"
+        let body: [String: Any] = [
+            "msg_type": "image",
+            "content": contentString
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        
+        let (data, response) = try await session.data(for: request)
+        guard (response as? HTTPURLResponse) != nil else {
+            throw APIError.invalidResponse
+        }
+        
+        let decoded = try JSONDecoder().decode(FeishuSingleMessageResponse.self, from: data)
+        if decoded.code != 0 {
+            throw APIError.feishuError(code: decoded.code, msg: decoded.msg)
+        }
+        guard let msg = decoded.data else {
+            throw APIError.invalidResponse
+        }
+        return msg
+    }
     // MARK: - Send / Reply / Recall / Reactions
     
     public func sendMessage(

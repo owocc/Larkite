@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 @MainActor
 public final class ChatDetailViewModel: ObservableObject {
@@ -23,6 +24,36 @@ public final class ChatDetailViewModel: ObservableObject {
             self.sendError = error.localizedDescription
         }
     }
+    public func pickAndSendImage(appState: AppState) {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.canCreateDirectories = false
+        panel.canChooseFiles = true
+        panel.allowedContentTypes = [
+            UTType.png,
+            UTType.jpeg,
+            UTType.webP,
+            UTType.gif,
+            UTType.bmp,
+            UTType.tiff,
+            UTType.heic
+        ]
+        panel.prompt = "发送图片"
+        panel.message = "选择要发送到当前会话的图片"
+        
+        if panel.runModal() == .OK, let url = panel.url {
+            guard let data = try? Data(contentsOf: url) else { return }
+            Task {
+                do {
+                    try await appState.sendImage(imageData: data, fileName: url.lastPathComponent)
+                } catch {
+                    self.sendError = "发送图片失败: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+    
     
     public func copyToClipboard(text: String, field: String) {
         let pasteboard = NSPasteboard.general
@@ -321,7 +352,22 @@ public struct ChatDetailView: View {
                 .background(Color.red.opacity(0.08))
             }
             
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
+                // Image Picker Attachment Button
+                Button {
+                    viewModel.pickAndSendImage(appState: appState)
+                } label: {
+                    Image(systemName: "photo.on.rectangle.angled")
+                        .font(.system(size: 15))
+                        .foregroundColor(Color(hex: "3370FF"))
+                        .padding(7)
+                        .background(Color(hex: "3370FF").opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(appState.isSendingMessage)
+                .help("选择本地图片发送")
+                
                 TextField(
                     appState.replyingToMessage != nil ? "输入回复内容 (Enter 发送)..." : "发送消息 (Enter 发送)...",
                     text: $viewModel.inputMessageText
@@ -356,6 +402,19 @@ public struct ChatDetailView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
             .background(Color(nsColor: .windowBackgroundColor))
+        }
+        .onDrop(of: [.fileURL], isTargeted: nil) { providers in
+            guard let provider = providers.first else { return false }
+            _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                guard let fileUrl = url, let data = try? Data(contentsOf: fileUrl) else { return }
+                let ext = fileUrl.pathExtension.lowercased()
+                if ["png", "jpg", "jpeg", "webp", "gif", "bmp", "heic", "tiff"].contains(ext) {
+                    Task { @MainActor in
+                        try? await appState.sendImage(imageData: data, fileName: fileUrl.lastPathComponent)
+                    }
+                }
+            }
+            return true
         }
     }
     

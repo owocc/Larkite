@@ -683,6 +683,81 @@ public final class AppState: ObservableObject {
         }
     }
     
+    public func sendImage(imageData: Data, fileName: String = "image.png") async throws {
+        guard !imageData.isEmpty, let chat = selectedChat, let token = session?.accessToken else { return }
+        
+        isSendingMessage = true
+        defer { isSendingMessage = false }
+        
+        let lowerName = fileName.lowercased()
+        let mimeType: String
+        if lowerName.hasSuffix(".jpg") || lowerName.hasSuffix(".jpeg") {
+            mimeType = "image/jpeg"
+        } else if lowerName.hasSuffix(".webp") {
+            mimeType = "image/webp"
+        } else if lowerName.hasSuffix(".gif") {
+            mimeType = "image/gif"
+        } else {
+            mimeType = "image/png"
+        }
+        
+        let imageKey = try await FeishuAPIClient.shared.uploadImage(
+            token: token,
+            imageData: imageData,
+            fileName: fileName,
+            mimeType: mimeType
+        )
+        
+        if let replyTarget = replyingToMessage {
+            let sentMsg = try await FeishuAPIClient.shared.replyImageMessage(
+                token: token,
+                messageId: replyTarget.messageId,
+                imageKey: imageKey
+            )
+            self.messages.append(sentMsg)
+            self.replyingToMessage = nil
+        } else {
+            let receiveIdType = chat.isP2P && !chat.chatId.hasPrefix("oc_") ? "open_id" : "chat_id"
+            let sentMsg = try await FeishuAPIClient.shared.sendImageMessage(
+                token: token,
+                receiveIdType: receiveIdType,
+                receiveId: chat.chatId,
+                imageKey: imageKey
+            )
+            self.messages.append(sentMsg)
+            self.lastMessages[chat.chatId] = sentMsg
+            if let realChatId = sentMsg.chatId {
+                self.lastMessages[realChatId] = sentMsg
+            }
+            
+            if let newChatId = sentMsg.chatId, newChatId.hasPrefix("oc_") && chat.chatId != newChatId {
+                let updatedChat = FeishuChatItem(
+                    chatId: newChatId,
+                    avatar: chat.avatar,
+                    name: chat.name,
+                    description: chat.description,
+                    ownerId: chat.ownerId ?? chat.chatId,
+                    ownerIdType: chat.ownerIdType ?? "open_id",
+                    external: chat.external,
+                    tenantKey: chat.tenantKey,
+                    chatStatus: chat.chatStatus,
+                    chatMode: "p2p",
+                    chatType: "private",
+                    chatTag: "p2p",
+                    userCount: "2",
+                    botCount: "0"
+                )
+                if let idx = self.chats.firstIndex(where: { $0.chatId == chat.chatId }) {
+                    self.chats[idx] = updatedChat
+                } else {
+                    self.chats.insert(updatedChat, at: 0)
+                }
+                self.selectedChat = updatedChat
+                ConfigManager.shared.saveP2PChats(self.chats)
+            }
+        }
+    }
+    
     public func recallMessageItem(_ message: FeishuMessageItem) async throws {
         guard let token = session?.accessToken else { return }
         try await FeishuAPIClient.shared.recallMessage(token: token, messageId: message.messageId)
