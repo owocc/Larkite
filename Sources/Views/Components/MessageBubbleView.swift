@@ -100,30 +100,19 @@ public struct MessageBubbleView: View {
                 }
                 .frame(height: 14)
                 
-                // Bubble Content
+                // Bubble Content with Right-Click Context Menu
                 bubbleContent(content: content, isSelf: true)
+                    .contextMenu {
+                        messageContextMenu(content: content, isSelf: true)
+                    }
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 4)
-        .frame(minHeight: 40, alignment: .trailing)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(viewModel.isHovered ? Color(nsColor: .quaternaryLabelColor).opacity(0.12) : Color.clear)
-        )
-        .overlay(alignment: .topTrailing) {
-            hoverQuickActions
-                .padding(.trailing, 16)
-                .padding(.top, 2)
-                .opacity(viewModel.isHovered ? 1.0 : 0.0)
-                .animation(.easeInOut(duration: 0.12), value: viewModel.isHovered)
-        }
-        .onHover { hovering in
-            viewModel.isHovered = hovering
-        }
+        .padding(.vertical, 3)
+        .frame(minHeight: 36, alignment: .trailing)
     }
     
-    // MARK: - Other's Messages (Left Aligned, Frosted Background)
+    // MARK: - Other's Messages (Left Aligned, Apple Messages Grey)
     
     private func otherMessageRow(content: ParsedMessageContent) -> some View {
         HStack(alignment: .bottom, spacing: 10) {
@@ -173,91 +162,70 @@ public struct MessageBubbleView: View {
                 }
                 .frame(height: 14)
                 
-                // Bubble Content
+                // Bubble Content with Right-Click Context Menu
                 bubbleContent(content: content, isSelf: false)
+                    .contextMenu {
+                        messageContextMenu(content: content, isSelf: false)
+                    }
             }
             
             Spacer(minLength: 48)
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 4)
-        .frame(minHeight: 40, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(viewModel.isHovered ? Color(nsColor: .quaternaryLabelColor).opacity(0.12) : Color.clear)
-        )
-        .overlay(alignment: .topTrailing) {
-            hoverQuickActions
-                .padding(.trailing, 16)
-                .padding(.top, 2)
-                .opacity(viewModel.isHovered ? 1.0 : 0.0)
-                .animation(.easeInOut(duration: 0.12), value: viewModel.isHovered)
-        }
-        .onHover { hovering in
-            viewModel.isHovered = hovering
-        }
+        .padding(.vertical, 3)
+        .frame(minHeight: 36, alignment: .leading)
     }
     
-    // MARK: - Floating Quick Actions Menu
+    // MARK: - Native Right-Click Context Menu for Reactions & Actions
     
-    private var hoverQuickActions: some View {
-        HStack(spacing: 4) {
-            // Copy Message ID
-            Button {
-                viewModel.copyText(text: message.messageId)
-            } label: {
-                HStack(spacing: 2) {
-                    Image(systemName: viewModel.copiedToast ? "checkmark" : "doc.on.doc")
-                    Text(viewModel.copiedToast ? "已复制 ID" : "复制 ID")
-                }
-                .font(.system(size: 9))
-                .foregroundColor(viewModel.copiedToast ? .green : .secondary)
-                .padding(.horizontal, 5)
-                .padding(.vertical, 3)
+    @ViewBuilder
+    private func messageContextMenu(content: ParsedMessageContent, isSelf: Bool) -> some View {
+        Section("回应表情") {
+            Button("👍 点赞") {
+                sendReaction("THUMBSUP", name: "👍 点赞")
             }
-            .buttonStyle(.plain)
-            .help("复制 Message ID")
-            
-            // Reply action
-            Button {
-                appState.replyingToMessage = message
-            } label: {
-                HStack(spacing: 2) {
-                    Image(systemName: "arrowshape.turn.up.left.fill")
-                    Text("回复")
-                }
-                .font(.system(size: 9))
-                .foregroundColor(Color(hex: "3370FF"))
-                .padding(.horizontal, 5)
-                .padding(.vertical, 3)
+            Button("❤️ 爱心") {
+                sendReaction("HEART", name: "❤️ 爱心")
             }
-            .buttonStyle(.plain)
-            .help("回复此消息")
-            
-            // Reaction action (👍)
-            Button {
-                Task {
-                    do {
-                        try await appState.addReaction(to: message, emojiType: "THUMBSUP")
-                        withAnimation { viewModel.actionMessage = "已点赞 👍" }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                            withAnimation { viewModel.actionMessage = nil }
-                        }
-                    } catch {
-                        withAnimation { viewModel.actionMessage = "表情回复: \(error.localizedDescription)" }
-                    }
-                }
-            } label: {
-                Text("👍")
-                    .font(.system(size: 10))
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 2)
+            Button("👏 鼓掌") {
+                sendReaction("APPLAUD", name: "👏 鼓掌")
             }
-            .buttonStyle(.plain)
-            .help("快捷点赞")
-            
-            // Recall action
+            Button("😄 开心") {
+                sendReaction("JOY", name: "😄 开心")
+            }
+            Button("🎉 庆祝") {
+                sendReaction("PARTY", name: "🎉 庆祝")
+            }
+            Button("🔥 火力") {
+                sendReaction("FIRE", name: "🔥 火力")
+            }
+        }
+        
+        Divider()
+        
+        Button {
+            appState.replyingToMessage = message
+        } label: {
+            Label("回复此消息", systemImage: "arrowshape.turn.up.left")
+        }
+        
+        if case .text(let text) = content {
             Button {
+                viewModel.copyText(text: text)
+            } label: {
+                Label("复制文本内容", systemImage: "doc.on.doc")
+            }
+        }
+        
+        Button {
+            viewModel.copyText(text: message.messageId)
+        } label: {
+            Label("复制 Message ID", systemImage: "number")
+        }
+        
+        if isSelf {
+            Divider()
+            Button(role: .destructive) {
                 Task {
                     do {
                         try await appState.recallMessageItem(message)
@@ -267,31 +235,39 @@ public struct MessageBubbleView: View {
                     }
                 }
             } label: {
-                HStack(spacing: 2) {
-                    Image(systemName: "trash")
-                    Text("撤回")
-                }
-                .font(.system(size: 9))
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 5)
-                .padding(.vertical, 3)
+                Label("撤回消息", systemImage: "trash")
             }
-            .buttonStyle(.plain)
-            .help("撤回此消息 (需权限)")
         }
-        .padding(.horizontal, 4)
-        .padding(.vertical, 2)
-        .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .stroke(Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 0.8)
-        )
+        
+        if let senderId = message.sender?.id {
+            Divider()
+            Button {
+                Task {
+                    await appState.inspectUser(
+                        openId: senderId,
+                        fallbackName: senderDisplayName,
+                        fallbackAvatar: senderAvatarUrl
+                    )
+                }
+            } label: {
+                Label("查看发送者资料", systemImage: "person.crop.circle")
+            }
+        }
     }
     
-    // MARK: - Bubble Content Dispatcher
+    private func sendReaction(_ type: String, name: String) {
+        Task {
+            do {
+                try await appState.addReaction(to: message, emojiType: type)
+                withAnimation { viewModel.actionMessage = "已回应 \(name)" }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    withAnimation { viewModel.actionMessage = nil }
+                }
+            } catch {
+                withAnimation { viewModel.actionMessage = "回应失败: \(error.localizedDescription)" }
+            }
+        }
+    }
     
     @ViewBuilder
     private func bubbleContent(content: ParsedMessageContent, isSelf: Bool) -> some View {
