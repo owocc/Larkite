@@ -71,11 +71,35 @@ public final class ConfigManager: ObservableObject {
     @Published public var themeMode: ThemeMode = .system {
         didSet {
             UserDefaults.standard.set(themeMode.rawValue, forKey: themeModeKey)
+            updateAppAppearance()
         }
     }
     @Published public var accentColorChoice: AccentColorChoice = .system {
         didSet {
             UserDefaults.standard.set(accentColorChoice.rawValue, forKey: accentColorKey)
+        }
+    }
+    public func updateAppAppearance() {
+        Task { @MainActor in
+            switch themeMode {
+            case .system:
+                NSApp.appearance = nil
+                for window in NSApp.windows {
+                    window.appearance = nil
+                }
+            case .light:
+                let appearance = NSAppearance(named: .aqua)
+                NSApp.appearance = appearance
+                for window in NSApp.windows {
+                    window.appearance = appearance
+                }
+            case .dark:
+                let appearance = NSAppearance(named: .darkAqua)
+                NSApp.appearance = appearance
+                for window in NSApp.windows {
+                    window.appearance = appearance
+                }
+            }
         }
     }
     private init() {

@@ -419,19 +419,13 @@ public struct SettingsView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
             
-            Divider()
-            
             // Notification / Sound Toggles
             VStack(alignment: .leading, spacing: 10) {
-                Text("消息与多媒体偏好")
+                Text("声音偏好")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundColor(.secondary)
                 
-                Toggle("自动播放消息音效", isOn: $viewModel.playSoundEffects)
-                    .toggleStyle(.checkbox)
-                    .font(.system(size: 12))
-                
-                Toggle("启用 macOS 26+ 悬浮液态玻璃交互动效", isOn: $viewModel.autoPlayMedia)
+                Toggle("播放新消息提示音效", isOn: $viewModel.playSoundEffects)
                     .toggleStyle(.checkbox)
                     .font(.system(size: 12))
             }
