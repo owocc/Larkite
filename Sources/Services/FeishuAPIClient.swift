@@ -521,6 +521,174 @@ public final class FeishuAPIClient: Sendable {
         return msg
     }
     
+    // MARK: - Send / Reply / Recall / Reactions
+    
+    public func sendMessage(
+        token: String,
+        receiveIdType: String,
+        receiveId: String,
+        text: String
+    ) async throws -> FeishuMessageItem {
+        var components = URLComponents(string: "https://open.feishu.cn/open-apis/im/v1/messages")
+        components?.queryItems = [
+            URLQueryItem(name: "receive_id_type", value: receiveIdType)
+        ]
+        
+        guard let url = components?.url else {
+            throw APIError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        let contentJson = try JSONSerialization.data(withJSONObject: ["text": text])
+        let contentString = String(data: contentJson, encoding: .utf8) ?? "{\"text\":\"\(text)\"}"
+        
+        let body: [String: Any] = [
+            "receive_id": receiveId,
+            "msg_type": "text",
+            "content": contentString
+        ]
+        
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+        
+        let decoded = try JSONDecoder().decode(FeishuSingleMessageResponse.self, from: data)
+        if decoded.code != 0 {
+            throw APIError.feishuError(code: decoded.code, msg: decoded.msg)
+        }
+        
+        guard let msg = decoded.data else {
+            throw APIError.invalidResponse
+        }
+        
+        return msg
+    }
+    
+    public func replyMessage(
+        token: String,
+        messageId: String,
+        text: String
+    ) async throws -> FeishuMessageItem {
+        let encodedId = messageId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? messageId
+        guard let url = URL(string: "https://open.feishu.cn/open-apis/im/v1/messages/\(encodedId)/reply") else {
+            throw APIError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        let contentJson = try JSONSerialization.data(withJSONObject: ["text": text])
+        let contentString = String(data: contentJson, encoding: .utf8) ?? "{\"text\":\"\(text)\"}"
+        
+        let body: [String: Any] = [
+            "msg_type": "text",
+            "content": contentString
+        ]
+        
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+        
+        let decoded = try JSONDecoder().decode(FeishuSingleMessageResponse.self, from: data)
+        if decoded.code != 0 {
+            throw APIError.feishuError(code: decoded.code, msg: decoded.msg)
+        }
+        
+        guard let msg = decoded.data else {
+            throw APIError.invalidResponse
+        }
+        
+        return msg
+    }
+    
+    public func recallMessage(
+        token: String,
+        messageId: String
+    ) async throws {
+        let encodedId = messageId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? messageId
+        guard let url = URL(string: "https://open.feishu.cn/open-apis/im/v1/messages/\(encodedId)") else {
+            throw APIError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+        
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let code = json["code"] as? Int, code != 0 {
+            let msg = json["msg"] as? String ?? "撤回消息失败"
+            throw APIError.feishuError(code: code, msg: msg)
+        }
+    }
+    
+    public func addMessageReaction(
+        token: String,
+        messageId: String,
+        emojiType: String
+    ) async throws {
+        let encodedId = messageId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? messageId
+        guard let url = URL(string: "https://open.feishu.cn/open-apis/im/v1/messages/\(encodedId)/reactions") else {
+            throw APIError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        let body: [String: Any] = [
+            "reaction_type": [
+                "emoji_type": emojiType
+            ]
+        ]
+        
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+        
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let code = json["code"] as? Int, code != 0 {
+            let msg = json["msg"] as? String ?? "添加表情回复失败"
+            throw APIError.feishuError(code: code, msg: msg)
+        }
+    }
+    
     // MARK: - Message Resource & Image
     
     public func fetchMessageResource(

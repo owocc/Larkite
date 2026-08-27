@@ -7,6 +7,13 @@ public struct FeishuMessageListResponse: Codable, Sendable {
     public let data: FeishuMessageListData?
 }
 
+/// Feishu Single Message Response (Send/Reply)
+public struct FeishuSingleMessageResponse: Codable, Sendable {
+    public let code: Int
+    public let msg: String
+    public let data: FeishuMessageItem?
+}
+
 public struct FeishuMessageListData: Codable, Sendable {
     public let items: [FeishuMessageItem]?
     public let pageToken: String?
@@ -207,6 +214,7 @@ public struct FeishuMessageItem: Codable, Identifiable, Equatable, Hashable, Sen
                 segments.append(.lineBreak)
             }
         }
+
         
         return .post(title: title, segments: segments)
     }
@@ -252,4 +260,24 @@ public enum PostSegment: Equatable, Hashable, Sendable {
     case mention(name: String)
     case image(imageKey: String)
     case lineBreak
+}
+
+extension ParsedMessageContent {
+    public var previewSummary: String {
+        switch self {
+        case .text(let t): return t
+        case .image: return "[图片]"
+        case .file(_, let name, _): return "[文件] \(name)"
+        case .audio: return "[语音]"
+        case .media(_, _, let name, _): return "[视频] \(name ?? "")"
+        case .post(let title, _): return title ?? "[富文本消息]"
+        case .card: return "[卡片消息]"
+        case .shareChat: return "[分享群聊]"
+        case .system(let s): return s
+        case .recalled: return "[消息已撤回]"
+        case .empty: return ""
+        case .rawText(let r): return r
+        case .unsupported(let type, _): return "[\(type)]"
+        }
+    }
 }

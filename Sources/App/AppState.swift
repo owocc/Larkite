@@ -72,6 +72,8 @@ public final class AppState: ObservableObject {
     @Published public var messagePageToken: String?
     @Published public var hasMoreMessages: Bool = false
     @Published public var selectedMessageForInspection: FeishuMessageItem?
+    @Published public var isSendingMessage: Bool = false
+    @Published public var replyingToMessage: FeishuMessageItem? = nil
     
     // MARK: - Group Members State
     @Published public var chatMembers: [FeishuChatMemberItem] = []
@@ -504,6 +506,71 @@ public final class AppState: ObservableObject {
     public func loadMoreMessages() async {
         guard let chat = selectedChat, !isLoadingMessages, hasMoreMessages, messagePageToken != nil else { return }
         await loadMessages(for: chat, reset: false)
+    }
+    
+    // MARK: - Send / Reply / Recall / Reactions
+    
+    public func sendTextMessage(_ text: String) async throws {
+        let cleanText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanText.isEmpty, let chat = selectedChat, let token = session?.accessToken else { return }
+        
+        isSendingMessage = true
+        defer { isSendingMessage = false }
+        
+        if let replyTarget = replyingToMessage {
+            let sentMsg = try await FeishuAPIClient.shared.replyMessage(
+                token: token,
+                messageId: replyTarget.messageId,
+                text: cleanText
+            )
+            self.messages.append(sentMsg)
+            self.replyingToMessage = nil
+        } else {
+            let receiveIdType = chat.isP2P && chat.chatId.hasPrefix("ou_") ? "open_id" : "chat_id"
+            let sentMsg = try await FeishuAPIClient.shared.sendMessage(
+                token: token,
+                receiveIdType: receiveIdType,
+                receiveId: chat.chatId,
+                text: cleanText
+            )
+            self.messages.append(sentMsg)
+        }
+    }
+    
+    public func recallMessageItem(_ message: FeishuMessageItem) async throws {
+        guard let token = session?.accessToken else { return }
+        try await FeishuAPIClient.shared.recallMessage(token: token, messageId: message.messageId)
+        
+        // Mark message as deleted locally
+        if let index = self.messages.firstIndex(where: { $0.messageId == message.messageId }) {
+            let original = self.messages[index]
+            let updated = FeishuMessageItem(
+                messageId: original.messageId,
+                rootId: original.rootId,
+                parentId: original.parentId,
+                threadId: original.threadId,
+                msgType: original.msgType,
+                createTime: original.createTime,
+                updateTime: original.updateTime,
+                deleted: true,
+                updated: original.updated,
+                chatId: original.chatId,
+                sender: original.sender,
+                body: original.body,
+                mentions: original.mentions,
+                upperMessageId: original.upperMessageId
+            )
+            self.messages[index] = updated
+        }
+    }
+    
+    public func addReaction(to message: FeishuMessageItem, emojiType: String) async throws {
+        guard let token = session?.accessToken else { return }
+        try await FeishuAPIClient.shared.addMessageReaction(
+            token: token,
+            messageId: message.messageId,
+            emojiType: emojiType
+        )
     }
     
     // MARK: - Direct / Single Chat (p2p)

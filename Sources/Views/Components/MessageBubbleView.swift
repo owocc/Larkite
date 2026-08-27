@@ -4,8 +4,9 @@ import AppKit
 @MainActor
 public final class MessageBubbleViewModel: ObservableObject {
     @Published public var isHovered: Bool = false
-    @Published public var showRawJson: Bool = false
+    @Published public var showEmojiPicker: Bool = false
     @Published public var copiedToast: Bool = false
+    @Published public var actionMessage: String? = nil
     
     public init() {}
     
@@ -29,6 +30,7 @@ public struct MessageBubbleView: View {
     let message: FeishuMessageItem
     let isCurrentUser: Bool
     
+    @ObservedObject var appState: AppState = .shared
     @StateObject private var viewModel = MessageBubbleViewModel()
     
     public init(message: FeishuMessageItem, isCurrentUser: Bool = false) {
@@ -73,22 +75,19 @@ public struct MessageBubbleView: View {
                         .foregroundColor(.secondary)
                     
                     if viewModel.isHovered {
-                        Button {
-                            viewModel.copyText(text: message.messageId)
-                        } label: {
-                            HStack(spacing: 2) {
-                                Image(systemName: viewModel.copiedToast ? "checkmark" : "doc.on.doc")
-                                Text(viewModel.copiedToast ? "已复制 ID" : "复制 ID")
-                            }
-                            .font(.system(size: 9))
-                            .foregroundColor(.secondary)
-                        }
-                        .buttonStyle(.plain)
+                        hoverQuickActions
                     }
                 }
                 
                 // Content Bubble
                 bubbleContent(content: content)
+                
+                // Action status if any
+                if let status = viewModel.actionMessage {
+                    Text(status)
+                        .font(.system(size: 10))
+                        .foregroundColor(Color(hex: "3370FF"))
+                }
             }
             
             Spacer(minLength: 40)
@@ -99,6 +98,83 @@ public struct MessageBubbleView: View {
         .onHover { hovering in
             viewModel.isHovered = hovering
         }
+    }
+    
+    private var hoverQuickActions: some View {
+        HStack(spacing: 6) {
+            // Copy ID
+            Button {
+                viewModel.copyText(text: message.messageId)
+            } label: {
+                HStack(spacing: 2) {
+                    Image(systemName: viewModel.copiedToast ? "checkmark" : "doc.on.doc")
+                    Text(viewModel.copiedToast ? "已复制 ID" : "复制 ID")
+                }
+                .font(.system(size: 9))
+                .foregroundColor(viewModel.copiedToast ? .green : .secondary)
+            }
+            .buttonStyle(.plain)
+            .help("复制 Message ID")
+            
+            // Reply action
+            Button {
+                appState.replyingToMessage = message
+            } label: {
+                HStack(spacing: 2) {
+                    Image(systemName: "arrowshape.turn.up.left.fill")
+                    Text("回复")
+                }
+                .font(.system(size: 9))
+                .foregroundColor(Color(hex: "3370FF"))
+            }
+            .buttonStyle(.plain)
+            .help("回复此消息")
+            
+            // Reaction action (👍)
+            Button {
+                Task {
+                    do {
+                        try await appState.addReaction(to: message, emojiType: "THUMBSUP")
+                        viewModel.actionMessage = "已点赞 👍"
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            viewModel.actionMessage = nil
+                        }
+                    } catch {
+                        viewModel.actionMessage = "表情回复: \(error.localizedDescription)"
+                    }
+                }
+            } label: {
+                Text("👍")
+                    .font(.system(size: 10))
+            }
+            .buttonStyle(.plain)
+            .help("快捷点赞")
+            
+            // Recall action
+            Button {
+                Task {
+                    do {
+                        try await appState.recallMessageItem(message)
+                        viewModel.actionMessage = "已撤回"
+                    } catch {
+                        viewModel.actionMessage = "撤回失败: \(error.localizedDescription)"
+                    }
+                }
+            } label: {
+                HStack(spacing: 2) {
+                    Image(systemName: "trash")
+                    Text("撤回")
+                }
+                .font(.system(size: 9))
+                .foregroundColor(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("撤回此消息 (需权限)")
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.8))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
     }
     
     @ViewBuilder
@@ -116,6 +192,14 @@ public struct MessageBubbleView: View {
                 
         case .image(let imageKey):
             MessageImageView(messageId: message.messageId, imageKey: imageKey)
+                .contextMenu {
+                    Button("复制 Message ID") {
+                        viewModel.copyText(text: message.messageId)
+                    }
+                    Button("回复此图片") {
+                        appState.replyingToMessage = message
+                    }
+                }
             
         case .file(let fileKey, let fileName, let fileSize):
             MessageFileView(
@@ -124,6 +208,14 @@ public struct MessageBubbleView: View {
                 fileName: fileName,
                 fileSize: fileSize
             )
+            .contextMenu {
+                Button("复制 Message ID") {
+                    viewModel.copyText(text: message.messageId)
+                }
+                Button("回复此文件") {
+                    appState.replyingToMessage = message
+                }
+            }
             
         case .audio(_, let durationMs):
             HStack(spacing: 8) {

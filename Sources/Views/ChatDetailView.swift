@@ -5,9 +5,24 @@ import AppKit
 public final class ChatDetailViewModel: ObservableObject {
     @Published public var selectedTab: Int = 0 // 0: 消息流, 1: 群聊属性与成员, 2: API JSON
     @Published public var copiedField: String? = nil
+    @Published public var inputMessageText: String = ""
+    @Published public var sendError: String? = nil
     @Published public var memberSearchQuery: String = ""
     
     public init() {}
+    
+    public func sendMessage(appState: AppState) async {
+        let clean = inputMessageText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else { return }
+        
+        sendError = nil
+        do {
+            try await appState.sendTextMessage(clean)
+            self.inputMessageText = ""
+        } catch {
+            self.sendError = error.localizedDescription
+        }
+    }
     
     public func copyToClipboard(text: String, field: String) {
         let pasteboard = NSPasteboard.general
@@ -242,6 +257,93 @@ public struct ChatDetailView: View {
                     }
                 }
             }
+            
+            // Bottom Interactive Message Input Bar
+            messageInputBar
+        }
+    }
+    
+    private var messageInputBar: some View {
+        VStack(spacing: 0) {
+            Divider()
+            
+            if let replying = appState.replyingToMessage {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrowshape.turn.up.left.fill")
+                        .font(.system(size: 11))
+                        .foregroundColor(Color(hex: "3370FF"))
+                    
+                    Text("正在回复: \(replying.parsedContent.previewSummary)")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                    
+                    Spacer()
+                    
+                    Button {
+                        appState.replyingToMessage = nil
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 6)
+                .background(Color(hex: "3370FF").opacity(0.08))
+            }
+            
+            if let error = viewModel.sendError {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .foregroundColor(.red)
+                    Text("发送失败: \(error)")
+                        .font(.system(size: 11))
+                        .foregroundColor(.red)
+                        .lineLimit(1)
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 4)
+                .background(Color.red.opacity(0.08))
+            }
+            
+            HStack(spacing: 10) {
+                TextField(
+                    appState.replyingToMessage != nil ? "输入回复内容 (Enter 发送)..." : "发送消息 (Enter 发送)...",
+                    text: $viewModel.inputMessageText
+                )
+                .textFieldStyle(.plain)
+                .font(.system(size: 13))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color(nsColor: .controlBackgroundColor))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                )
+                .onSubmit {
+                    Task {
+                        await viewModel.sendMessage(appState: appState)
+                    }
+                }
+                
+                PrimaryGradientButton(
+                    "发送",
+                    icon: "paperplane.fill",
+                    isLoading: appState.isSendingMessage
+                ) {
+                    Task {
+                        await viewModel.sendMessage(appState: appState)
+                    }
+                }
+                .disabled(viewModel.inputMessageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || appState.isSendingMessage)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(Color(nsColor: .windowBackgroundColor))
         }
     }
     
