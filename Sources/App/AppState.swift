@@ -275,6 +275,9 @@ public final class AppState: ObservableObject {
             self.isAddingAccount = false
             self.authStatusMessage = ""
             
+            AccountWindowManager.shared.closeWindow()
+            MainWindowManager.shared.showMainWindow()
+            
             await self.loadChats(reset: true)
         } catch {
             self.authError = error.localizedDescription
@@ -349,6 +352,9 @@ public final class AppState: ObservableObject {
             self.isAddingAccount = false
             self.authStatusMessage = ""
             
+            AccountWindowManager.shared.closeWindow()
+            MainWindowManager.shared.showMainWindow()
+            
             await self.loadChats(reset: true)
         } catch {
             self.authError = "Token 验证失败: \(error.localizedDescription)"
@@ -405,6 +411,9 @@ public final class AppState: ObservableObject {
             self.isAddingAccount = false
             self.authStatusMessage = ""
             
+            AccountWindowManager.shared.closeWindow()
+            MainWindowManager.shared.showMainWindow()
+            
             await self.loadChats(reset: true)
         } catch {
             self.authError = "自建应用登录失败: \(error.localizedDescription)"
@@ -446,13 +455,13 @@ public final class AppState: ObservableObject {
         self.messages = []
         self.chatMembers = []
         self.chats = ConfigManager.shared.loadP2PChats(forAccountId: accountId)
-        
+        AccountWindowManager.shared.closeWindow()
+        MainWindowManager.shared.showMainWindow()
         Task {
             await self.loadUserInfo()
             await self.loadChats(reset: true)
         }
     }
-    
     public func removeAccount(id: String) {
         ConfigManager.shared.removeAccount(id: id)
         if let activeId = ConfigManager.shared.activeAccountId {
@@ -479,6 +488,9 @@ public final class AppState: ObservableObject {
         self.chatMembers = []
         self.isAddingAccount = false
         ConfigManager.shared.clearAllAccounts()
+        
+        MainWindowManager.shared.hideMainWindow()
+        AccountWindowManager.shared.showLoginWindow()
     }
     
     public func logout() {
