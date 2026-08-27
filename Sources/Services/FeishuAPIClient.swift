@@ -235,6 +235,37 @@ public final class FeishuAPIClient: Sendable {
         return decoded.data ?? FeishuChatListData(items: [], pageToken: nil, hasMore: false)
     }
     
+    public func fetchChatInfo(token: String, chatId: String) async throws -> FeishuChatItem {
+        let encodedId = chatId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? chatId
+        guard let url = URL(string: "https://open.feishu.cn/open-apis/im/v1/chats/\(encodedId)") else {
+            throw APIError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+        
+        let decoded = try JSONDecoder().decode(FeishuChatDetailResponse.self, from: data)
+        if decoded.code != 0 {
+            throw APIError.feishuError(code: decoded.code, msg: decoded.msg)
+        }
+        
+        guard let item = decoded.data else {
+            throw APIError.invalidResponse
+        }
+        
+        return item
+    }
+    
     // MARK: - Chat Messages History
     
     public func fetchChatMessages(

@@ -73,7 +73,9 @@ public struct ChatDetailView: View {
                         .font(.system(size: 16, weight: .bold))
                         .lineLimit(1)
                     
-                    if chat.isExternal {
+                    if chat.isP2P {
+                        StatusBadge("私聊", color: Color.teal, icon: "person.fill")
+                    } else if chat.isExternal {
                         StatusBadge("外部群", color: Color(hex: "FF9C00"), icon: "globe")
                     } else {
                         StatusBadge("内部群", color: Color(hex: "3370FF"), icon: "lock.shield")
@@ -316,6 +318,7 @@ public struct ChatDetailView: View {
                         propertyRow(label: "群名称", value: chat.name ?? "未命名", canCopy: true)
                         propertyRow(label: "群类型", value: chat.isExternal ? "外部群" : "内部群")
                         propertyRow(label: "群状态", value: chat.statusDescription)
+                        propertyRow(label: "会话模式", value: chat.modeDescription)
                         
                         if let ownerId = chat.ownerId, !ownerId.isEmpty {
                             propertyRow(

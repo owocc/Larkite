@@ -20,8 +20,10 @@ public enum NavigationTab: String, CaseIterable, Identifiable {
 
 public enum ChatFilterMode: String, CaseIterable, Identifiable {
     case all = "全部"
-    case `internal` = "内部群"
-    case external = "外部群"
+    case group = "群聊"
+    case p2p = "私聊"
+    case `internal` = "内部"
+    case external = "外部"
     
     public var id: String { rawValue }
 }
@@ -78,6 +80,10 @@ public final class AppState: ObservableObject {
         switch filterMode {
         case .all:
             break
+        case .group:
+            list = list.filter { !$0.isP2P }
+        case .p2p:
+            list = list.filter { $0.isP2P }
         case .internal:
             list = list.filter { !$0.isExternal }
         case .external:
@@ -453,5 +459,23 @@ public final class AppState: ObservableObject {
     public func loadMoreMessages() async {
         guard let chat = selectedChat, !isLoadingMessages, hasMoreMessages, messagePageToken != nil else { return }
         await loadMessages(for: chat, reset: false)
+    }
+    
+    // MARK: - Direct / Single Chat (p2p)
+    
+    public func openDirectChat(chatId: String) async throws {
+        let cleanId = chatId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanId.isEmpty, let token = session?.accessToken else { return }
+        
+        // Check if already in list
+        if let existing = chats.first(where: { $0.chatId == cleanId }) {
+            self.selectedChat = existing
+            return
+        }
+        
+        // Fetch chat metadata from OpenAPI
+        let chatItem = try await FeishuAPIClient.shared.fetchChatInfo(token: token, chatId: cleanId)
+        self.chats.insert(chatItem, at: 0)
+        self.selectedChat = chatItem
     }
 }

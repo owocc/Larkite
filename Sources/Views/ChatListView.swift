@@ -1,7 +1,36 @@
 import SwiftUI
 
+@MainActor
+public final class ChatListViewModel: ObservableObject {
+    @Published public var showAddChatSheet: Bool = false
+    @Published public var directChatIdInput: String = ""
+    @Published public var openChatError: String? = nil
+    @Published public var isOpeningChat: Bool = false
+    
+    public init() {}
+    
+    public func openChat(appState: AppState) async {
+        let cleanId = directChatIdInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanId.isEmpty else { return }
+        
+        isOpeningChat = true
+        openChatError = nil
+        
+        do {
+            try await appState.openDirectChat(chatId: cleanId)
+            self.showAddChatSheet = false
+            self.directChatIdInput = ""
+            self.isOpeningChat = false
+        } catch {
+            self.openChatError = "获取会话失败: \(error.localizedDescription)"
+            self.isOpeningChat = false
+        }
+    }
+}
+
 public struct ChatListView: View {
     @ObservedObject var appState: AppState = .shared
+    @StateObject private var viewModel = ChatListViewModel()
     
     public init() {}
     
@@ -26,19 +55,34 @@ public struct ChatListView: View {
                 chatListContent
             }
         }
-        .frame(minWidth: 280, maxWidth: 360)
+        .frame(minWidth: 290, maxWidth: 360)
         .background(Color(nsColor: .windowBackgroundColor).opacity(0.5))
+        .sheet(isPresented: $viewModel.showAddChatSheet) {
+            addChatSheet
+        }
     }
     
     private var headerSection: some View {
         VStack(spacing: 8) {
-            // Title & Refresh
+            // Title, Add & Refresh
             HStack {
-                Text("消息与群组")
+                Text("消息会话")
                     .font(.system(size: 16, weight: .bold))
                 
                 Spacer()
                 
+                // Add / Open Direct Chat
+                Button {
+                    viewModel.showAddChatSheet = true
+                } label: {
+                    Image(systemName: "plus.bubble.fill")
+                        .font(.system(size: 13))
+                        .foregroundColor(Color(hex: "3370FF"))
+                }
+                .buttonStyle(.plain)
+                .help("输入 Chat ID 查询并打开私聊/指定会话")
+                
+                // Refresh
                 Button {
                     Task {
                         await appState.loadChats(reset: true)
@@ -51,7 +95,7 @@ public struct ChatListView: View {
                         .animation(appState.isLoadingChats ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: appState.isLoadingChats)
                 }
                 .buttonStyle(.plain)
-                .help("刷新群组列表 (Cmd+R)")
+                .help("刷新会话列表 (Cmd+R)")
             }
             
             // Search Field
@@ -60,7 +104,7 @@ public struct ChatListView: View {
                     .font(.system(size: 12))
                     .foregroundColor(.secondary)
                 
-                TextField("搜索群名称或 Chat ID...", text: $appState.searchQuery)
+                TextField("搜索名称或 Chat ID...", text: $appState.searchQuery)
                     .textFieldStyle(.plain)
                     .font(.system(size: 12))
                 
@@ -81,11 +125,12 @@ public struct ChatListView: View {
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             
             // Filter Pills
-            HStack(spacing: 6) {
-                ForEach(ChatFilterMode.allCases) { mode in
-                    filterPill(mode: mode)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 4) {
+                    ForEach(ChatFilterMode.allCases) { mode in
+                        filterPill(mode: mode)
+                    }
                 }
-                Spacer()
             }
         }
     }
@@ -133,7 +178,7 @@ public struct ChatListView: View {
                                 ProgressView()
                                     .controlSize(.small)
                             }
-                            Text(appState.isLoadingChats ? "加载中..." : "加载更多群组")
+                            Text(appState.isLoadingChats ? "加载中..." : "加载更多会话")
                                 .font(.system(size: 11))
                                 .foregroundColor(.secondary)
                         }
@@ -147,12 +192,73 @@ public struct ChatListView: View {
         }
     }
     
+    private var addChatSheet: some View {
+        VStack(spacing: 16) {
+            HStack {
+                Image(systemName: "bubble.left.and.bubble.right.fill")
+                    .foregroundColor(Color(hex: "3370FF"))
+                Text("打开指定私聊 / 群聊会话")
+                    .font(.system(size: 14, weight: .bold))
+                Spacer()
+            }
+            
+            Text("输入飞书会话 ID (chat_id，以 oc_ 开头)，系统将自动拉取该私聊/群聊的会话属性与历史消息。")
+                .font(.system(size: 12))
+                .foregroundColor(.secondary)
+                .lineSpacing(3)
+            
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Chat ID")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.secondary)
+                
+                TextField("oc_xxxxxxxxxxxxxxxxxxxxxxxx", text: $viewModel.directChatIdInput)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 12, design: .monospaced))
+            }
+            
+            if let error = viewModel.openChatError {
+                HStack {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .foregroundColor(.red)
+                    Text(error)
+                        .font(.system(size: 11))
+                        .foregroundColor(.red)
+                        .lineLimit(2)
+                }
+            }
+            
+            HStack {
+                Button("取消") {
+                    viewModel.showAddChatSheet = false
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(.secondary)
+                
+                Spacer()
+                
+                PrimaryGradientButton(
+                    "打开会话",
+                    icon: "arrow.right",
+                    isLoading: viewModel.isOpeningChat
+                ) {
+                    Task {
+                        await viewModel.openChat(appState: appState)
+                    }
+                }
+                .disabled(viewModel.directChatIdInput.isEmpty)
+            }
+        }
+        .padding(20)
+        .frame(width: 420)
+    }
+    
     private var loadingView: some View {
         VStack(spacing: 12) {
             Spacer()
             ProgressView()
                 .controlSize(.regular)
-            Text("正在拉取群聊列表...")
+            Text("正在拉取会话列表...")
                 .font(.system(size: 12))
                 .foregroundColor(.secondary)
             Spacer()
@@ -166,7 +272,7 @@ public struct ChatListView: View {
                 .font(.system(size: 28))
                 .foregroundColor(.orange)
             
-            Text("拉取群聊失败")
+            Text("拉取会话失败")
                 .font(.system(size: 13, weight: .semibold))
             
             Text(error)
@@ -192,9 +298,9 @@ public struct ChatListView: View {
             Spacer()
             Image(systemName: "tray")
                 .font(.system(size: 32))
-                .foregroundColor(.secondary.opacity(0.6))
+                .foregroundColor(.secondary.opacity(0.4))
             
-            Text(appState.searchQuery.isEmpty ? "暂无群聊" : "未找到匹配群聊")
+            Text(appState.searchQuery.isEmpty ? "暂无会话" : "未找到匹配会话")
                 .font(.system(size: 13, weight: .medium))
                 .foregroundColor(.secondary)
             

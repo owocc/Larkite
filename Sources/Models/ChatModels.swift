@@ -19,6 +19,13 @@ public struct FeishuChatListData: Codable, Sendable {
     }
 }
 
+/// Feishu Single Chat Detail API Response
+public struct FeishuChatDetailResponse: Codable, Sendable {
+    public let code: Int
+    public let msg: String
+    public let data: FeishuChatItem?
+}
+
 /// Single Chat / Group item
 public struct FeishuChatItem: Codable, Identifiable, Equatable, Hashable, Sendable {
     public var id: String { chatId }
@@ -32,9 +39,21 @@ public struct FeishuChatItem: Codable, Identifiable, Equatable, Hashable, Sendab
     public let external: Bool?
     public let tenantKey: String?
     public let chatStatus: String?
+    public let chatMode: String?
+    public let chatType: String?
+    public let chatTag: String?
+    public let userCount: String?
+    public let botCount: String?
+    
+    public var isP2P: Bool {
+        chatMode == "p2p"
+    }
     
     public var displayName: String {
         if let name = name, !name.isEmpty { return name }
+        if isP2P {
+            return "私聊会话 (\(chatId.prefix(8)))"
+        }
         return "未命名群组 (\(chatId.prefix(8)))"
     }
     
@@ -44,6 +63,15 @@ public struct FeishuChatItem: Codable, Identifiable, Equatable, Hashable, Sendab
     
     public var isDissolved: Bool {
         chatStatus == "dissolved" || chatStatus == "dissolved_save"
+    }
+    
+    public var modeDescription: String {
+        switch chatMode {
+        case "p2p": return "单聊 / 私聊"
+        case "group": return "群聊"
+        case "topic": return "话题群"
+        default: return isP2P ? "单聊 / 私聊" : "群聊"
+        }
     }
     
     public var statusDescription: String {
@@ -65,5 +93,10 @@ public struct FeishuChatItem: Codable, Identifiable, Equatable, Hashable, Sendab
         case external
         case tenantKey = "tenant_key"
         case chatStatus = "chat_status"
+        case chatMode = "chat_mode"
+        case chatType = "chat_type"
+        case chatTag = "chat_tag"
+        case userCount = "user_count"
+        case botCount = "bot_count"
     }
 }

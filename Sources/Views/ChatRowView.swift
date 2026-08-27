@@ -19,8 +19,12 @@ public struct ChatRowView: View {
     
     public var body: some View {
         HStack(spacing: 12) {
-            // Group Avatar
-            AvatarView(urlString: chat.avatar, name: chat.displayName, size: 40)
+            // Avatar
+            AvatarView(
+                urlString: chat.avatar,
+                name: chat.displayName,
+                size: 40
+            )
             
             // Info
             VStack(alignment: .leading, spacing: 4) {
@@ -32,7 +36,9 @@ public struct ChatRowView: View {
                     
                     Spacer()
                     
-                    if chat.isExternal {
+                    if chat.isP2P {
+                        StatusBadge("私聊", color: Color.teal, icon: "person.fill")
+                    } else if chat.isExternal {
                         StatusBadge("外部", color: Color(hex: "FF9C00"))
                     }
                     
