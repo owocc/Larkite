@@ -296,10 +296,9 @@ public struct ChatDetailView: View {
                                     .id(msg.id)
                             }
                             
-                            // Bottom breathing spacer dynamically adapting to floating dock expansion
-                            // Bottom breathing spacer dynamically adapting to floating dock expansion
+                            // Bottom breathing spacer dynamically adapting to floating dock expansion (with 16pt bottom margin)
                             Color.clear
-                                .frame(height: viewModel.isEditorExpanded ? 340 : min(180, max(68, viewModel.editorContentHeight + 44)))
+                                .frame(height: viewModel.isEditorExpanded ? 350 : min(180, max(76, viewModel.editorContentHeight + 52)))
                         }
                         .padding(.vertical, 8)
                     }
@@ -607,12 +606,12 @@ public struct ChatDetailView: View {
                     }
                 }
                 .padding(.horizontal, 16)
-                .padding(.bottom, 12)
+                .padding(.bottom, 16)
             }
             .animation(.spring(response: 0.32, dampingFraction: 0.82), value: viewModel.isEditorExpanded)
             .animation(.spring(response: 0.32, dampingFraction: 0.82), value: viewModel.editorContentHeight)
         }
-        .frame(height: viewModel.isEditorExpanded ? 320 : min(160, max(52, viewModel.editorContentHeight + 28)))
+        .frame(height: viewModel.isEditorExpanded ? 330 : min(160, max(56, viewModel.editorContentHeight + 32)))
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
             guard let provider = providers.first else { return false }
             _ = provider.loadObject(ofClass: URL.self) { url, _ in
