@@ -128,9 +128,8 @@ public struct MessageImageView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                    .stroke(Color(nsColor: .separatorColor).opacity(0.3), lineWidth: 1)
+                                    .stroke(Color(nsColor: .separatorColor).opacity(0.25), lineWidth: 0.8)
                             )
-                            .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 3)
                             .contentShape(Rectangle())
                             .onTapGesture {
                                 viewModel.previewInSystem(messageId: messageId, imageKey: imageKey)

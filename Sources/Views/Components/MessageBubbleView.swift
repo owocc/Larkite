@@ -267,8 +267,7 @@ public struct MessageBubbleView: View {
         .padding(.vertical, 2)
         .background(
             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.95))
-                .shadow(color: Color.black.opacity(0.12), radius: 6, x: 0, y: 2)
+                .fill(Color(nsColor: .controlBackgroundColor))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 6, style: .continuous)
@@ -290,14 +289,12 @@ public struct MessageBubbleView: View {
                 .padding(.vertical, 9)
                 .background(
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(isSelf ? configManager.accentColorChoice.color : Color(nsColor: .controlBackgroundColor).opacity(0.85))
+                        .fill(isSelf ? configManager.accentColorChoice.color : Color(nsColor: .controlBackgroundColor).opacity(0.95))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(isSelf ? Color.white.opacity(0.15) : Color(nsColor: .separatorColor).opacity(0.35), lineWidth: 1)
+                        .stroke(isSelf ? Color.white.opacity(0.12) : Color(nsColor: .separatorColor).opacity(0.3), lineWidth: 0.8)
                 )
-                .shadow(color: isSelf ? configManager.accentColorChoice.color.opacity(0.2) : Color.black.opacity(0.04), radius: 6, x: 0, y: 2)
-                
         case .image(let imageKey):
             // Apple Messages style: Frameless edge-to-edge image attachment
             MessageImageView(messageId: message.messageId, imageKey: imageKey)

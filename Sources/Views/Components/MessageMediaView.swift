@@ -109,8 +109,6 @@ public struct MessageMediaView: View {
                         Circle()
                             .fill(Color.black.opacity(0.65))
                             .frame(width: 48, height: 48)
-                            .shadow(radius: 8)
-                        
                         if viewModel.isPreviewing {
                             ProgressView()
                                 .controlSize(.small)
