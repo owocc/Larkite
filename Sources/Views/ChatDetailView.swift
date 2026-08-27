@@ -531,9 +531,9 @@ public struct ChatDetailView: View {
                         .padding(.vertical, 4)
                         .frame(height: dynamicEditorHeight)
                         
-                        // Action Buttons inside Editor: Expand (Top-Right) & Emoji (Bottom-Right) (34x34, Flat, No Liquid Glass)
+                        // Action Buttons inside Editor: Expand (Top-Right) & Emoji (Bottom-Right)
                         VStack {
-                            // Top-Right: Expand / Collapse Button (34x34 hit target, plain flat icon)
+                            // Top-Right: Expand / Collapse Button
                             if viewModel.editorContentHeight > 40 || viewModel.isEditorExpanded {
                                 HStack {
                                     Spacer()
@@ -543,19 +543,21 @@ public struct ChatDetailView: View {
                                         }
                                     } label: {
                                         Image(systemName: viewModel.isEditorExpanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
-                                            .font(.system(size: 12, weight: .semibold))
+                                            .font(.system(size: 11, weight: .semibold))
                                             .foregroundColor(.secondary)
-                                            .frame(width: 34, height: 34)
-                                            .contentShape(Rectangle())
+                                            .frame(width: 28, height: 28)
+                                            .contentShape(Circle())
                                     }
                                     .buttonStyle(.plain)
                                     .help(viewModel.isEditorExpanded ? "收起输入框" : "展开大书写空间 (窗口1/2)")
+                                    .padding(.top, 3)
+                                    .padding(.trailing, 4)
                                 }
                             }
                             
                             Spacer()
                             
-                            // Bottom-Right: Native Emoji Palette Button (34x34 hit target, plain flat icon)
+                            // Bottom-Right: Native Emoji Palette Button (Centered vertically in single-line, bottom-aligned in multi-line)
                             HStack {
                                 Spacer()
                                 Button {
@@ -564,11 +566,13 @@ public struct ChatDetailView: View {
                                     Image(systemName: "face.smiling")
                                         .font(.system(size: 16, weight: .medium))
                                         .foregroundColor(.secondary)
-                                        .frame(width: 34, height: 34)
-                                        .contentShape(Rectangle())
+                                        .frame(width: 28, height: 28)
+                                        .contentShape(Circle())
                                 }
                                 .buttonStyle(.plain)
                                 .help("唤起 macOS 原生表情面板 (Cmd+Ctrl+Space)")
+                                .padding(.trailing, 4)
+                                .padding(.bottom, (viewModel.editorContentHeight > 40 || viewModel.isEditorExpanded) ? 3 : 0)
                             }
                         }
                         .frame(height: dynamicEditorHeight)
