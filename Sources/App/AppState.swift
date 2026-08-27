@@ -42,7 +42,15 @@ public final class AppState: ObservableObject {
     @Published public var selectedTab: NavigationTab = .chats
     
     @Published public var chats: [FeishuChatItem] = []
-    @Published public var selectedChat: FeishuChatItem?
+    @Published public var selectedChat: FeishuChatItem? {
+        didSet {
+            if let chat = selectedChat, oldValue?.id != chat.id {
+                Task {
+                    await loadMessages(for: chat, reset: true)
+                }
+            }
+        }
+    }
     @Published public var isLoadingChats: Bool = false
     @Published public var chatError: String?
     @Published public var searchQuery: String = ""
@@ -50,6 +58,13 @@ public final class AppState: ObservableObject {
     @Published public var pageToken: String?
     @Published public var hasMoreChats: Bool = false
     
+    // MARK: - Messages State
+    @Published public var messages: [FeishuMessageItem] = []
+    @Published public var isLoadingMessages: Bool = false
+    @Published public var messageError: String?
+    @Published public var messagePageToken: String?
+    @Published public var hasMoreMessages: Bool = false
+    @Published public var selectedMessageForInspection: FeishuMessageItem?
     private var oauthServerTask: Task<Void, Never>?
     
     public var isLoggedIn: Bool {
@@ -378,6 +393,9 @@ public final class AppState: ObservableObject {
             
             if selectedChat == nil, let first = self.chats.first {
                 self.selectedChat = first
+                Task {
+                    await self.loadMessages(for: first, reset: true)
+                }
             }
         } catch {
             self.chatError = error.localizedDescription
@@ -388,5 +406,52 @@ public final class AppState: ObservableObject {
     public func loadMoreChats() async {
         guard !isLoadingChats, hasMoreChats, pageToken != nil else { return }
         await loadChats(reset: false)
+    }
+    
+    // MARK: - Message History Query
+    
+    public func selectChat(_ chat: FeishuChatItem) {
+        self.selectedChat = chat
+    }
+    
+    public func loadMessages(for chat: FeishuChatItem, reset: Bool = false) async {
+        guard let token = session?.accessToken else { return }
+        
+        if reset {
+            isLoadingMessages = true
+            messageError = nil
+            messagePageToken = nil
+            messages = []
+        }
+        
+        do {
+            let result = try await FeishuAPIClient.shared.fetchChatMessages(
+                token: token,
+                chatId: chat.chatId,
+                sortType: "ByCreateTimeAsc",
+                pageToken: reset ? nil : messagePageToken,
+                pageSize: 40
+            )
+            
+            let newItems = result.items ?? []
+            if reset {
+                self.messages = newItems
+            } else {
+                // Prepend older messages when scrolling up
+                self.messages.insert(contentsOf: newItems, at: 0)
+            }
+            
+            self.messagePageToken = result.pageToken
+            self.hasMoreMessages = result.hasMore ?? false
+            self.isLoadingMessages = false
+        } catch {
+            self.messageError = error.localizedDescription
+            self.isLoadingMessages = false
+        }
+    }
+    
+    public func loadMoreMessages() async {
+        guard let chat = selectedChat, !isLoadingMessages, hasMoreMessages, messagePageToken != nil else { return }
+        await loadMessages(for: chat, reset: false)
     }
 }

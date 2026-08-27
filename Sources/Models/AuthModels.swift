@@ -54,7 +54,7 @@ public struct AppConfig: Codable, Equatable, Sendable {
         appId: "",
         appSecret: "",
         redirectUri: "http://127.0.0.1:8989/callback",
-        scopes: "im:chat im:chat:readonly contact:user.base:readonly offline_access",
+        scopes: "im:chat im:chat:readonly im:message im:message.history:readonly contact:user.base:readonly offline_access",
         port: 8989
     )
 }

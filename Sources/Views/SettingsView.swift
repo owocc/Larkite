@@ -141,7 +141,7 @@ public struct SettingsView: View {
                             Text("申请 Scope 权限列表 (空格隔开)")
                                 .font(.system(size: 11, weight: .medium))
                                 .foregroundColor(.secondary)
-                            TextField("im:chat im:chat:readonly contact:user.base:readonly offline_access", text: $configManager.config.scopes)
+                            TextField("im:chat im:chat:readonly im:message im:message.history:readonly contact:user.base:readonly offline_access", text: $configManager.config.scopes)
                                 .textFieldStyle(.roundedBorder)
                         }
                         
@@ -177,6 +177,18 @@ public struct SettingsView: View {
                             url: "https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/chat/list"
                         )
                         
+                        
+                        docLinkRow(
+                            title: "获取会话历史消息",
+                            subtitle: "im/v1/messages 接口规范与参数说明",
+                            url: "https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/message/list"
+                        )
+                        
+                        docLinkRow(
+                            title: "获取消息中的资源文件",
+                            subtitle: "im/v1/messages/:id/resources/:key 图片与文件下载",
+                            url: "https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/message-resource/get"
+                        )
                         docLinkRow(
                             title: "飞书开放平台开发者后台",
                             subtitle: "创建应用、添加机器人能力与配置重定向 URL",

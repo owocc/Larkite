@@ -3,7 +3,7 @@ import AppKit
 
 @MainActor
 public final class ChatDetailViewModel: ObservableObject {
-    @Published public var selectedTab: Int = 0
+    @Published public var selectedTab: Int = 0 // 0: 消息流, 1: 群聊属性, 2: API JSON
     @Published public var copiedField: String? = nil
     
     public init() {}
@@ -24,6 +24,8 @@ public final class ChatDetailViewModel: ObservableObject {
 
 public struct ChatDetailView: View {
     let chat: FeishuChatItem?
+    
+    @ObservedObject var appState: AppState = .shared
     @StateObject private var viewModel = ChatDetailViewModel()
     
     public init(chat: FeishuChatItem?) {
@@ -38,22 +40,15 @@ public struct ChatDetailView: View {
                 
                 Divider()
                 
-                // Segment Switcher (Overview vs Raw JSON)
-                HStack {
-                    Picker("", selection: $viewModel.selectedTab) {
-                        Text("群聊概览").tag(0)
-                        Text("API JSON 数据").tag(1)
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(width: 220)
-                    
-                    Spacer()
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 12)
+                // Mode Segment Switcher
+                modeSelectorBar
                 
-                // Content
+                Divider()
+                
+                // Mode Content
                 if viewModel.selectedTab == 0 {
+                    messagesStreamView(chat: chat)
+                } else if viewModel.selectedTab == 1 {
                     overviewTab(chat: chat)
                 } else {
                     rawJsonTab(chat: chat)
@@ -66,14 +61,17 @@ public struct ChatDetailView: View {
         }
     }
     
+    // MARK: - Header Bar
+    
     private func headerBar(chat: FeishuChatItem) -> some View {
-        HStack(spacing: 16) {
-            AvatarView(urlString: chat.avatar, name: chat.displayName, size: 48)
+        HStack(spacing: 14) {
+            AvatarView(urlString: chat.avatar, name: chat.displayName, size: 40)
             
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 8) {
                     Text(chat.displayName)
-                        .font(.system(size: 18, weight: .bold))
+                        .font(.system(size: 16, weight: .bold))
+                        .lineLimit(1)
                     
                     if chat.isExternal {
                         StatusBadge("外部群", color: Color(hex: "FF9C00"), icon: "globe")
@@ -84,14 +82,30 @@ public struct ChatDetailView: View {
                     StatusBadge(chat.statusDescription, color: chat.isDissolved ? .red : .green)
                 }
                 
-                Text(chat.description ?? "暂无群介绍")
-                    .font(.system(size: 12))
+                Text(chat.description?.isEmpty == false ? chat.description! : "ID: \(chat.chatId)")
+                    .font(.system(size: 11))
                     .foregroundColor(.secondary)
                     .lineLimit(1)
             }
             
             Spacer()
             
+            // Refresh Messages Button
+            Button {
+                Task {
+                    await appState.loadMessages(for: chat, reset: true)
+                }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 12))
+                    .foregroundColor(appState.isLoadingMessages ? Color(hex: "3370FF") : .secondary)
+                    .rotationEffect(.degrees(appState.isLoadingMessages ? 360 : 0))
+                    .animation(appState.isLoadingMessages ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: appState.isLoadingMessages)
+            }
+            .buttonStyle(.plain)
+            .help("刷新当前群消息")
+            
+            // Copy Chat ID
             Button {
                 viewModel.copyToClipboard(text: chat.chatId, field: "Chat ID")
             } label: {
@@ -104,17 +118,195 @@ public struct ChatDetailView: View {
             .buttonStyle(.bordered)
             .controlSize(.small)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 16)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
     }
+    
+    // MARK: - Mode Selector
+    
+    private var modeSelectorBar: some View {
+        HStack {
+            Picker("", selection: $viewModel.selectedTab) {
+                Text("消息流 (\(appState.messages.count))").tag(0)
+                Text("群组属性").tag(1)
+                Text("API JSON 载荷").tag(2)
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 320)
+            
+            Spacer()
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 8)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.3))
+    }
+    
+    // MARK: - Messages Stream View
+    
+    private func messagesStreamView(chat: FeishuChatItem) -> some View {
+        VStack(spacing: 0) {
+            if appState.isLoadingMessages && appState.messages.isEmpty {
+                loadingMessagesView
+            } else if let error = appState.messageError, appState.messages.isEmpty {
+                messageErrorView(error: error, chat: chat)
+            } else if appState.messages.isEmpty {
+                emptyMessagesView
+            } else {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(spacing: 4) {
+                            // Load Earlier Messages Button
+                            if appState.hasMoreMessages {
+                                Button {
+                                    Task {
+                                        await appState.loadMoreMessages()
+                                    }
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        if appState.isLoadingMessages {
+                                            ProgressView()
+                                                .controlSize(.small)
+                                        }
+                                        Text(appState.isLoadingMessages ? "加载中..." : "加载更早的历史消息")
+                                            .font(.system(size: 11))
+                                            .foregroundColor(Color(hex: "3370FF"))
+                                    }
+                                    .padding(.vertical, 8)
+                                    .padding(.horizontal, 14)
+                                    .background(Color(hex: "3370FF").opacity(0.08))
+                                    .clipShape(Capsule())
+                                }
+                                .buttonStyle(.plain)
+                                .padding(.vertical, 8)
+                            }
+                            
+                            // Message Items with Date Dividers
+                            ForEach(Array(appState.messages.enumerated()), id: \.element.id) { index, msg in
+                                if shouldShowDateHeader(at: index) {
+                                    dateHeaderView(title: msg.formattedDateHeader)
+                                }
+                                
+                                MessageBubbleView(message: msg)
+                                    .id(msg.id)
+                            }
+                        }
+                        .padding(.vertical, 12)
+                    }
+                    .onAppear {
+                        if let lastId = appState.messages.last?.id {
+                            proxy.scrollTo(lastId, anchor: .bottom)
+                        }
+                    }
+                    .onChange(of: appState.messages.count) { _, _ in
+                        if let lastId = appState.messages.last?.id {
+                            withAnimation {
+                                proxy.scrollTo(lastId, anchor: .bottom)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    private func shouldShowDateHeader(at index: Int) -> Bool {
+        if index == 0 { return true }
+        let current = appState.messages[index].formattedDateHeader
+        let previous = appState.messages[index - 1].formattedDateHeader
+        return current != previous
+    }
+    
+    private func dateHeaderView(title: String) -> some View {
+        HStack {
+            Spacer()
+            Text(title)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 3)
+                .background(Color(nsColor: .quaternaryLabelColor).opacity(0.3))
+                .clipShape(Capsule())
+            Spacer()
+        }
+        .padding(.vertical, 8)
+    }
+    
+    private var loadingMessagesView: some View {
+        VStack(spacing: 12) {
+            Spacer()
+            ProgressView()
+                .controlSize(.regular)
+            Text("正在获取群聊历史消息...")
+                .font(.system(size: 12))
+                .foregroundColor(.secondary)
+            Spacer()
+        }
+    }
+    
+    private func messageErrorView(error: String, chat: FeishuChatItem) -> some View {
+        VStack(spacing: 14) {
+            Spacer()
+            Image(systemName: "bubble.left.and.exclamationmark.bubble.right")
+                .font(.system(size: 32))
+                .foregroundColor(.orange)
+            
+            Text("无法获取群消息记录")
+                .font(.system(size: 14, weight: .semibold))
+            
+            Text(error)
+                .font(.system(size: 12))
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
+            
+            VStack(alignment: .leading, spacing: 6) {
+                Text("💡 权限检查建议：")
+                    .font(.system(size: 11, weight: .semibold))
+                Text("1. 应用需开通「获取群聊历史消息」权限 (`im:message` 或 `im:message.history:readonly`)；")
+                    .font(.system(size: 11))
+                Text("2. 若使用机器人凭据，应用机器人需要已加入该群聊。")
+                    .font(.system(size: 11))
+            }
+            .foregroundColor(.secondary)
+            .padding(12)
+            .background(Color.orange.opacity(0.1))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .padding(.horizontal, 24)
+            
+            Button("重试拉取") {
+                Task {
+                    await appState.loadMessages(for: chat, reset: true)
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            
+            Spacer()
+        }
+    }
+    
+    private var emptyMessagesView: some View {
+        VStack(spacing: 12) {
+            Spacer()
+            Image(systemName: "bubble.left")
+                .font(.system(size: 36))
+                .foregroundColor(.secondary.opacity(0.4))
+            
+            Text("该群聊暂无历史消息记录")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(.secondary)
+            Spacer()
+        }
+    }
+    
+    // MARK: - Overview Tab
     
     private func overviewTab(chat: FeishuChatItem) -> some View {
         ScrollView {
             VStack(spacing: 16) {
-                // Info Grid Card
                 GlassCard(cornerRadius: 14, padding: 18) {
                     VStack(alignment: .leading, spacing: 14) {
-                        Text("群组详细属性")
+                        Text("群组元数据")
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(.primary)
                         
@@ -142,41 +334,12 @@ public struct ChatDetailView: View {
                         }
                     }
                 }
-                
-                // Placeholder Chat Feed / Mock area for next messaging steps
-                GlassCard(cornerRadius: 14, padding: 18) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Image(systemName: "bubble.left.and.exclamationmark.bubble.right")
-                                .foregroundColor(Color(hex: "3370FF"))
-                            Text("会话消息面板")
-                                .font(.system(size: 13, weight: .semibold))
-                            Spacer()
-                            Text("极简预览")
-                                .font(.system(size: 10))
-                                .foregroundColor(.secondary)
-                        }
-                        
-                        Divider()
-                        
-                        VStack(spacing: 10) {
-                            HStack {
-                                Text("💡 已成功接入飞书群组 OpenAPI，群信息已实时加载。可在后续阶段接入群消息实时收发与富文本卡片渲染。")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.secondary)
-                                    .lineSpacing(4)
-                                Spacer()
-                            }
-                        }
-                        .padding(12)
-                        .background(Color(nsColor: .quaternaryLabelColor).opacity(0.2))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                    }
-                }
             }
             .padding(20)
         }
     }
+    
+    // MARK: - Raw JSON Tab
     
     private func rawJsonTab(chat: FeishuChatItem) -> some View {
         let jsonString: String = {
@@ -191,7 +354,7 @@ public struct ChatDetailView: View {
         
         return VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("飞书 OpenAPI 原始返回载荷")
+                Text("群聊 OpenAPI 原始返回载荷")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.secondary)
                 Spacer()
@@ -256,7 +419,7 @@ public struct ChatDetailView: View {
             Image(systemName: "bubble.left.and.bubble.right")
                 .font(.system(size: 40))
                 .foregroundColor(.secondary.opacity(0.4))
-            Text("选择左侧群聊查看详细信息")
+            Text("选择左侧群聊查看消息记录")
                 .font(.system(size: 14))
                 .foregroundColor(.secondary)
         }

@@ -234,4 +234,126 @@ public final class FeishuAPIClient: Sendable {
         
         return decoded.data ?? FeishuChatListData(items: [], pageToken: nil, hasMore: false)
     }
+    
+    // MARK: - Chat Messages History
+    
+    public func fetchChatMessages(
+        token: String,
+        chatId: String,
+        sortType: String = "ByCreateTimeAsc",
+        pageToken: String? = nil,
+        pageSize: Int = 40
+    ) async throws -> FeishuMessageListData {
+        var components = URLComponents(string: "https://open.feishu.cn/open-apis/im/v1/messages")
+        var queryItems: [URLQueryItem] = [
+            URLQueryItem(name: "container_id_type", value: "chat"),
+            URLQueryItem(name: "container_id", value: chatId),
+            URLQueryItem(name: "sort_type", value: sortType),
+            URLQueryItem(name: "page_size", value: "\(pageSize)")
+        ]
+        if let pageToken = pageToken, !pageToken.isEmpty {
+            queryItems.append(URLQueryItem(name: "page_token", value: pageToken))
+        }
+        components?.queryItems = queryItems
+        
+        guard let url = components?.url else {
+            throw APIError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+        
+        let decoded = try JSONDecoder().decode(FeishuMessageListResponse.self, from: data)
+        if decoded.code != 0 {
+            throw APIError.feishuError(code: decoded.code, msg: decoded.msg)
+        }
+        
+        return decoded.data ?? FeishuMessageListData(items: [], pageToken: nil, hasMore: false)
+    }
+    
+    // MARK: - Message Resource & Image
+    
+    public func fetchMessageResource(
+        token: String,
+        messageId: String,
+        fileKey: String,
+        type: String = "image"
+    ) async throws -> Data {
+        let encodedMsgId = messageId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? messageId
+        let encodedFileKey = fileKey.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? fileKey
+        
+        var components = URLComponents(string: "https://open.feishu.cn/open-apis/im/v1/messages/\(encodedMsgId)/resources/\(encodedFileKey)")
+        components?.queryItems = [
+            URLQueryItem(name: "type", value: type)
+        ]
+        
+        guard let url = components?.url else {
+            throw APIError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+        
+        if httpResponse.statusCode != 200 {
+            // Try decode error JSON
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let code = json["code"] as? Int,
+               let msg = json["msg"] as? String {
+                throw APIError.feishuError(code: code, msg: msg)
+            }
+            throw APIError.invalidResponse
+        }
+        
+        return data
+    }
+    
+    public func downloadImage(
+        token: String,
+        imageKey: String
+    ) async throws -> Data {
+        let encodedKey = imageKey.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? imageKey
+        guard let url = URL(string: "https://open.feishu.cn/open-apis/im/v1/images/\(encodedKey)") else {
+            throw APIError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        
+        if httpResponse.statusCode != 200 {
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let code = json["code"] as? Int,
+               let msg = json["msg"] as? String {
+                throw APIError.feishuError(code: code, msg: msg)
+            }
+            throw APIError.invalidResponse
+        }
+        
+        return data
+    }
 }
