@@ -90,12 +90,11 @@ public struct LoginView: View {
             backgroundGradient
             
             VStack(spacing: 0) {
-                // Top Header: Back Button (Left) & Liquid Glass Action Group (Right)
+                // Top Header: Action Group right at the top-right corner
                 topHeaderSection
-                    .padding(.horizontal, 16)
-                    .padding(.top, 14)
-                    .padding(.bottom, 8)
-                
+                    .padding(.horizontal, 14)
+                    .padding(.top, 10)
+                    .padding(.bottom, 4)
                 Spacer(minLength: 0)
                 
                 // Main Login Body (Brand + 3 Buttons)
@@ -214,46 +213,43 @@ public struct LoginView: View {
                     VStack(spacing: 4) {
                         ForEach(configManager.accounts) { acc in
                             let isActive = acc.id == configManager.activeAccountId
-                            HStack(spacing: 8) {
-                                AvatarView(urlString: acc.avatarUrl, name: acc.displayName, size: 24)
-                                
-                                VStack(alignment: .leading, spacing: 1) {
-                                    Text(acc.displayName)
-                                        .font(.system(size: 11, weight: isActive ? .bold : .medium))
-                                        .foregroundColor(.primary)
-                                        .lineLimit(1)
-                                    Text(acc.email ?? acc.id)
-                                        .font(.system(size: 9))
-                                        .foregroundColor(.secondary)
-                                        .lineLimit(1)
-                                }
-                                
-                                Spacer()
-                                
-                                if isActive {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .font(.system(size: 11))
-                                        .foregroundColor(.green)
-                                } else {
-                                    Button {
-                                        appState.switchAccount(to: acc.id)
-                                        viewModel.showAccountPopover = false
-                                        AccountWindowManager.shared.closeWindow()
-                                    } label: {
-                                        Text("切换")
-                                            .font(.system(size: 10, weight: .semibold))
-                                            .foregroundColor(Color(hex: "3370FF"))
-                                            .padding(.horizontal, 6)
-                                            .padding(.vertical, 2)
-                                            .background(Color(hex: "3370FF").opacity(0.12))
-                                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                            Button {
+                                appState.switchAccount(to: acc.id)
+                                viewModel.showAccountPopover = false
+                                AccountWindowManager.shared.closeWindow()
+                            } label: {
+                                HStack(spacing: 8) {
+                                    AvatarView(urlString: acc.avatarUrl, name: acc.displayName, size: 26)
+                                    
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(acc.displayName)
+                                            .font(.system(size: 11, weight: isActive ? .bold : .medium))
+                                            .foregroundColor(.primary)
+                                            .lineLimit(1)
+                                        Text(acc.email ?? acc.id)
+                                            .font(.system(size: 9))
+                                            .foregroundColor(.secondary)
+                                            .lineLimit(1)
                                     }
-                                    .buttonStyle(.plain)
+                                    
+                                    Spacer()
+                                    
+                                    if isActive {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(.green)
+                                    }
                                 }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 6)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .fill(isActive ? Color(hex: "3370FF").opacity(0.12) : Color(nsColor: .quaternaryLabelColor).opacity(0.1))
+                                )
+                                .contentShape(Rectangle())
                             }
-                            .padding(5)
-                            .background(isActive ? Color(hex: "3370FF").opacity(0.1) : Color.clear)
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .buttonStyle(.plain)
+                            .help("点击直接切换至「\(acc.displayName)」")
                         }
                     }
                 }
