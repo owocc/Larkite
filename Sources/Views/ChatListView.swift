@@ -50,6 +50,8 @@ public struct ChatListView: View {
                 loadingView
             } else if let error = appState.chatError, appState.chats.isEmpty {
                 errorView(error: error)
+            } else if appState.filterMode == .p2p && appState.filteredChats.isEmpty {
+                p2pEmptyAndContactsView
             } else if appState.filteredChats.isEmpty {
                 emptyView
             } else {
@@ -190,6 +192,77 @@ public struct ChatListView: View {
                 }
             }
             .padding(8)
+        }
+    }
+    
+    private var p2pEmptyAndContactsView: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                VStack(spacing: 8) {
+                    Image(systemName: "person.crop.circle.badge.plus")
+                        .font(.system(size: 32))
+                        .foregroundColor(Color.teal)
+                    
+                    Text("暂无活跃单聊会话")
+                        .font(.system(size: 13, weight: .bold))
+                    
+                    Text("飞书群列表 API 不包含单聊。您可以从下方选择联系人或点击上方「+」直接发起私聊：")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 12)
+                }
+                .padding(.top, 16)
+                
+                if !appState.contacts.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("企业联系人")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 4)
+                        
+                        ForEach(appState.contacts) { contact in
+                            Button {
+                                appState.openContactChat(contact)
+                            } label: {
+                                HStack(spacing: 10) {
+                                    AvatarView(urlString: contact.bestAvatarUrl, name: contact.displayName, size: 32)
+                                    
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(contact.displayName)
+                                            .font(.system(size: 12, weight: .medium))
+                                            .foregroundColor(.primary)
+                                        Text(contact.jobTitle ?? contact.email ?? contact.id)
+                                            .font(.system(size: 10))
+                                            .foregroundColor(.secondary)
+                                            .lineLimit(1)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    Image(systemName: "bubble.right.fill")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(Color(hex: "3370FF"))
+                                }
+                                .padding(8)
+                                .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 8)
+                } else {
+                    Button("输入 Chat ID / Open ID 发起单聊") {
+                        viewModel.showAddChatSheet = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+                
+                Spacer()
+            }
+            .padding(12)
         }
     }
     

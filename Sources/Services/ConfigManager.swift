@@ -6,6 +6,7 @@ public final class ConfigManager: ObservableObject {
     
     private let userDefaultsKey = "LarkNative_AppConfig"
     private let sessionKey = "LarkNative_UserSession"
+    private let p2pChatsKey = "LarkNative_P2PChats"
     private let appSecretKeychainKey = "LarkNative_AppSecret"
     
     @Published public var config: AppConfig {
@@ -49,5 +50,23 @@ public final class ConfigManager: ObservableObject {
     
     public func clearSession() {
         _ = KeychainHelper.delete(key: sessionKey)
+        UserDefaults.standard.removeObject(forKey: p2pChatsKey)
+    }
+    
+    // MARK: - P2P Chats Persistence
+    
+    public func saveP2PChats(_ chats: [FeishuChatItem]) {
+        let p2pOnly = chats.filter { $0.isP2P }
+        if let data = try? JSONEncoder().encode(p2pOnly) {
+            UserDefaults.standard.set(data, forKey: p2pChatsKey)
+        }
+    }
+    
+    public func loadP2PChats() -> [FeishuChatItem] {
+        guard let data = UserDefaults.standard.data(forKey: p2pChatsKey),
+              let list = try? JSONDecoder().decode([FeishuChatItem].self, from: data) else {
+            return []
+        }
+        return list
     }
 }

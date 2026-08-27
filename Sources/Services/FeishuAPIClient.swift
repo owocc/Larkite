@@ -351,6 +351,48 @@ public final class FeishuAPIClient: Sendable {
         return try await fetchChatInfo(token: token, chatId: chatId)
     }
     
+    // MARK: - Enterprise Contacts
+    
+    public func fetchContacts(
+        token: String,
+        pageToken: String? = nil,
+        pageSize: Int = 50
+    ) async throws -> FeishuContactListData {
+        var components = URLComponents(string: "https://open.feishu.cn/open-apis/contact/v3/users")
+        var queryItems: [URLQueryItem] = [
+            URLQueryItem(name: "user_id_type", value: "open_id"),
+            URLQueryItem(name: "page_size", value: "\(pageSize)")
+        ]
+        if let pageToken = pageToken, !pageToken.isEmpty {
+            queryItems.append(URLQueryItem(name: "page_token", value: pageToken))
+        }
+        components?.queryItems = queryItems
+        
+        guard let url = components?.url else {
+            throw APIError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+        
+        let decoded = try JSONDecoder().decode(FeishuContactListResponse.self, from: data)
+        if decoded.code != 0 {
+            throw APIError.feishuError(code: decoded.code, msg: decoded.msg)
+        }
+        
+        return decoded.data ?? FeishuContactListData(hasMore: false, pageToken: nil, items: [])
+    }
+    
     // MARK: - Chat Messages History
     
     public func fetchChatMessages(

@@ -60,6 +60,10 @@ public final class AppState: ObservableObject {
     @Published public var pageToken: String?
     @Published public var hasMoreChats: Bool = false
     
+    // MARK: - Contacts & Private Messages State
+    @Published public var contacts: [FeishuContactUser] = []
+    @Published public var isLoadingContacts: Bool = false
+    
     // MARK: - Messages State
     @Published public var messages: [FeishuMessageItem] = []
     @Published public var isLoadingMessages: Bool = false
@@ -67,6 +71,7 @@ public final class AppState: ObservableObject {
     @Published public var messagePageToken: String?
     @Published public var hasMoreMessages: Bool = false
     @Published public var selectedMessageForInspection: FeishuMessageItem?
+    
     private var oauthServerTask: Task<Void, Never>?
     
     public var isLoggedIn: Bool {
@@ -76,7 +81,6 @@ public final class AppState: ObservableObject {
     public var filteredChats: [FeishuChatItem] {
         var list = chats
         
-        // Filter by mode
         switch filterMode {
         case .all:
             break
@@ -90,7 +94,6 @@ public final class AppState: ObservableObject {
             list = list.filter { $0.isExternal }
         }
         
-        // Filter by search query
         let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         if !query.isEmpty {
             list = list.filter { chat in
@@ -104,7 +107,8 @@ public final class AppState: ObservableObject {
     }
     
     private init() {
-        // Restore session if exists
+        self.chats = ConfigManager.shared.loadP2PChats()
+        
         if let savedSession = ConfigManager.shared.loadSession() {
             self.session = savedSession
             Task {
@@ -139,13 +143,11 @@ public final class AppState: ObservableObject {
         authError = nil
         authStatusMessage = "已临时启动本地 127.0.0.1:\(config.port) 监听，正在打开授权页面..."
         
-        // Open default browser
         NSWorkspace.shared.open(authUrl)
         
         oauthServerTask?.cancel()
         oauthServerTask = Task {
             do {
-                // Starts server temporarily, waits for callback, auto stops
                 let code = try await LocalCallbackServer.shared.startAndListen(port: config.port)
                 await LocalCallbackServer.shared.stop()
                 self.isLocalServerRunning = false
@@ -165,7 +167,6 @@ public final class AppState: ObservableObject {
     }
     
     public func handleIncomingAuthCode(_ rawInput: String) async {
-        // Clean up server if it was running
         await LocalCallbackServer.shared.stop()
         self.isLocalServerRunning = false
         
@@ -280,7 +281,6 @@ public final class AppState: ObservableObject {
                 }
             }
             
-            // Test fetch chat list
             _ = try await FeishuAPIClient.shared.fetchChatList(token: cleanToken, pageSize: 5)
             
             self.session = newSession
@@ -375,8 +375,11 @@ public final class AppState: ObservableObject {
         if reset {
             isLoadingChats = true
             chatError = nil
-            pageToken = nil
-            chats = []
+            let savedP2P = ConfigManager.shared.loadP2PChats()
+            self.chats = savedP2P
+            Task {
+                await self.loadContacts()
+            }
         }
         
         do {
@@ -388,7 +391,10 @@ public final class AppState: ObservableObject {
             
             let newItems = result.items ?? []
             if reset {
-                self.chats = newItems
+                let savedP2P = ConfigManager.shared.loadP2PChats()
+                self.chats = newItems + savedP2P.filter { saved in
+                    !newItems.contains(where: { $0.chatId == saved.chatId })
+                }
             } else {
                 self.chats.append(contentsOf: newItems)
             }
@@ -404,7 +410,6 @@ public final class AppState: ObservableObject {
                 }
             }
             
-            // Concurrently hydrate chat_mode (p2p vs group) & user_count in background
             Task {
                 let hydratedItems = await FeishuAPIClient.shared.hydrateChatsWithDetails(
                     token: token,
@@ -412,9 +417,11 @@ public final class AppState: ObservableObject {
                 )
                 
                 if reset {
-                    self.chats = hydratedItems
+                    let p2pSaved = ConfigManager.shared.loadP2PChats()
+                    self.chats = hydratedItems + p2pSaved.filter { saved in
+                        !hydratedItems.contains(where: { $0.chatId == saved.chatId })
+                    }
                 } else {
-                    // Replace the appended range
                     var current = self.chats
                     let startIndex = max(0, current.count - hydratedItems.count)
                     for (i, hydrated) in hydratedItems.enumerated() {
@@ -426,7 +433,8 @@ public final class AppState: ObservableObject {
                     self.chats = current
                 }
                 
-                // Update selectedChat reference if matching
+                ConfigManager.shared.saveP2PChats(self.chats)
+                
                 if let selected = self.selectedChat,
                    let updated = self.chats.first(where: { $0.chatId == selected.chatId }) {
                     self.selectedChat = updated
@@ -472,7 +480,6 @@ public final class AppState: ObservableObject {
             if reset {
                 self.messages = newItems
             } else {
-                // Prepend older messages when scrolling up
                 self.messages.insert(contentsOf: newItems, at: 0)
             }
             
@@ -504,6 +511,7 @@ public final class AppState: ObservableObject {
         let chatItem = try await FeishuAPIClient.shared.fetchChatInfo(token: token, chatId: cleanId)
         self.chats.insert(chatItem, at: 0)
         self.selectedChat = chatItem
+        ConfigManager.shared.saveP2PChats(self.chats)
     }
     
     public func openDirectChatWithUser(idType: String, idValue: String) async throws {
@@ -528,5 +536,45 @@ public final class AppState: ObservableObject {
         }
         
         self.selectedChat = p2pChat
+        ConfigManager.shared.saveP2PChats(self.chats)
+    }
+    
+    // MARK: - Enterprise Contacts Query
+    
+    public func loadContacts() async {
+        guard let token = session?.accessToken else { return }
+        isLoadingContacts = true
+        
+        do {
+            let result = try await FeishuAPIClient.shared.fetchContacts(token: token, pageSize: 50)
+            let fetchedContacts = result.items ?? []
+            self.contacts = fetchedContacts
+            
+            for contact in fetchedContacts {
+                let p2pItem = contact.toP2PChatItem()
+                let exists = self.chats.contains { chat in
+                    chat.chatId == p2pItem.chatId || (chat.ownerId != nil && chat.ownerId == p2pItem.ownerId)
+                }
+                if !exists {
+                    self.chats.append(p2pItem)
+                }
+            }
+            
+            ConfigManager.shared.saveP2PChats(self.chats)
+            self.isLoadingContacts = false
+        } catch {
+            self.isLoadingContacts = false
+        }
+    }
+    
+    public func openContactChat(_ contact: FeishuContactUser) {
+        let p2pItem = contact.toP2PChatItem()
+        if let index = self.chats.firstIndex(where: { $0.chatId == p2pItem.chatId }) {
+            self.selectedChat = self.chats[index]
+        } else {
+            self.chats.insert(p2pItem, at: 0)
+            self.selectedChat = p2pItem
+        }
+        ConfigManager.shared.saveP2PChats(self.chats)
     }
 }
