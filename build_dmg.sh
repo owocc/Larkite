@@ -41,11 +41,10 @@ ln -s /Applications "${MOUNT_DIR}/Applications"
 
 if [ -f "${BG_IMG}" ]; then
     mkdir -p "${MOUNT_DIR}/.background"
-    # Copy background image for Finder
     cp "${BG_IMG}" "${MOUNT_DIR}/.background/background.png"
 fi
 
-# 6. Configure Window View, Coordinates, and Icon Size via AppleScript
+# 6. Configure Window View, Coordinates, and Icon Size via AppleScript (Fixed 16:9 Ratio 640x360)
 echo "==> Configuring Finder window view and icon layout..."
 osascript << EOF || true
 tell application "Finder"
@@ -55,16 +54,16 @@ tell application "Finder"
         set current view of container window to icon view
         set toolbar visible of container window to false
         set statusbar visible of container window to false
-        set the bounds of container window to {300, 160, 1068, 672}
+        set the bounds of container window to {360, 200, 1000, 560}
         set theViewOptions to the icon view options of container window
         set arrangement of theViewOptions to not arranged
-        set icon size of theViewOptions to 110
+        set icon size of theViewOptions to 96
         try
             set background picture of theViewOptions to file ".background:background.png"
         end try
         delay 1
-        set position of item "${APP_NAME}.app" of container window to {210, 250}
-        set position of item "Applications" of container window to {560, 250}
+        set position of item "${APP_NAME}.app" of container window to {175, 205}
+        set position of item "Applications" of container window to {465, 205}
         close
         open
         update without registering applications
