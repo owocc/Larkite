@@ -11,9 +11,9 @@ public final class ChatDetailViewModel: ObservableObject {
     @Published public var inputMessageText: String = ""
     @Published public var isEditorExpanded: Bool = false
     @Published public var editorContentHeight: CGFloat = 24
+    @Published public var showAttachmentPopover: Bool = false
     @Published public var sendError: String? = nil
     @Published public var memberSearchQuery: String = ""
-    
     public func sendMessage(appState: AppState) async {
         let clean = inputMessageText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty else { return }
@@ -468,30 +468,12 @@ public struct ChatDetailView: View {
                 
                 // Bottom Dock: Left Attachment (Fixed Bottom) + Middle Expanding Editor + Right Send Button (Fixed Bottom)
                 HStack(alignment: .bottom, spacing: 8) {
-                    // Left: Attachment Liquid Glass Button (34x34 Circle, Fixed Bottom)
-                    Menu {
-                        Button {
-                            viewModel.pickAndSendImage(appState: appState)
-                        } label: {
-                            Label("发送图片与视频 (Photo or Video)", systemImage: "photo.on.rectangle.angled")
-                        }
-                        
-                        Button {
-                            viewModel.pickAndSendFile(appState: appState)
-                        } label: {
-                            Label("发送文档与附件 (File)", systemImage: "doc")
-                        }
-                        
-                        Divider()
-                        
-                        Button {
-                            viewModel.sendClipboard(appState: appState)
-                        } label: {
-                            Label("发送剪贴板内容 (Clipboard)", systemImage: "doc.on.clipboard")
-                        }
+                    // Left: Attachment Liquid Glass Button (34x34 Circle, Fixed Bottom, Native Popover)
+                    Button {
+                        viewModel.showAttachmentPopover.toggle()
                     } label: {
                         Image(systemName: "paperclip")
-                            .font(.system(size: 14, weight: .medium))
+                            .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(.secondary)
                             .frame(width: 34, height: 34)
                             .background(
@@ -505,11 +487,13 @@ public struct ChatDetailView: View {
                                 Circle()
                                     .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1.2)
                             )
-                            .shadow(color: Color.black.opacity(0.1), radius: 6, x: 0, y: 2)
+                            .shadow(color: Color.black.opacity(0.12), radius: 6, x: 0, y: 2)
                     }
-                    .menuStyle(.borderlessButton)
-                    .menuIndicator(.hidden)
+                    .buttonStyle(.plain)
                     .help("添加附件 (图片、视频、文件)")
+                    .popover(isPresented: $viewModel.showAttachmentPopover, arrowEdge: .top) {
+                        attachmentPopoverView
+                    }
                     
                     // Middle: Auto-Expanding Liquid Glass Message Container
                     ZStack(alignment: .bottomTrailing) {
@@ -636,6 +620,55 @@ public struct ChatDetailView: View {
             }
             return true
         }
+    }
+    
+    // MARK: - Attachment Popover View
+    
+    private var attachmentPopoverView: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button {
+                viewModel.showAttachmentPopover = false
+                viewModel.pickAndSendImage(appState: appState)
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "photo.on.rectangle.angled")
+                        .foregroundColor(configManager.accentColorChoice.color)
+                    Text("发送图片与视频 (Photo or Video)")
+                        .font(.system(size: 11, weight: .medium))
+                }
+            }
+            .buttonStyle(.plain)
+            
+            Button {
+                viewModel.showAttachmentPopover = false
+                viewModel.pickAndSendFile(appState: appState)
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "doc")
+                        .foregroundColor(configManager.accentColorChoice.color)
+                    Text("发送文档与附件 (File/PDF/ZIP)")
+                        .font(.system(size: 11, weight: .medium))
+                }
+            }
+            .buttonStyle(.plain)
+            
+            Divider()
+            
+            Button {
+                viewModel.showAttachmentPopover = false
+                viewModel.sendClipboard(appState: appState)
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "doc.on.clipboard")
+                        .foregroundColor(.secondary)
+                    Text("发送剪贴板内容 (Clipboard)")
+                        .font(.system(size: 11))
+                }
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(10)
+        .frame(width: 230)
     }
     // MARK: - Right-Side Inspector Panel (Apple Messages Style)
     
