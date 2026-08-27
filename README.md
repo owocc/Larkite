@@ -1,3 +1,5 @@
+![Larkite](./images/banner.png)
+
 # Larkite 🐦 `v1.0.0-alpha.1`
 
 > **极简 · 现代 · 高性能 macOS 原生飞书客户端**  

@@ -67,18 +67,20 @@ public actor LocalCallbackServer {
             self.continuation = cont
             
             newListener.newConnectionHandler = { [weak self] connection in
+                guard let self = self else { return }
                 Task {
-                    await self?.handleConnection(connection)
+                    await self.handleConnection(connection)
                 }
             }
             
             newListener.stateUpdateHandler = { [weak self] state in
+                guard let self = self else { return }
                 Task {
                     switch state {
                     case .ready:
                         break
                     case .failed:
-                        await self?.finishWithError(ServerError.portUnavailable(port))
+                        await self.finishWithError(ServerError.portUnavailable(port))
                     default:
                         break
                     }
