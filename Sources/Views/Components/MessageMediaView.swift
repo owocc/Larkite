@@ -5,6 +5,7 @@ import AppKit
 public final class MessageMediaViewModel: ObservableObject {
     @Published public var isPreviewing: Bool = false
     @Published public var isDownloading: Bool = false
+    @Published public var isHovered: Bool = false
     @Published public var actionToast: String? = nil
     
     public init() {}
@@ -86,18 +87,18 @@ public struct MessageMediaView: View {
     }
     
     public var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            // Video Thumbnail Card
+        VStack(alignment: .leading, spacing: 4) {
+            // Video Thumbnail & Player Card
             ZStack(alignment: .center) {
                 if let imgKey = imageKey, !imgKey.isEmpty {
                     MessageImageView(messageId: messageId, imageKey: imgKey)
                 } else {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .fill(Color(nsColor: .controlBackgroundColor).opacity(0.8))
-                        .frame(width: 260, height: 140)
+                        .frame(width: 240, height: 160)
                         .overlay(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(Color(nsColor: .separatorColor).opacity(0.25), lineWidth: 0.8)
                         )
                 }
                 
@@ -108,14 +109,14 @@ public struct MessageMediaView: View {
                     ZStack {
                         Circle()
                             .fill(Color.black.opacity(0.65))
-                            .frame(width: 48, height: 48)
+                            .frame(width: 44, height: 44)
                         if viewModel.isPreviewing {
                             ProgressView()
                                 .controlSize(.small)
                                 .tint(.white)
                         } else {
                             Image(systemName: "play.fill")
-                                .font(.system(size: 18))
+                                .font(.system(size: 16))
                                 .foregroundColor(.white)
                                 .offset(x: 2)
                         }
@@ -124,12 +125,11 @@ public struct MessageMediaView: View {
                 .buttonStyle(.plain)
                 .help("调用 macOS 默认播放器预览 (QuickTime Player)")
                 
-                // Duration Badge
+                // Duration Badge (Bottom-Left)
                 if let sec = durationSec {
                     VStack {
                         Spacer()
                         HStack {
-                            Spacer()
                             Text(formatDuration(seconds: sec))
                                 .font(.system(size: 10, weight: .semibold))
                                 .foregroundColor(.white)
@@ -137,64 +137,43 @@ public struct MessageMediaView: View {
                                 .padding(.vertical, 2)
                                 .background(Color.black.opacity(0.75))
                                 .clipShape(Capsule())
-                                .padding(6)
+                                .padding(8)
+                            Spacer()
                         }
                     }
                 }
-            }
-            .frame(maxWidth: 320)
-            
-            // Video Meta & Actions
-            HStack(spacing: 8) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(fileName ?? "视频文件")
-                        .font(.system(size: 12, weight: .medium))
-                        .lineLimit(1)
+                
+                // Top-Right Hover Action Toolbar (Telegram macOS Style)
+                if viewModel.isHovered {
+                    VStack {
+                        HStack {
+                            Spacer()
+                            hoverMediaToolbar
+                                .transition(.opacity)
+                                .padding(6)
+                        }
+                        Spacer()
+                    }
                 }
-                
-                Spacer()
-                
-                // Preview Action
+            }
+            .onHover { hovering in
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    viewModel.isHovered = hovering
+                }
+            }
+            .contextMenu {
                 Button {
                     viewModel.previewMedia(messageId: messageId, fileKey: fileKey, fileName: fileName)
                 } label: {
-                    HStack(spacing: 3) {
-                        Image(systemName: "play.circle.fill")
-                        Text("预览")
-                    }
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(Color(hex: "3370FF"))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(Color(hex: "3370FF").opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    Label("在 QuickTime 中打开预览", systemImage: "play.fill")
                 }
-                .buttonStyle(.plain)
-                .help("在 QuickTime 中打开")
                 
-                // Download Action
                 Button {
                     viewModel.downloadMedia(messageId: messageId, fileKey: fileKey, fileName: fileName)
                 } label: {
-                    HStack(spacing: 3) {
-                        if viewModel.isDownloading {
-                            ProgressView().controlSize(.mini)
-                        } else {
-                            Image(systemName: "arrow.down.circle.fill")
-                        }
-                        Text("下载")
-                    }
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(Color(nsColor: .quaternaryLabelColor).opacity(0.2))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    Label("保存到下载目录并在 Finder 显示", systemImage: "arrow.down.circle.fill")
                 }
-                .buttonStyle(.plain)
-                .help("保存至下载目录并在 Finder 中显示")
             }
-            .padding(.horizontal, 4)
             
             if let toast = viewModel.actionToast {
                 Text(toast)
@@ -202,6 +181,36 @@ public struct MessageMediaView: View {
                     .foregroundColor(Color(hex: "3370FF"))
                     .padding(.horizontal, 4)
             }
+        }
+    }
+    
+    private var hoverMediaToolbar: some View {
+        HStack(spacing: 4) {
+            Button {
+                viewModel.previewMedia(messageId: messageId, fileKey: fileKey, fileName: fileName)
+            } label: {
+                Image(systemName: "play.fill")
+                    .font(.system(size: 10))
+                    .foregroundColor(.white)
+                    .padding(5)
+                    .background(Color.black.opacity(0.75))
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .help("在 QuickTime 中播放")
+            
+            Button {
+                viewModel.downloadMedia(messageId: messageId, fileKey: fileKey, fileName: fileName)
+            } label: {
+                Image(systemName: "arrow.down.circle.fill")
+                    .font(.system(size: 10))
+                    .foregroundColor(.white)
+                    .padding(5)
+                    .background(Color.black.opacity(0.75))
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .help("保存至下载并在 Finder 中显示")
         }
     }
     

@@ -122,7 +122,7 @@ public struct MessageImageView: View {
                 if let img = viewModel.image {
                     let size = calculateDisplaySize(for: img)
                     
-                    ZStack(alignment: .bottomTrailing) {
+                    ZStack(alignment: .topTrailing) {
                         Image(nsImage: img)
                             .resizable()
                             .scaledToFit()
@@ -139,11 +139,14 @@ public struct MessageImageView: View {
                         
                         if viewModel.isHovered {
                             hoverToolbar
+                                .transition(.opacity)
                         }
                     }
                     .frame(width: size.width, height: size.height)
                     .onHover { hovering in
-                        viewModel.isHovered = hovering
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            viewModel.isHovered = hovering
+                        }
                     }
                     .contextMenu {
                         Button {
