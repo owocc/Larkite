@@ -48,10 +48,19 @@ public final class AppState: ObservableObject {
         didSet {
             guard let chat = selectedChat else { return }
             if oldValue?.chatId != chat.chatId {
+                // Reset messages & in-flight message tasks
                 activeMessageLoadTask?.cancel()
                 activeMessageLoadTask = Task {
                     await loadMessages(for: chat, reset: true)
                 }
+                
+                // Reset member state for the newly selected chat
+                activeMembersLoadTask?.cancel()
+                self.chatMembers = []
+                self.chatMemberTotal = 0
+                self.chatMemberError = nil
+                self.chatMemberPageToken = nil
+                self.hasMoreChatMembers = false
             }
         }
     }

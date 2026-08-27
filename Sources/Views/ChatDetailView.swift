@@ -182,6 +182,11 @@ public struct ChatDetailView: View {
         let isSelected = viewModel.selectedTab == index
         return Button {
             viewModel.selectedTab = index
+            if index == 1, let currentChat = chat {
+                Task {
+                    await appState.loadChatMembers(for: currentChat, reset: true)
+                }
+            }
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: icon)
@@ -583,10 +588,13 @@ public struct ChatDetailView: View {
             .padding(20)
         }
         .onAppear {
-            if appState.chatMembers.isEmpty && !appState.isLoadingChatMembers {
-                Task {
-                    await appState.loadChatMembers(for: chat, reset: true)
-                }
+            Task {
+                await appState.loadChatMembers(for: chat, reset: true)
+            }
+        }
+        .onChange(of: chat.chatId) { _, _ in
+            Task {
+                await appState.loadChatMembers(for: chat, reset: true)
             }
         }
     }
