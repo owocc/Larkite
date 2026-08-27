@@ -80,12 +80,19 @@ public struct ChatDetailView: View {
     // MARK: - Header Bar
     
     private func headerBar(chat: FeishuChatItem) -> some View {
-        HStack(spacing: 14) {
-            AvatarView(urlString: chat.avatar, name: chat.displayName, size: 40)
+        let currentUser = appState.session?.user
+        let title = chat.resolvedDisplayName(
+            currentUserName: currentUser?.displayName,
+            currentUserId: currentUser?.openId
+        )
+        let avatarUrl = chat.resolvedAvatarUrl(currentUserId: currentUser?.openId)
+        
+        return HStack(spacing: 14) {
+            AvatarView(urlString: avatarUrl, name: title, size: 40)
             
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 8) {
-                    Text(chat.displayName)
+                    Text(title)
                         .font(.system(size: 16, weight: .bold))
                         .lineLimit(1)
                     
@@ -100,7 +107,7 @@ public struct ChatDetailView: View {
                     StatusBadge(chat.statusDescription, color: chat.isDissolved ? .red : .green)
                 }
                 
-                Text(chat.description?.isEmpty == false ? chat.description! : "ID: \(chat.chatId)")
+                Text(chat.description?.isEmpty == false && chat.description != "单聊会话" && chat.description != currentUser?.displayName ? chat.description! : "ID: \(chat.chatId)")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
                     .lineLimit(1)

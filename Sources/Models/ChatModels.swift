@@ -57,6 +57,33 @@ public struct FeishuChatItem: Codable, Identifiable, Equatable, Hashable, Sendab
         return "未命名群组 (\(chatId.prefix(8)))"
     }
     
+    public func resolvedDisplayName(currentUserName: String?, currentUserId: String?) -> String {
+        if isP2P {
+            if let name = name, !name.isEmpty, name != currentUserName {
+                return name
+            }
+            if let desc = description, !desc.isEmpty, desc != "单聊会话", desc != currentUserName {
+                return desc
+            }
+            if let owner = ownerId, owner != currentUserId {
+                return "用户 (\(owner.prefix(6)))"
+            }
+            return "私聊 (\(chatId.prefix(8)))"
+        }
+        if let name = name, !name.isEmpty { return name }
+        return "未命名群组 (\(chatId.prefix(8)))"
+    }
+    
+    public func resolvedAvatarUrl(currentUserId: String?) -> String? {
+        if isP2P {
+            if let owner = ownerId, owner != currentUserId {
+                // Peer avatar if available
+                return avatar
+            }
+        }
+        return avatar
+    }
+    
     public var isExternal: Bool {
         external ?? false
     }

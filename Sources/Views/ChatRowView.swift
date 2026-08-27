@@ -10,6 +10,7 @@ public struct ChatRowView: View {
     let chat: FeishuChatItem
     let isSelected: Bool
     
+    @ObservedObject var appState: AppState = .shared
     @StateObject private var viewModel = ChatRowViewModel()
     
     public init(chat: FeishuChatItem, isSelected: Bool) {
@@ -18,18 +19,25 @@ public struct ChatRowView: View {
     }
     
     public var body: some View {
+        let currentUser = appState.session?.user
+        let title = chat.resolvedDisplayName(
+            currentUserName: currentUser?.displayName,
+            currentUserId: currentUser?.openId
+        )
+        let avatarUrl = chat.resolvedAvatarUrl(currentUserId: currentUser?.openId)
+        
         HStack(spacing: 12) {
             // Avatar
             AvatarView(
-                urlString: chat.avatar,
-                name: chat.displayName,
+                urlString: avatarUrl,
+                name: title,
                 size: 40
             )
             
             // Info
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
-                    Text(chat.displayName)
+                    Text(title)
                         .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
                         .foregroundColor(.primary)
                         .lineLimit(1)
@@ -47,7 +55,7 @@ public struct ChatRowView: View {
                     }
                 }
                 
-                if let desc = chat.description, !desc.isEmpty {
+                if let desc = chat.description, !desc.isEmpty, desc != "单聊会话", desc != currentUser?.displayName {
                     Text(desc)
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)

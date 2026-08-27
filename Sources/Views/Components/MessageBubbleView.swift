@@ -54,7 +54,7 @@ public struct MessageBubbleView: View {
         HStack(alignment: .top, spacing: 10) {
             // Sender Avatar
             AvatarView(
-                urlString: nil,
+                urlString: senderAvatarUrl,
                 name: senderDisplayName,
                 size: 34
             )
@@ -391,8 +391,19 @@ public struct MessageBubbleView: View {
             if sender.isAppOrBot {
                 return "机器人应用"
             }
-            return "用户 (\(sender.id.prefix(6)))"
+            let currentUserId = appState.session?.user?.openId
+            return UserProfileManager.shared.resolveDisplayName(for: sender.id, currentUserId: currentUserId)
         }
         return "飞书成员"
+    }
+    
+    private var senderAvatarUrl: String? {
+        if let sender = message.sender {
+            if let current = appState.session?.user, (sender.id == current.openId || sender.id == current.userId) {
+                return current.bestAvatarUrl
+            }
+            return UserProfileManager.shared.resolveAvatarUrl(for: sender.id)
+        }
+        return nil
     }
 }

@@ -368,6 +368,7 @@ public final class AppState: ObservableObject {
         guard let token = session?.accessToken else { return }
         if let user = try? await FeishuAPIClient.shared.fetchUserInfo(token: token) {
             self.session?.user = user
+            UserProfileManager.shared.seedWith(user: user, contacts: self.contacts)
             if let currentSession = self.session {
                 ConfigManager.shared.saveSession(currentSession)
             }
@@ -525,12 +526,17 @@ public final class AppState: ObservableObject {
             )
             
             let newItems = result.items ?? []
+            for item in newItems {
+                if let mentions = item.mentions {
+                    UserProfileManager.shared.seedWithMentions(mentions)
+                }
+            }
+            
             if reset {
                 self.messages = newItems
             } else {
                 self.messages.insert(contentsOf: newItems, at: 0)
             }
-            
             self.messagePageToken = result.pageToken
             self.hasMoreMessages = result.hasMore ?? false
             self.isLoadingMessages = false
@@ -659,12 +665,13 @@ public final class AppState: ObservableObject {
             )
             
             let newItems = result.items ?? []
+            UserProfileManager.shared.seedWithMembers(newItems)
+            
             if reset {
                 self.chatMembers = newItems
             } else {
                 self.chatMembers.append(contentsOf: newItems)
             }
-            
             self.chatMemberPageToken = result.pageToken
             self.hasMoreChatMembers = result.hasMore ?? false
             if let total = result.memberTotal {
@@ -755,6 +762,7 @@ public final class AppState: ObservableObject {
             let result = try await FeishuAPIClient.shared.fetchContacts(token: token, pageSize: 50)
             let fetchedContacts = result.items ?? []
             self.contacts = fetchedContacts
+            UserProfileManager.shared.seedWith(user: self.session?.user, contacts: fetchedContacts)
             
             for contact in fetchedContacts {
                 let p2pItem = contact.toP2PChatItem()
