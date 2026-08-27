@@ -361,7 +361,42 @@ public final class FeishuAPIClient: Sendable {
             for (index, item) in items.enumerated() {
                 group.addTask {
                     do {
-                        let detail = try await self.fetchChatInfo(token: token, chatId: item.chatId)
+                        var detail = try await self.fetchChatInfo(token: token, chatId: item.chatId)
+                        
+                        // If this is a P2P private chat, query members to extract peer name & ID
+                        if detail.isP2P {
+                            if let membersData = try? await self.fetchChatMembers(token: token, chatId: item.chatId, pageSize: 10),
+                               let members = membersData.items, !members.isEmpty {
+                                let currentUserId = await AppState.shared.session?.user?.openId
+                                let peerMember = members.first(where: { $0.memberId != currentUserId }) ?? members.first
+                                
+                                if let peer = peerMember {
+                                    let peerName = peer.name?.isEmpty == false ? peer.name! : peer.displayName
+                                    detail = FeishuChatItem(
+                                        chatId: detail.chatId,
+                                        avatar: detail.avatar,
+                                        name: peerName,
+                                        description: "单聊 · \(peerName)",
+                                        ownerId: peer.memberId,
+                                        ownerIdType: "open_id",
+                                        external: detail.external,
+                                        tenantKey: detail.tenantKey,
+                                        chatStatus: detail.chatStatus,
+                                        chatMode: "p2p",
+                                        chatType: "private",
+                                        chatTag: detail.chatTag,
+                                        userCount: detail.userCount ?? "\(members.count)",
+                                        botCount: detail.botCount
+                                    )
+                                    
+                                    await UserProfileManager.shared.registerUser(
+                                        openId: peer.memberId,
+                                        name: peerName
+                                    )
+                                }
+                            }
+                        }
+                        
                         return (index, detail)
                     } catch {
                         return (index, item)

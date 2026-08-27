@@ -563,6 +563,42 @@ public final class AppState: ObservableObject {
                 self.lastMessages[targetChatId] = latest
                 self.lastMessages[chat.chatId] = latest
             }
+            
+            // If P2P chat, resolve peer name & ID from messages
+            if chat.isP2P {
+                let currentUserId = self.session?.user?.openId
+                
+                if let peerMsg = rawItems.first(where: { $0.sender?.id != currentUserId && $0.sender?.id != nil }) {
+                    if let senderId = peerMsg.sender?.id {
+                        let peerName = UserProfileManager.shared.resolveDisplayName(for: senderId, currentUserId: currentUserId)
+                        if !peerName.hasPrefix("用户 (") {
+                            if let idx = self.chats.firstIndex(where: { $0.chatId == chat.chatId }) {
+                                let updated = FeishuChatItem(
+                                    chatId: chat.chatId,
+                                    avatar: chat.avatar,
+                                    name: peerName,
+                                    description: "单聊 · \(peerName)",
+                                    ownerId: senderId,
+                                    ownerIdType: "open_id",
+                                    external: chat.external,
+                                    tenantKey: chat.tenantKey,
+                                    chatStatus: chat.chatStatus,
+                                    chatMode: "p2p",
+                                    chatType: "private",
+                                    chatTag: chat.chatTag,
+                                    userCount: "2",
+                                    botCount: chat.botCount
+                                )
+                                self.chats[idx] = updated
+                                if self.selectedChat?.chatId == chat.chatId {
+                                    self.selectedChat = updated
+                                }
+                                ConfigManager.shared.saveP2PChats(self.chats)
+                            }
+                        }
+                    }
+                }
+            }
         } catch {
             self.messageError = error.localizedDescription
             self.isLoadingMessages = false
