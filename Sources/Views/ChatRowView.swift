@@ -11,13 +11,13 @@ public struct ChatRowView: View {
     let isSelected: Bool
     
     @ObservedObject var appState: AppState = .shared
+    @ObservedObject var configManager: ConfigManager = .shared
     @StateObject private var viewModel = ChatRowViewModel()
     
     public init(chat: FeishuChatItem, isSelected: Bool) {
         self.chat = chat
         self.isSelected = isSelected
     }
-    
     public var body: some View {
         let currentUser = appState.session?.user
         let lastMsg = appState.lastMessages[chat.chatId]
@@ -139,10 +139,10 @@ public struct ChatRowView: View {
     
     private var backgroundColor: Color {
         if isSelected {
-            return Color(hex: "3370FF").opacity(0.15)
+            return configManager.accentColorChoice.color.opacity(0.16)
         }
         if viewModel.isHovered {
-            return Color(nsColor: .quaternaryLabelColor).opacity(0.3)
+            return Color(nsColor: .quaternaryLabelColor).opacity(0.25)
         }
         return Color.clear
     }

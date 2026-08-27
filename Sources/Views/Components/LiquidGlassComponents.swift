@@ -114,6 +114,7 @@ public struct LiquidGlassToolbarButton: View {
     let isActive: Bool
     let action: () -> Void
     
+    @ObservedObject var configManager: ConfigManager = .shared
     @StateObject private var viewModel = LiquidToolbarButtonViewModel()
     
     public init(
@@ -149,8 +150,7 @@ public struct LiquidGlassToolbarButton: View {
                         .opacity(0.7)
                 }
             }
-            .foregroundColor(isActive ? Color(hex: "3370FF") : (viewModel.isHovered ? .primary : .secondary))
-            .padding(.horizontal, title != nil ? 10 : 8)
+            .foregroundColor(isActive ? configManager.accentColorChoice.color : (viewModel.isHovered ? .primary : .secondary))
             .padding(.vertical, 7)
             .background(
                 Capsule()
@@ -180,6 +180,7 @@ public struct LiquidGlassSendButton: View {
     let isDisabled: Bool
     let action: () -> Void
     
+    @ObservedObject var configManager: ConfigManager = .shared
     @StateObject private var viewModel = LiquidSendButtonViewModel()
     
     public init(
@@ -191,7 +192,6 @@ public struct LiquidGlassSendButton: View {
         self.isDisabled = isDisabled
         self.action = action
     }
-    
     public var body: some View {
         Button(action: action) {
             HStack(spacing: 4) {
@@ -211,15 +211,14 @@ public struct LiquidGlassSendButton: View {
                     .fill(
                         isDisabled ?
                         LinearGradient(colors: [Color.secondary.opacity(0.3), Color.secondary.opacity(0.2)], startPoint: .top, endPoint: .bottom) :
-                        LinearGradient(colors: [Color(hex: "3370FF"), Color(hex: "1F55E6")], startPoint: .topLeading, endPoint: .bottomTrailing)
+                        LinearGradient(colors: [configManager.accentColorChoice.color, configManager.accentColorChoice.color.opacity(0.85)], startPoint: .topLeading, endPoint: .bottomTrailing)
                     )
             )
             .overlay(
                 Circle()
                     .strokeBorder(Color.white.opacity(isDisabled ? 0.1 : 0.35), lineWidth: 1)
             )
-            .shadow(color: isDisabled ? Color.clear : Color(hex: "3370FF").opacity(0.4), radius: 8, x: 0, y: 3)
-            .scaleEffect(viewModel.isHovered && !isDisabled ? 1.05 : 1.0)
+            .shadow(color: isDisabled ? Color.clear : configManager.accentColorChoice.color.opacity(0.4), radius: 8, x: 0, y: 3)
         }
         .buttonStyle(.plain)
         .disabled(isDisabled || isLoading)

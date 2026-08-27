@@ -109,6 +109,7 @@ public struct ChatDetailView: View {
     let chat: FeishuChatItem?
     
     @ObservedObject var appState: AppState = .shared
+    @ObservedObject var configManager: ConfigManager = .shared
     @StateObject private var viewModel = ChatDetailViewModel()
     
     public init(chat: FeishuChatItem?) {
@@ -247,7 +248,7 @@ public struct ChatDetailView: View {
                         }
                     } label: {
                         Image(systemName: "sidebar.right")
-                            .foregroundColor(viewModel.isShowingRightPanel ? Color(hex: "3370FF") : .secondary)
+                            .foregroundColor(viewModel.isShowingRightPanel ? configManager.accentColorChoice.color : .secondary)
                     }
                     .help("展开/折叠会话信息面板")
                 }
@@ -405,8 +406,7 @@ public struct ChatDetailView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "arrowshape.turn.up.left.fill")
                         .font(.system(size: 11))
-                        .foregroundColor(Color(hex: "3370FF"))
-                    
+                        .foregroundColor(configManager.accentColorChoice.color)
                     Text("正在回复: \(replying.parsedContent.previewSummary)")
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
@@ -553,10 +553,10 @@ public struct ChatDetailView: View {
                         if viewModel.inputMessageText.count >= 30 {
                             Text("\(viewModel.inputMessageText.count) 字")
                                 .font(.system(size: 10, weight: .medium))
-                                .foregroundColor(Color(hex: "3370FF"))
+                                .foregroundColor(configManager.accentColorChoice.color)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
-                                .background(Color(hex: "3370FF").opacity(0.1))
+                                .background(configManager.accentColorChoice.color.opacity(0.12))
                                 .clipShape(Capsule())
                                 .transition(.opacity.combined(with: .scale(scale: 0.85)))
                         }

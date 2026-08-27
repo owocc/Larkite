@@ -91,7 +91,7 @@ public struct ChatListView: View {
                     }
                 } label: {
                     Image(systemName: "arrow.clockwise")
-                        .foregroundColor(appState.isLoadingChats ? Color(hex: "3370FF") : .secondary)
+                        .foregroundColor(appState.isLoadingChats ? configManager.accentColorChoice.color : .secondary)
                 }
                 .help("刷新会话列表 (Cmd+R)")
                 
@@ -112,7 +112,7 @@ public struct ChatListView: View {
                     }
                 } label: {
                     Image(systemName: appState.filterMode != .all ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease")
-                        .foregroundColor(appState.filterMode != .all ? Color(hex: "3370FF") : .primary)
+                        .foregroundColor(appState.filterMode != .all ? configManager.accentColorChoice.color : .primary)
                 }
                 .menuIndicator(.hidden)
                 .help("会话筛选: \(appState.filterMode.menuTitle)")
@@ -156,11 +156,11 @@ public struct ChatListView: View {
                 HStack(spacing: 6) {
                     Image(systemName: appState.filterMode.icon)
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(Color(hex: "3370FF"))
+                        .foregroundColor(configManager.accentColorChoice.color)
                     
                     Text("当前筛选: \(appState.filterMode.menuTitle)")
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(Color(hex: "3370FF"))
+                        .foregroundColor(configManager.accentColorChoice.color)
                     
                     Spacer()
                     
@@ -180,7 +180,7 @@ public struct ChatListView: View {
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 3)
-                .background(Color(hex: "3370FF").opacity(0.08))
+                .background(configManager.accentColorChoice.color.opacity(0.08))
                 .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
         }
