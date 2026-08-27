@@ -17,6 +17,12 @@ struct LarkNativeApp: App {
         .defaultSize(width: 1000, height: 660)
         .commands {
             CommandGroup(replacing: .newItem) {}
+            CommandMenu("账号与组织") {
+                Button("登录 / 切换企业账号...") {
+                    AccountWindowManager.shared.showLoginWindow()
+                }
+                .keyboardShortcut("a", modifiers: [.command, .shift])
+            }
             
             CommandMenu("会话与群组") {
                 Button("刷新群组列表") {

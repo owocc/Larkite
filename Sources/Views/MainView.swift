@@ -17,10 +17,15 @@ public struct MainView: View {
                 }
                 .navigationSplitViewStyle(.balanced)
             } else {
-                LoginView()
+                notLoggedInPlaceholderView
             }
         }
         .frame(minWidth: 860, minHeight: 580)
+        .onAppear {
+            if !appState.isLoggedIn {
+                AccountWindowManager.shared.showLoginWindow()
+            }
+        }
         .sheet(item: $appState.inspectedUser) { user in
             UserProfileSheet(user: user)
         }
@@ -31,6 +36,40 @@ public struct MainView: View {
             debugModalSheet
         }
     }
+    private var notLoggedInPlaceholderView: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "person.crop.circle.badge.plus")
+                .font(.system(size: 48))
+                .foregroundColor(Color(hex: "3370FF"))
+            
+            Text("欢迎使用 Lark Native")
+                .font(.system(size: 18, weight: .bold))
+            
+            Text("请在独立登录窗口中登录或选择企业账号，开始消息与会话管理")
+                .font(.system(size: 13))
+                .foregroundColor(.secondary)
+            
+            Button {
+                AccountWindowManager.shared.showLoginWindow()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "key.fill")
+                    Text("打开账号与登录窗口")
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.regular)
+            .padding(.top, 8)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(
+            VisualEffectBackground(material: .underWindowBackground, blendingMode: .behindWindow)
+                .ignoresSafeArea()
+        )
+    }
+    
     
     private var settingsModalSheet: some View {
         VStack(spacing: 0) {

@@ -464,18 +464,17 @@ public struct ChatListView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Button {
                     viewModel.showAccountMenu = false
-                    appState.startAddingNewAccount()
+                    AccountWindowManager.shared.showLoginWindow()
                 } label: {
                     HStack(spacing: 6) {
-                        Image(systemName: "plus.circle.fill")
+                        Image(systemName: "person.crop.circle.badge.plus")
                             .foregroundColor(Color(hex: "3370FF"))
-                        Text("添加新的飞书账号...")
+                        Text("登录新账号 / 管理企业组织...")
                             .font(.system(size: 11, weight: .medium))
                             .foregroundColor(Color(hex: "3370FF"))
                     }
                 }
                 .buttonStyle(.plain)
-                
                 if let user = appState.session?.user {
                     Button {
                         viewModel.showAccountMenu = false
