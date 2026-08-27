@@ -49,6 +49,7 @@ public final class AppState: ObservableObject {
             if let chat = selectedChat, oldValue?.id != chat.id {
                 Task {
                     await loadMessages(for: chat, reset: true)
+                    await loadChatMembers(for: chat, reset: true)
                 }
             }
         }
@@ -71,6 +72,14 @@ public final class AppState: ObservableObject {
     @Published public var messagePageToken: String?
     @Published public var hasMoreMessages: Bool = false
     @Published public var selectedMessageForInspection: FeishuMessageItem?
+    
+    // MARK: - Group Members State
+    @Published public var chatMembers: [FeishuChatMemberItem] = []
+    @Published public var isLoadingChatMembers: Bool = false
+    @Published public var chatMemberError: String? = nil
+    @Published public var chatMemberTotal: Int = 0
+    @Published public var chatMemberPageToken: String? = nil
+    @Published public var hasMoreChatMembers: Bool = false
     
     private var oauthServerTask: Task<Void, Never>?
     
@@ -499,6 +508,53 @@ public final class AppState: ObservableObject {
     
     // MARK: - Direct / Single Chat (p2p)
     
+    
+    // MARK: - Group Members Query
+    
+    public func loadChatMembers(for chat: FeishuChatItem, reset: Bool = false) async {
+        guard let token = session?.accessToken else { return }
+        
+        if reset {
+            isLoadingChatMembers = true
+            chatMemberError = nil
+            chatMemberPageToken = nil
+            chatMembers = []
+            chatMemberTotal = 0
+        }
+        
+        do {
+            let result = try await FeishuAPIClient.shared.fetchChatMembers(
+                token: token,
+                chatId: chat.chatId,
+                pageToken: reset ? nil : chatMemberPageToken,
+                pageSize: 100
+            )
+            
+            let newItems = result.items ?? []
+            if reset {
+                self.chatMembers = newItems
+            } else {
+                self.chatMembers.append(contentsOf: newItems)
+            }
+            
+            self.chatMemberPageToken = result.pageToken
+            self.hasMoreChatMembers = result.hasMore ?? false
+            if let total = result.memberTotal {
+                self.chatMemberTotal = total
+            } else {
+                self.chatMemberTotal = self.chatMembers.count
+            }
+            self.isLoadingChatMembers = false
+        } catch {
+            self.chatMemberError = error.localizedDescription
+            self.isLoadingChatMembers = false
+        }
+    }
+    
+    public func loadMoreChatMembers() async {
+        guard let chat = selectedChat, !isLoadingChatMembers, hasMoreChatMembers, chatMemberPageToken != nil else { return }
+        await loadChatMembers(for: chat, reset: false)
+    }
     public func openDirectChat(chatId: String) async throws {
         let cleanId = chatId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanId.isEmpty, let token = session?.accessToken else { return }

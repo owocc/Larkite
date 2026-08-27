@@ -3,8 +3,9 @@ import AppKit
 
 @MainActor
 public final class ChatDetailViewModel: ObservableObject {
-    @Published public var selectedTab: Int = 0 // 0: 消息流, 1: 群聊属性, 2: API JSON
+    @Published public var selectedTab: Int = 0 // 0: 消息流, 1: 群聊属性与成员, 2: API JSON
     @Published public var copiedField: String? = nil
+    @Published public var memberSearchQuery: String = ""
     
     public init() {}
     
@@ -49,7 +50,7 @@ public struct ChatDetailView: View {
                 if viewModel.selectedTab == 0 {
                     messagesStreamView(chat: chat)
                 } else if viewModel.selectedTab == 1 {
-                    overviewTab(chat: chat)
+                    overviewAndMembersTab(chat: chat)
                 } else {
                     rawJsonTab(chat: chat)
                 }
@@ -96,16 +97,17 @@ public struct ChatDetailView: View {
             Button {
                 Task {
                     await appState.loadMessages(for: chat, reset: true)
+                    await appState.loadChatMembers(for: chat, reset: true)
                 }
             } label: {
                 Image(systemName: "arrow.clockwise")
                     .font(.system(size: 12))
-                    .foregroundColor(appState.isLoadingMessages ? Color(hex: "3370FF") : .secondary)
-                    .rotationEffect(.degrees(appState.isLoadingMessages ? 360 : 0))
-                    .animation(appState.isLoadingMessages ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: appState.isLoadingMessages)
+                    .foregroundColor(appState.isLoadingMessages || appState.isLoadingChatMembers ? Color(hex: "3370FF") : .secondary)
+                    .rotationEffect(.degrees(appState.isLoadingMessages || appState.isLoadingChatMembers ? 360 : 0))
+                    .animation(appState.isLoadingMessages || appState.isLoadingChatMembers ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: appState.isLoadingMessages)
             }
             .buttonStyle(.plain)
-            .help("刷新当前群消息")
+            .help("刷新消息与成员数据")
             
             // Copy Chat ID
             Button {
@@ -130,11 +132,11 @@ public struct ChatDetailView: View {
         HStack {
             Picker("", selection: $viewModel.selectedTab) {
                 Text("消息流 (\(appState.messages.count))").tag(0)
-                Text("群组属性").tag(1)
+                Text("群属性与成员 (\(appState.chatMemberTotal > 0 ? "\(appState.chatMemberTotal)" : "\(appState.chatMembers.count)"))").tag(1)
                 Text("API JSON 载荷").tag(2)
             }
             .pickerStyle(.segmented)
-            .frame(width: 320)
+            .frame(width: 360)
             
             Spacer()
         }
@@ -157,7 +159,6 @@ public struct ChatDetailView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: 4) {
-                            // Load Earlier Messages Button
                             if appState.hasMoreMessages {
                                 Button {
                                     Task {
@@ -182,7 +183,6 @@ public struct ChatDetailView: View {
                                 .padding(.vertical, 8)
                             }
                             
-                            // Message Items with Date Dividers
                             ForEach(Array(appState.messages.enumerated()), id: \.element.id) { index, msg in
                                 if shouldShowDateHeader(at: index) {
                                     dateHeaderView(title: msg.formattedDateHeader)
@@ -301,16 +301,21 @@ public struct ChatDetailView: View {
         }
     }
     
-    // MARK: - Overview Tab
+    // MARK: - Overview and Members Tab
     
-    private func overviewTab(chat: FeishuChatItem) -> some View {
+    private func overviewAndMembersTab(chat: FeishuChatItem) -> some View {
         ScrollView {
             VStack(spacing: 16) {
+                // Group Metadata Card
                 GlassCard(cornerRadius: 14, padding: 18) {
                     VStack(alignment: .leading, spacing: 14) {
-                        Text("群组元数据")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(.primary)
+                        HStack {
+                            Image(systemName: "info.circle.fill")
+                                .foregroundColor(Color(hex: "3370FF"))
+                            Text("群组详细属性")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(.primary)
+                        }
                         
                         Divider()
                         
@@ -337,8 +342,203 @@ public struct ChatDetailView: View {
                         }
                     }
                 }
+                
+                // Group Members Card
+                GlassCard(cornerRadius: 14, padding: 18) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            Image(systemName: "person.2.fill")
+                                .foregroundColor(Color(hex: "3370FF"))
+                            
+                            Text("群聊成员")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(.primary)
+                            
+                            Text("(\(appState.chatMemberTotal > 0 ? "\(appState.chatMemberTotal)" : "\(appState.chatMembers.count)") 人)")
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                            
+                            Spacer()
+                            
+                            Button {
+                                Task {
+                                    await appState.loadChatMembers(for: chat, reset: true)
+                                }
+                            } label: {
+                                Image(systemName: "arrow.clockwise")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .help("刷新成员列表")
+                        }
+                        
+                        // Search inside members
+                        HStack(spacing: 6) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                            
+                            TextField("搜索群内成员姓名或 Open ID...", text: $viewModel.memberSearchQuery)
+                                .textFieldStyle(.plain)
+                                .font(.system(size: 11))
+                            
+                            if !viewModel.memberSearchQuery.isEmpty {
+                                Button {
+                                    viewModel.memberSearchQuery = ""
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 10))
+                                        .foregroundColor(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(Color(nsColor: .controlBackgroundColor))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        
+                        Divider()
+                        
+                        // Members Content
+                        if appState.isLoadingChatMembers && appState.chatMembers.isEmpty {
+                            HStack {
+                                Spacer()
+                                ProgressView()
+                                    .controlSize(.small)
+                                Text("正在拉取群成员...")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                            }
+                            .padding(.vertical, 12)
+                        } else if let error = appState.chatMemberError, appState.chatMembers.isEmpty {
+                            VStack(spacing: 6) {
+                                Text("未能获取群成员: \(error)")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.orange)
+                                Button("重试") {
+                                    Task {
+                                        await appState.loadChatMembers(for: chat, reset: true)
+                                    }
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            }
+                        } else if filteredMembers.isEmpty {
+                            Text(viewModel.memberSearchQuery.isEmpty ? "暂无群成员信息" : "未找到匹配成员")
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                                .padding(.vertical, 8)
+                        } else {
+                            membersList(chat: chat)
+                        }
+                    }
+                }
             }
             .padding(20)
+        }
+    }
+    
+    private var filteredMembers: [FeishuChatMemberItem] {
+        let list = appState.chatMembers
+        let query = viewModel.memberSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if query.isEmpty {
+            return list
+        }
+        return list.filter { member in
+            member.displayName.lowercased().contains(query) ||
+            member.memberId.lowercased().contains(query)
+        }
+    }
+    
+    private func membersList(chat: FeishuChatItem) -> some View {
+        VStack(spacing: 6) {
+            ForEach(filteredMembers) { member in
+                HStack(spacing: 10) {
+                    AvatarView(
+                        urlString: nil,
+                        name: member.displayName,
+                        size: 32
+                    )
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text(member.displayName)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(.primary)
+                            
+                            if member.isOwner(ownerId: chat.ownerId) {
+                                StatusBadge("群主", color: Color(hex: "FF9C00"), icon: "crown.fill")
+                            }
+                        }
+                        
+                        Text(member.memberId)
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    // Copy ID
+                    Button {
+                        viewModel.copyToClipboard(text: member.memberId, field: "Member ID")
+                    } label: {
+                        HStack(spacing: 2) {
+                            Image(systemName: viewModel.copiedField == "Member ID" ? "checkmark" : "doc.on.doc")
+                            Text(viewModel.copiedField == "Member ID" ? "已复制" : "复制 ID")
+                        }
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("复制 Member Open ID")
+                    
+                    // Start Direct Chat Action
+                    Button {
+                        Task {
+                            try? await appState.openDirectChatWithUser(idType: "open_id", idValue: member.memberId)
+                        }
+                    } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: "bubble.left.and.bubble.right.fill")
+                            Text("私聊")
+                        }
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(Color(hex: "3370FF"))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(Color(hex: "3370FF").opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                    }
+                    .buttonStyle(.plain)
+                    .help("向该成员发起单聊")
+                }
+                .padding(8)
+                .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+            
+            if appState.hasMoreChatMembers {
+                Button {
+                    Task {
+                        await appState.loadMoreChatMembers()
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        if appState.isLoadingChatMembers {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                        Text(appState.isLoadingChatMembers ? "加载中..." : "加载更多群成员")
+                            .font(.system(size: 11))
+                            .foregroundColor(Color(hex: "3370FF"))
+                    }
+                    .padding(.vertical, 6)
+                }
+                .buttonStyle(.plain)
+            }
         }
     }
     

@@ -266,6 +266,50 @@ public final class FeishuAPIClient: Sendable {
         return item
     }
     
+    // MARK: - Chat Members
+    
+    public func fetchChatMembers(
+        token: String,
+        chatId: String,
+        pageToken: String? = nil,
+        pageSize: Int = 100
+    ) async throws -> FeishuChatMemberListData {
+        let encodedId = chatId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? chatId
+        var components = URLComponents(string: "https://open.feishu.cn/open-apis/im/v1/chats/\(encodedId)/members")
+        var queryItems: [URLQueryItem] = [
+            URLQueryItem(name: "member_id_type", value: "open_id"),
+            URLQueryItem(name: "page_size", value: "\(pageSize)")
+        ]
+        if let pageToken = pageToken, !pageToken.isEmpty {
+            queryItems.append(URLQueryItem(name: "page_token", value: pageToken))
+        }
+        components?.queryItems = queryItems
+        
+        guard let url = components?.url else {
+            throw APIError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+        
+        let decoded = try JSONDecoder().decode(FeishuChatMemberListResponse.self, from: data)
+        if decoded.code != 0 {
+            throw APIError.feishuError(code: decoded.code, msg: decoded.msg)
+        }
+        
+        return decoded.data ?? FeishuChatMemberListData(items: [], pageToken: nil, hasMore: false, memberTotal: nil)
+    }
+    
     /// Concurrently fetches full chat details (including chat_mode: p2p vs group) for a list of chats
     public func hydrateChatsWithDetails(
         token: String,
