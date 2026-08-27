@@ -152,7 +152,7 @@ public struct MessageImageView: View {
                         Button {
                             viewModel.previewInSystem(messageId: messageId, imageKey: imageKey)
                         } label: {
-                            Label("调用系统默认工具预览 (Preview.app)", systemImage: "eye.fill")
+                            Label("空格快速预览 (Quick Look)", systemImage: "eye.fill")
                         }
                         
                         Button {
