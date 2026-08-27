@@ -15,7 +15,7 @@ public struct MainView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 860, minHeight: 580)
-        .onChange(of: appState.isLoggedIn) { wasLoggedIn, isLoggedIn in
+        .onChange(of: appState.isLoggedIn) { isLoggedIn in
             if isLoggedIn {
                 AccountWindowManager.shared.closeWindow()
                 MainWindowManager.shared.showMainWindow()

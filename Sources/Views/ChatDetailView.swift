@@ -327,7 +327,7 @@ public struct ChatDetailView: View {
                             proxy.scrollTo("messages_bottom_anchor", anchor: .bottom)
                         }
                     }
-                    .onChange(of: appState.messages.last?.id) { _, _ in
+                    .onChange(of: appState.messages.last?.id) { _ in
                         if !appState.isLoadingMessages {
                             DispatchQueue.main.async {
                                 withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
@@ -336,8 +336,8 @@ public struct ChatDetailView: View {
                             }
                         }
                     }
-                    .onChange(of: appState.messages.count) { oldCount, newCount in
-                        if newCount > oldCount && !appState.isLoadingMessages {
+                    .onChange(of: appState.messages.count) { _ in
+                        if !appState.isLoadingMessages {
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                                 withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
                                     proxy.scrollTo("messages_bottom_anchor", anchor: .bottom)

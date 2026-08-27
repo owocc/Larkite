@@ -27,9 +27,11 @@ jobs:
           chmod +x ./build_app.sh
           ./build_app.sh
 
-      - name: Verify Bundle Integrity
+      - name: Verify Bundle & Universal 2 Binary Integrity
         run: |
           test -f "Larkite.app/Contents/MacOS/Larkite"
           test -f "Larkite.app/Contents/Info.plist"
           test -f "Larkite.app/Contents/Resources/AppIcon.icns"
-          echo "==> Larkite.app bundle successfully verified!"
+          file "Larkite.app/Contents/MacOS/Larkite" | grep -q "arm64"
+          file "Larkite.app/Contents/MacOS/Larkite" | grep -q "x86_64"
+          echo "==> Larkite.app Universal 2 (arm64 + x86_64) bundle successfully verified!"

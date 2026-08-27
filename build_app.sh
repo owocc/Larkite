@@ -17,18 +17,36 @@ if [ -f "Resources/AppIcon.icns" ]; then
     echo "==> Copying AppIcon.icns to Resources..."
     cp "Resources/AppIcon.icns" "${RESOURCES_DIR}/AppIcon.icns"
 fi
-echo "==> Building ${APP_NAME} binary with swiftc..."
+DEPLOYMENT_TARGET="${1:-14.0}"
+echo "==> Building ${APP_NAME} Universal 2 binary (arm64 + x86_64) for macOS ${DEPLOYMENT_TARGET}+..."
 SWIFT_SOURCES=$(find Sources -name "*.swift")
+SDK_PATH="$(xcrun --show-sdk-path)"
 
+echo "  -> Compiling arm64 slice (Apple Silicon)..."
 swiftc -O \
     -parse-as-library \
-    -target arm64-apple-macos14.0 \
-    -sdk "$(xcrun --show-sdk-path)" \
+    -target "arm64-apple-macos${DEPLOYMENT_TARGET}" \
+    -sdk "${SDK_PATH}" \
     ${SWIFT_SOURCES} \
-    -o "${MACOS_DIR}/${APP_NAME}"
+    -o "${MACOS_DIR}/${APP_NAME}_arm64"
 
-echo "==> Generating Info.plist..."
-cat << 'EOF' > "${CONTENTS_DIR}/Info.plist"
+echo "  -> Compiling x86_64 slice (Intel)..."
+swiftc -O \
+    -parse-as-library \
+    -target "x86_64-apple-macos${DEPLOYMENT_TARGET}" \
+    -sdk "${SDK_PATH}" \
+    ${SWIFT_SOURCES} \
+    -o "${MACOS_DIR}/${APP_NAME}_x86_64"
+
+echo "  -> Creating Universal 2 binary with lipo..."
+lipo -create -output "${MACOS_DIR}/${APP_NAME}" \
+    "${MACOS_DIR}/${APP_NAME}_arm64" \
+    "${MACOS_DIR}/${APP_NAME}_x86_64"
+
+rm -f "${MACOS_DIR}/${APP_NAME}_arm64" "${MACOS_DIR}/${APP_NAME}_x86_64"
+
+echo "==> Generating Info.plist (macOS ${DEPLOYMENT_TARGET}+)..."
+cat << EOF > "${CONTENTS_DIR}/Info.plist"
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -54,7 +72,7 @@ cat << 'EOF' > "${CONTENTS_DIR}/Info.plist"
     <key>CFBundleVersion</key>
     <string>1</string>
     <key>LSMinimumSystemVersion</key>
-    <string>14.0</string>
+    <string>${DEPLOYMENT_TARGET}</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>LSUIElement</key>
@@ -71,7 +89,6 @@ cat << 'EOF' > "${CONTENTS_DIR}/Info.plist"
 </dict>
 </plist>
 EOF
-
 echo "APPL????" > "${CONTENTS_DIR}/PkgInfo"
 chmod +x "${MACOS_DIR}/${APP_NAME}"
 

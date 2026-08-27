@@ -698,10 +698,9 @@ public struct LoginView: View {
                     Text("极简 IM 消息权限").tag(1)
                 }
                 .pickerStyle(.segmented)
-                .onChange(of: viewModel.scopePreset) { _, newPreset in
+                .onChange(of: viewModel.scopePreset) { newPreset in
                     viewModel.selectPreset(newPreset)
                 }
-                
                 ScrollView {
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(FeishuScopes.recommendedList) { scope in

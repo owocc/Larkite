@@ -5,8 +5,9 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "${DIR}"
 
 APP_NAME="Larkite"
-DMG_NAME="Larkite.dmg"
-TEMP_DMG="Larkite-temp.dmg"
+DMG_NAME="${1:-Larkite.dmg}"
+DEPLOY_TARGET="${2:-14.0}"
+TEMP_DMG="${DMG_NAME%.dmg}-temp.dmg"
 VOL_NAME="Larkite"
 BG_IMG="Resources/dmg_background.png"
 
@@ -26,9 +27,8 @@ APPS_FOLDER_Y=281         # 右侧 Applications 替身 Y 坐标
 # ==============================================================================
 
 # 1. Build the .app bundle first
-echo "==> Building ${APP_NAME}.app..."
-./build_app.sh
-
+echo "==> Building ${APP_NAME}.app (macOS ${DEPLOY_TARGET}+ Universal 2)..."
+./build_app.sh "${DEPLOY_TARGET}"
 # 2. Cleanup old DMG files and mounts
 echo "==> Cleaning up previous artifacts..."
 rm -f "${DMG_NAME}" "${TEMP_DMG}"

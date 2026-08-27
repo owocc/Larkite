@@ -1,4 +1,4 @@
-name: Release Larkite DMG
+name: Release Larkite DMG (Universal & Legacy)
 
 on:
   push:
@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   build-and-release:
-    name: Build & Release DMG (macOS ARM64)
+    name: Build Universal & Legacy DMGs (Apple Silicon & Intel)
     runs-on: macos-14
 
     steps:
@@ -28,29 +28,35 @@ jobs:
         run: |
           sudo xcode-select -s /Applications/Xcode_15.4.app || sudo xcode-select -s /Applications/Xcode.app
           swift --version
+          xcrun --show-sdk-version
 
-      - name: Build Larkite.app and Package Larkite.dmg
+      - name: Build Modern macOS 26+ / 14+ Universal Package
         run: |
           chmod +x ./build_app.sh ./build_dmg.sh
-          ./build_dmg.sh
+          echo "==> Packaging Modern Universal DMG (arm64 + x86_64)..."
+          ./build_dmg.sh "Larkite-macOS26-Universal.dmg" "14.0"
+          cp "Larkite-macOS26-Universal.dmg" "Larkite.dmg"
 
-      - name: Verify DMG Artifact
+      - name: Build Legacy macOS 13+ Compatibility Package
         run: |
-          if [ ! -f "Larkite.dmg" ]; then
-            echo "Error: Larkite.dmg was not generated!"
-            exit 1
-          fi
-          ls -lh Larkite.dmg
-          shasum -a 256 Larkite.dmg > Larkite.dmg.sha256
-          cat Larkite.dmg.sha256
+          echo "==> Packaging Legacy Universal DMG (arm64 + x86_64)..."
+          ./build_dmg.sh "Larkite-Legacy-Universal.dmg" "13.0"
 
-      - name: Upload Build Artifact
+      - name: Generate Checksums & Verify Artifacts
+        run: |
+          ls -lh Larkite*.dmg
+          shasum -a 256 Larkite-macOS26-Universal.dmg > Larkite-macOS26-Universal.dmg.sha256
+          shasum -a 256 Larkite-Legacy-Universal.dmg > Larkite-Legacy-Universal.dmg.sha256
+          shasum -a 256 Larkite.dmg > Larkite.dmg.sha256
+          cat *.sha256
+
+      - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Larkite-DMG
+          name: Larkite-DMG-Packages
           path: |
-            Larkite.dmg
-            Larkite.dmg.sha256
+            Larkite*.dmg
+            *.sha256
 
       - name: Determine Prerelease Status
         id: prerelease_check
@@ -72,6 +78,10 @@ jobs:
           prerelease: ${{ steps.prerelease_check.outputs.is_prerelease }}
           generate_release_notes: true
           files: |
+            Larkite-macOS26-Universal.dmg
+            Larkite-macOS26-Universal.dmg.sha256
+            Larkite-Legacy-Universal.dmg
+            Larkite-Legacy-Universal.dmg.sha256
             Larkite.dmg
             Larkite.dmg.sha256
         env:

@@ -448,7 +448,7 @@ public struct SettingsView: View {
                         TextField("cli_xxxxxxxxxxxx", text: $viewModel.draftAppId)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(size: 11, design: .monospaced))
-                            .onChange(of: viewModel.draftAppId) { _, _ in
+                            .onChange(of: viewModel.draftAppId) { _ in
                                 viewModel.saveCredentials(configManager: configManager)
                             }
                     }
@@ -460,7 +460,7 @@ public struct SettingsView: View {
                         SecureField("输入 App Secret", text: $viewModel.draftAppSecret)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(size: 11, design: .monospaced))
-                            .onChange(of: viewModel.draftAppSecret) { _, _ in
+                            .onChange(of: viewModel.draftAppSecret) { _ in
                                 viewModel.saveCredentials(configManager: configManager)
                             }
                     }
@@ -519,7 +519,7 @@ public struct SettingsView: View {
                     Text("自定义勾选").tag(2)
                 }
                 .pickerStyle(.segmented)
-                .onChange(of: viewModel.scopePreset) { _, newPreset in
+                .onChange(of: viewModel.scopePreset) { newPreset in
                     viewModel.selectScopePreset(newPreset, configManager: configManager)
                 }
                 
