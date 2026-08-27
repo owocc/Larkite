@@ -798,6 +798,12 @@ public final class AppState: ObservableObject {
             actualType = "email"
         }
         
+        // First check if an existing P2P chat (with real oc_... id) already exists for this user
+        if let existing = self.chats.first(where: { $0.isP2P && ($0.ownerId == cleanId || $0.chatId == cleanId) }) {
+            self.selectedChat = existing
+            return
+        }
+        
         let p2pChat = try await FeishuAPIClient.shared.createOrGetP2PChat(
             token: token,
             receiveIdType: actualType,
@@ -805,12 +811,12 @@ public final class AppState: ObservableObject {
         )
         
         if let index = self.chats.firstIndex(where: { $0.chatId == p2pChat.chatId }) {
-            self.chats[index] = p2pChat
+            self.selectedChat = self.chats[index]
         } else {
             self.chats.insert(p2pChat, at: 0)
+            self.selectedChat = p2pChat
         }
         
-        self.selectedChat = p2pChat
         ConfigManager.shared.saveP2PChats(self.chats)
     }
     

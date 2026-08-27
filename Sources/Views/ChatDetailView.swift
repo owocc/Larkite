@@ -654,6 +654,7 @@ public struct ChatDetailView: View {
                     // Start Direct Chat Action
                     Button {
                         Task {
+                            UserProfileManager.shared.registerUser(openId: member.memberId, name: member.displayName)
                             try? await appState.openDirectChatWithUser(idType: "open_id", idValue: member.memberId)
                         }
                     } label: {

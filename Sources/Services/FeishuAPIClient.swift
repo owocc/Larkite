@@ -414,52 +414,20 @@ public final class FeishuAPIClient: Sendable {
         }
     }
     
-    /// Opens or creates a single chat with a user by Open ID without sending any message
+    /// Constructs or returns a P2P single chat representation for a user without creating any unwanted groups
     public func createOrGetP2PChat(
         token: String,
         receiveIdType: String,
         receiveId: String
     ) async throws -> FeishuChatItem {
-        var components = URLComponents(string: "https://open.feishu.cn/open-apis/im/v1/chats")
-        components?.queryItems = [
-            URLQueryItem(name: "user_id_type", value: receiveIdType == "open_id" ? "open_id" : "user_id")
-        ]
+        let resolvedName = await UserProfileManager.shared.resolveDisplayName(for: receiveId, currentUserId: nil)
+        let displayName = resolvedName.hasPrefix("用户 (") ? "私聊 (\(receiveId.prefix(8)))" : resolvedName
         
-        guard let url = components?.url else {
-            throw APIError.invalidURL
-        }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        
-        let body: [String: Any] = [
-            "user_id_list": [receiveId]
-        ]
-        
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        
-        let (data, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw APIError.invalidResponse
-        }
-        
-        if httpResponse.statusCode == 401 {
-            throw APIError.unauthorized
-        }
-        
-        if let decoded = try? JSONDecoder().decode(FeishuChatDetailResponse.self, from: data),
-           decoded.code == 0, let chat = decoded.data {
-            return chat
-        }
-        
-        // Fallback: construct P2P chat item directly without sending any message
         return FeishuChatItem(
             chatId: receiveId,
             avatar: nil,
-            name: "私聊 (\(receiveId.prefix(8)))",
-            description: "单聊会话",
+            name: displayName,
+            description: "单聊 · \(displayName)",
             ownerId: receiveId,
             ownerIdType: receiveIdType,
             external: false,
