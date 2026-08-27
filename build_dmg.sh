@@ -10,6 +10,21 @@ TEMP_DMG="Larkite-temp.dmg"
 VOL_NAME="Larkite"
 BG_IMG="Resources/dmg_background.png"
 
+# ==============================================================================
+# 📐 自定义安装窗口与背景图尺寸 (Custom DMG Window & Background Dimensions)
+# ==============================================================================
+WINDOW_WIDTH=660          # 安装窗口宽度 (以点/像素为单位)
+WINDOW_HEIGHT=400         # 安装窗口高度 (以点/像素为单位)
+ICON_SIZE=100             # 图标渲染尺寸 (点)
+
+# 📍 两个图标的放置坐标 (X, Y，以窗口左上角为原点)
+APP_ICON_X=180            # 左侧 Larkite.app 图标 X 坐标
+APP_ICON_Y=240            # 左侧 Larkite.app 图标 Y 坐标
+
+APPS_FOLDER_X=480         # 右侧 Applications 替身 X 坐标
+APPS_FOLDER_Y=240         # 右侧 Applications 替身 Y 坐标
+# ==============================================================================
+
 # 1. Build the .app bundle first
 echo "==> Building ${APP_NAME}.app..."
 ./build_app.sh
@@ -41,10 +56,13 @@ ln -s /Applications "${MOUNT_DIR}/Applications"
 
 if [ -f "${BG_IMG}" ]; then
     mkdir -p "${MOUNT_DIR}/.background"
-    cp "${BG_IMG}" "${MOUNT_DIR}/.background/background.png"
+    # Scale background image to exact window dimensions at 72 DPI to prevent Finder zooming
+    echo "==> Resizing background image to ${WINDOW_WIDTH}x${WINDOW_HEIGHT}..."
+    sips -z "${WINDOW_HEIGHT}" "${WINDOW_WIDTH}" "${BG_IMG}" --out "${MOUNT_DIR}/.background/background.png" >/dev/null
+    sips -s dpiWidth 72.0 -s dpiHeight 72.0 "${MOUNT_DIR}/.background/background.png" >/dev/null
 fi
 
-# 6. Configure Window View, Coordinates, and Icon Size via AppleScript (Fixed 16:9 Ratio 640x360)
+# 6. Configure Window View, Coordinates, and Icon Size via AppleScript
 echo "==> Configuring Finder window view and icon layout..."
 osascript << EOF || true
 tell application "Finder"
@@ -54,16 +72,22 @@ tell application "Finder"
         set current view of container window to icon view
         set toolbar visible of container window to false
         set statusbar visible of container window to false
-        set the bounds of container window to {360, 200, 1000, 560}
+        
+        set winLeft to 320
+        set winTop to 180
+        set winRight to winLeft + ${WINDOW_WIDTH}
+        set winBottom to winTop + ${WINDOW_HEIGHT}
+        set the bounds of container window to {winLeft, winTop, winRight, winBottom}
+        
         set theViewOptions to the icon view options of container window
         set arrangement of theViewOptions to not arranged
-        set icon size of theViewOptions to 96
+        set icon size of theViewOptions to ${ICON_SIZE}
         try
             set background picture of theViewOptions to file ".background:background.png"
         end try
         delay 1
-        set position of item "${APP_NAME}.app" of container window to {175, 205}
-        set position of item "Applications" of container window to {465, 205}
+        set position of item "${APP_NAME}.app" of container window to {${APP_ICON_X}, ${APP_ICON_Y}}
+        set position of item "Applications" of container window to {${APPS_FOLDER_X}, ${APPS_FOLDER_Y}}
         close
         open
         update without registering applications
