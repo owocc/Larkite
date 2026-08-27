@@ -319,19 +319,29 @@ public struct ChatDetailView: View {
                             // Bottom breathing spacer dynamically adapting to floating dock expansion (with 16pt bottom margin)
                             Color.clear
                                 .frame(height: viewModel.isEditorExpanded ? 350 : min(180, max(76, viewModel.editorContentHeight + 52)))
+                                .id("messages_bottom_anchor")
                         }
                         .padding(.vertical, 8)
                     }
                     .onAppear {
-                        if let lastId = appState.messages.last?.id {
-                            proxy.scrollTo(lastId, anchor: .bottom)
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                            proxy.scrollTo("messages_bottom_anchor", anchor: .bottom)
+                        }
+                    }
+                    .onChange(of: appState.messages.last?.id) { _, _ in
+                        if !appState.isLoadingMessages {
+                            DispatchQueue.main.async {
+                                withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                                    proxy.scrollTo("messages_bottom_anchor", anchor: .bottom)
+                                }
+                            }
                         }
                     }
                     .onChange(of: appState.messages.count) { oldCount, newCount in
                         if newCount > oldCount && !appState.isLoadingMessages {
-                            if let lastId = appState.messages.last?.id {
-                                withAnimation(.easeOut(duration: 0.2)) {
-                                    proxy.scrollTo(lastId, anchor: .bottom)
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                                withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                                    proxy.scrollTo("messages_bottom_anchor", anchor: .bottom)
                                 }
                             }
                         }
