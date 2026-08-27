@@ -4,8 +4,10 @@ import AppKit
 @MainActor
 public final class MessageFileViewModel: ObservableObject {
     @Published public var isDownloading: Bool = false
+    @Published public var isPreviewing: Bool = false
     @Published public var downloadedUrl: URL?
     @Published public var downloadError: String?
+    @Published public var isHovered: Bool = false
     
     public init() {}
     
@@ -29,6 +31,34 @@ public final class MessageFileViewModel: ObservableObject {
             } catch {
                 self.downloadError = error.localizedDescription
                 self.isDownloading = false
+            }
+        }
+    }
+    
+    public func previewFile(messageId: String, fileKey: String, fileName: String) {
+        if let local = downloadedUrl {
+            NSWorkspace.shared.open(local)
+            return
+        }
+        
+        let token = AppState.shared.session?.accessToken ?? ""
+        guard !token.isEmpty else { return }
+        
+        isPreviewing = true
+        downloadError = nil
+        
+        Task {
+            do {
+                try await MessageResourceManager.shared.previewFile(
+                    token: token,
+                    messageId: messageId,
+                    fileKey: fileKey,
+                    fileName: fileName
+                )
+                self.isPreviewing = false
+            } catch {
+                self.downloadError = "打开失败: \(error.localizedDescription)"
+                self.isPreviewing = false
             }
         }
     }
@@ -82,7 +112,7 @@ public struct MessageFileView: View {
                             .foregroundColor(.red)
                             .lineLimit(1)
                     } else if viewModel.downloadedUrl != nil {
-                        Text("✓ 已存至下载目录")
+                        Text("✓ 已下载 (点击打开)")
                             .font(.system(size: 10))
                             .foregroundColor(.green)
                     }
@@ -91,38 +121,80 @@ public struct MessageFileView: View {
             
             Spacer(minLength: 12)
             
-            // Action Button
-            Button {
-                viewModel.downloadFile(
-                    messageId: messageId,
-                    fileKey: fileKey,
-                    fileName: fileName
-                )
-            } label: {
-                if viewModel.isDownloading {
-                    ProgressView()
-                        .controlSize(.small)
-                } else if viewModel.downloadedUrl != nil {
-                    Image(systemName: "folder.fill")
-                        .font(.system(size: 13))
-                        .foregroundColor(Color(hex: "3370FF"))
-                } else {
-                    Image(systemName: "arrow.down.circle.fill")
-                        .font(.system(size: 18))
-                        .foregroundColor(Color(hex: "3370FF"))
+            // Action Buttons
+            HStack(spacing: 8) {
+                // Preview Action
+                Button {
+                    viewModel.previewFile(messageId: messageId, fileKey: fileKey, fileName: fileName)
+                } label: {
+                    if viewModel.isPreviewing {
+                        ProgressView().controlSize(.mini)
+                    } else {
+                        Image(systemName: "eye.fill")
+                            .font(.system(size: 12))
+                            .foregroundColor(Color(hex: "3370FF"))
+                    }
                 }
+                .buttonStyle(.plain)
+                .help("使用系统默认程序预览")
+                
+                // Download Action
+                Button {
+                    viewModel.downloadFile(
+                        messageId: messageId,
+                        fileKey: fileKey,
+                        fileName: fileName
+                    )
+                } label: {
+                    if viewModel.isDownloading {
+                        ProgressView()
+                            .controlSize(.mini)
+                    } else if viewModel.downloadedUrl != nil {
+                        Image(systemName: "folder.fill")
+                            .font(.system(size: 13))
+                            .foregroundColor(Color.green)
+                    } else {
+                        Image(systemName: "arrow.down.circle.fill")
+                            .font(.system(size: 16))
+                            .foregroundColor(Color(hex: "3370FF"))
+                    }
+                }
+                .buttonStyle(.plain)
+                .help(viewModel.downloadedUrl != nil ? "在 Finder 中显示" : "下载此文件")
             }
-            .buttonStyle(.plain)
-            .help(viewModel.downloadedUrl != nil ? "在 Finder 中显示" : "下载此文件")
         }
         .padding(10)
-        .frame(maxWidth: 320)
+        .frame(maxWidth: 340)
         .background(Color(nsColor: .controlBackgroundColor).opacity(0.6))
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
         )
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            viewModel.isHovered = hovering
+        }
+        .contextMenu {
+            Button {
+                viewModel.previewFile(messageId: messageId, fileKey: fileKey, fileName: fileName)
+            } label: {
+                Label("使用系统默认程序打开", systemImage: "eye.fill")
+            }
+            
+            Button {
+                viewModel.downloadFile(messageId: messageId, fileKey: fileKey, fileName: fileName)
+            } label: {
+                Label("保存到下载目录并在 Finder 显示", systemImage: "arrow.down.circle.fill")
+            }
+            
+            Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(fileName, forType: .string)
+            } label: {
+                Label("复制文件名", systemImage: "doc.on.doc")
+            }
+        }
     }
     
     private var fileSystemIcon: String {

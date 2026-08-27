@@ -235,24 +235,15 @@ public struct MessageBubbleView: View {
             .background(bubbleBackground)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             
-        case .media(_, let imageKey, let fileName, let durationSec):
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 8) {
-                    Image(systemName: "film.fill")
-                        .foregroundColor(Color(hex: "3370FF"))
-                    Text(fileName ?? "视频消息")
-                        .font(.system(size: 12, weight: .medium))
-                    if let sec = durationSec {
-                        Text("\(sec)s")
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
-                    }
-                }
-                if let imgKey = imageKey {
-                    MessageImageView(messageId: message.messageId, imageKey: imgKey)
-                }
-            }
-            .padding(10)
+        case .media(let fileKey, let imageKey, let fileName, let durationSec):
+            MessageMediaView(
+                messageId: message.messageId,
+                fileKey: fileKey,
+                imageKey: imageKey,
+                fileName: fileName,
+                durationSec: durationSec
+            )
+            .padding(8)
             .background(bubbleBackground)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             

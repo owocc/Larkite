@@ -1,8 +1,8 @@
 import Foundation
 import AppKit
 
-/// Thread-safe in-memory and disk cache manager for message resource files (Images & Files)
-/// Features in-flight task deduplication and negative caching to prevent spamming requests.
+/// Thread-safe in-memory and disk cache manager for message resource files (Images, Videos & Files)
+/// Features system-level Quick Look / Default Viewer invocation and Finder download integration.
 @MainActor
 public final class MessageResourceManager: ObservableObject {
     public static let shared = MessageResourceManager()
@@ -20,6 +20,28 @@ public final class MessageResourceManager: ObservableObject {
         imageMemoryCache.object(forKey: key as NSString)
     }
     
+    /// Fetches raw data for a resource with fallbacks
+    public func fetchRawResourceData(
+        token: String,
+        messageId: String,
+        fileKey: String,
+        type: String = "image"
+    ) async throws -> Data {
+        do {
+            return try await FeishuAPIClient.shared.fetchMessageResource(
+                token: token,
+                messageId: messageId,
+                fileKey: fileKey,
+                type: type
+            )
+        } catch {
+            if type == "image" {
+                return try await FeishuAPIClient.shared.downloadImage(token: token, imageKey: fileKey)
+            }
+            throw error
+        }
+    }
+    
     /// Loads image resource with token from Feishu OpenAPI
     public func loadImage(
         token: String,
@@ -33,7 +55,7 @@ public final class MessageResourceManager: ObservableObject {
             return cached
         }
         
-        // 2. Check negative cache (do not re-request known failed/invalid keys)
+        // 2. Check negative cache
         if failedImageKeys.contains(cacheKey) {
             return nil
         }
@@ -46,7 +68,7 @@ public final class MessageResourceManager: ObservableObject {
         // 4. Create single network task
         let loadTask = Task<NSImage?, Never> {
             do {
-                let data = try await FeishuAPIClient.shared.fetchMessageResource(
+                let data = try await self.fetchRawResourceData(
                     token: token,
                     messageId: messageId,
                     fileKey: fileKey,
@@ -57,16 +79,8 @@ public final class MessageResourceManager: ObservableObject {
                     self.imageMemoryCache.setObject(image, forKey: cacheKey as NSString)
                     return image
                 }
-            } catch {
-                // If message resource fails, try image download fallback once
-                if let fallbackData = try? await FeishuAPIClient.shared.downloadImage(token: token, imageKey: fileKey),
-                   let image = NSImage(data: fallbackData) {
-                    self.imageMemoryCache.setObject(image, forKey: cacheKey as NSString)
-                    return image
-                }
-            }
+            } catch {}
             
-            // Mark as failed to avoid re-requesting on every scroll
             self.failedImageKeys.insert(cacheKey)
             return nil
         }
@@ -77,20 +91,99 @@ public final class MessageResourceManager: ObservableObject {
         return result
     }
     
-    /// Downloads and saves a message file to user's Downloads directory
+    // MARK: - System Preview (Open with Default macOS Apps)
+    
+    /// Opens the image in macOS default image previewer (Preview.app)
+    public func previewImage(
+        token: String,
+        messageId: String,
+        imageKey: String
+    ) async throws {
+        let data = try await fetchRawResourceData(token: token, messageId: messageId, fileKey: imageKey, type: "image")
+        
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("LarkNative/Images", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        
+        let fileUrl = tempDir.appendingPathComponent("img_\(imageKey.suffix(12)).png")
+        try data.write(to: fileUrl)
+        
+        NSWorkspace.shared.open(fileUrl)
+    }
+    
+    /// Opens video/media in macOS default video player (QuickTime Player)
+    public func previewMedia(
+        token: String,
+        messageId: String,
+        fileKey: String,
+        fileName: String?
+    ) async throws {
+        let data = try await fetchRawResourceData(token: token, messageId: messageId, fileKey: fileKey, type: "file")
+        
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("LarkNative/Videos", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        
+        let resolvedName = fileName ?? "video_\(fileKey.suffix(12)).mp4"
+        let fileUrl = tempDir.appendingPathComponent(resolvedName)
+        try data.write(to: fileUrl)
+        
+        NSWorkspace.shared.open(fileUrl)
+    }
+    
+    /// Opens document/file in macOS default app
+    public func previewFile(
+        token: String,
+        messageId: String,
+        fileKey: String,
+        fileName: String
+    ) async throws {
+        let data = try await fetchRawResourceData(token: token, messageId: messageId, fileKey: fileKey, type: "file")
+        
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("LarkNative/Files", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        
+        let fileUrl = tempDir.appendingPathComponent(fileName)
+        try data.write(to: fileUrl)
+        
+        NSWorkspace.shared.open(fileUrl)
+    }
+    
+    // MARK: - Save to Downloads Directory & Reveal in Finder
+    
+    /// Downloads image and saves to ~/Downloads
+    public func downloadAndSaveImage(
+        token: String,
+        messageId: String,
+        imageKey: String
+    ) async throws -> URL {
+        let data = try await fetchRawResourceData(token: token, messageId: messageId, fileKey: imageKey, type: "image")
+        let fileName = "飞书图片_\(imageKey.suffix(8)).png"
+        return try saveToDownloads(data: data, fileName: fileName)
+    }
+    
+    /// Downloads video/media and saves to ~/Downloads
+    public func downloadAndSaveMedia(
+        token: String,
+        messageId: String,
+        fileKey: String,
+        fileName: String?
+    ) async throws -> URL {
+        let data = try await fetchRawResourceData(token: token, messageId: messageId, fileKey: fileKey, type: "file")
+        let name = fileName ?? "飞书视频_\(fileKey.suffix(8)).mp4"
+        return try saveToDownloads(data: data, fileName: name)
+    }
+    
+    /// Downloads document file and saves to ~/Downloads
     public func downloadAndSaveFile(
         token: String,
         messageId: String,
         fileKey: String,
         fileName: String
     ) async throws -> URL {
-        let data = try await FeishuAPIClient.shared.fetchMessageResource(
-            token: token,
-            messageId: messageId,
-            fileKey: fileKey,
-            type: "file"
-        )
-        
+        let data = try await fetchRawResourceData(token: token, messageId: messageId, fileKey: fileKey, type: "file")
+        return try saveToDownloads(data: data, fileName: fileName)
+    }
+    
+    private func saveToDownloads(data: Data, fileName: String) throws -> URL {
         let downloadsUrl = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first!
         var destinationUrl = downloadsUrl.appendingPathComponent(fileName)
         
@@ -106,7 +199,6 @@ public final class MessageResourceManager: ObservableObject {
         
         try data.write(to: destinationUrl)
         NSWorkspace.shared.activateFileViewerSelecting([destinationUrl])
-        
         return destinationUrl
     }
 }
