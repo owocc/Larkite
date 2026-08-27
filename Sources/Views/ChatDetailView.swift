@@ -160,9 +160,8 @@ public struct ChatDetailView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 
-                // Collapsible Right-Side Inspector Panel (Apple Messages Style)
+                // Collapsible Right-Side Inspector Panel (Apple Messages Seamless Style)
                 if viewModel.isShowingRightPanel {
-                    Divider()
                     rightSideInspectorPanel(chat: chat)
                         .frame(width: 300)
                         .transition(.move(edge: .trailing).combined(with: .opacity))
@@ -744,8 +743,6 @@ public struct ChatDetailView: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
             .background(Color(nsColor: .controlBackgroundColor).opacity(0.3))
-            
-            Divider()
             
             ScrollView {
                 VStack(spacing: 16) {
