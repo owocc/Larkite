@@ -483,6 +483,50 @@ public final class FeishuAPIClient: Sendable {
         return decoded.data ?? FeishuContactListData(hasMore: false, pageToken: nil, items: [])
     }
     
+    public func fetchUserDetail(
+        token: String,
+        userId: String,
+        userIdType: String = "open_id"
+    ) async throws -> DetailedFeishuUser {
+        let encodedId = userId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? userId
+        var components = URLComponents(string: "https://open.feishu.cn/open-apis/contact/v3/users/\(encodedId)")
+        components?.queryItems = [
+            URLQueryItem(name: "user_id_type", value: userIdType),
+            URLQueryItem(name: "department_id_type", value: "open_department_id")
+        ]
+        
+        guard let url = components?.url else {
+            throw APIError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+        
+        let rawJsonString = String(data: data, encoding: .utf8)
+        
+        let decoded = try JSONDecoder().decode(FeishuUserDetailResponse.self, from: data)
+        if decoded.code != 0 {
+            throw APIError.feishuError(code: decoded.code, msg: decoded.msg)
+        }
+        
+        guard var user = decoded.data?.user else {
+            throw APIError.invalidResponse
+        }
+        
+        user.rawJsonString = rawJsonString
+        return user
+    }
+    
     // MARK: - Chat Messages History
     
     public func fetchChatMessages(

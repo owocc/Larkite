@@ -52,12 +52,27 @@ public struct MessageBubbleView: View {
     
     private func standardMessageRow(content: ParsedMessageContent) -> some View {
         HStack(alignment: .top, spacing: 10) {
-            // Sender Avatar
-            AvatarView(
-                urlString: senderAvatarUrl,
-                name: senderDisplayName,
-                size: 34
-            )
+            // Sender Avatar (Click to inspect profile)
+            Button {
+                if let senderId = message.sender?.id {
+                    Task {
+                        await appState.inspectUser(
+                            openId: senderId,
+                            fallbackName: senderDisplayName,
+                            fallbackAvatar: senderAvatarUrl
+                        )
+                    }
+                }
+            } label: {
+                AvatarView(
+                    urlString: senderAvatarUrl,
+                    name: senderDisplayName,
+                    size: 34
+                )
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("点击查看「\(senderDisplayName)」详细资料")
             
             VStack(alignment: .leading, spacing: 4) {
                 // Header (Sender Name, Bot Badge, Time, ID Copy)

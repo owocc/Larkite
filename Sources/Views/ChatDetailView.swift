@@ -615,27 +615,41 @@ public struct ChatDetailView: View {
         VStack(spacing: 6) {
             ForEach(filteredMembers) { member in
                 HStack(spacing: 10) {
-                    AvatarView(
-                        urlString: nil,
-                        name: member.displayName,
-                        size: 32
-                    )
-                    
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 6) {
-                            Text(member.displayName)
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(.primary)
+                    Button {
+                        Task {
+                            await appState.inspectUser(
+                                openId: member.memberId,
+                                fallbackName: member.displayName
+                            )
+                        }
+                    } label: {
+                        HStack(spacing: 10) {
+                            AvatarView(
+                                urlString: UserProfileManager.shared.resolveAvatarUrl(for: member.memberId),
+                                name: member.displayName,
+                                size: 32
+                            )
                             
-                            if member.isOwner(ownerId: chat.ownerId) {
-                                StatusBadge("群主", color: Color(hex: "FF9C00"), icon: "crown.fill")
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(spacing: 6) {
+                                    Text(member.displayName)
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundColor(.primary)
+                                    
+                                    if member.isOwner(ownerId: chat.ownerId) {
+                                        StatusBadge("群主", color: Color(hex: "FF9C00"), icon: "crown.fill")
+                                    }
+                                }
+                                
+                                Text(member.memberId)
+                                    .font(.system(size: 10, design: .monospaced))
+                                    .foregroundColor(.secondary)
                             }
                         }
-                        
-                        Text(member.memberId)
-                            .font(.system(size: 10, design: .monospaced))
-                            .foregroundColor(.secondary)
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
+                    .help("点击查看「\(member.displayName)」详细资料")
                     
                     Spacer()
                     

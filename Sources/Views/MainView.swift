@@ -14,6 +14,9 @@ public struct MainView: View {
             }
         }
         .frame(minWidth: 860, minHeight: 580)
+        .sheet(item: $appState.inspectedUser) { user in
+            UserProfileSheet(user: user)
+        }
     }
     
     private var authenticatedLayout: some View {

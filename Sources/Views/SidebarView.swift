@@ -36,39 +36,59 @@ public struct SidebarView: View {
     }
     
     private var userHeaderCard: some View {
-        HStack(spacing: 10) {
+        Button {
             if let user = appState.session?.user {
-                AvatarView(urlString: user.bestAvatarUrl, name: user.displayName, size: 36)
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(user.displayName)
-                        .font(.system(size: 13, weight: .semibold))
-                        .lineLimit(1)
-                    
-                    Text(user.email ?? user.mobile ?? (appState.session?.tokenType.rawValue ?? "已连接"))
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                }
-            } else {
-                AvatarView(urlString: nil, name: "飞书", size: 36)
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("飞书账号")
-                        .font(.system(size: 13, weight: .semibold))
-                    Text("在线")
-                        .font(.system(size: 10))
-                        .foregroundColor(.green)
+                Task {
+                    await appState.inspectUser(
+                        openId: user.openId ?? user.id,
+                        fallbackName: user.displayName,
+                        fallbackAvatar: user.bestAvatarUrl
+                    )
                 }
             }
-            
-            Spacer()
+        } label: {
+            HStack(spacing: 10) {
+                if let user = appState.session?.user {
+                    AvatarView(urlString: user.bestAvatarUrl, name: user.displayName, size: 36)
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(user.displayName)
+                            .font(.system(size: 13, weight: .semibold))
+                            .lineLimit(1)
+                        
+                        Text(user.email ?? user.mobile ?? (appState.session?.tokenType.rawValue ?? "已连接"))
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
+                } else {
+                    AvatarView(urlString: nil, name: "飞书", size: 36)
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("飞书账号")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text("在线")
+                            .font(.system(size: 10))
+                            .foregroundColor(.green)
+                    }
+                }
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary.opacity(0.6))
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color(nsColor: .quaternaryLabelColor).opacity(0.2))
+            )
+            .contentShape(Rectangle())
         }
-        .padding(8)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color(nsColor: .quaternaryLabelColor).opacity(0.2))
-        )
+        .buttonStyle(.plain)
+        .help("点击查看当前登录账号详细资料")
     }
     
     private func navButton(tab: NavigationTab) -> some View {

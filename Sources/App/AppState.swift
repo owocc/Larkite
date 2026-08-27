@@ -95,6 +95,10 @@ public final class AppState: ObservableObject {
     @Published public var chatMemberPageToken: String? = nil
     @Published public var hasMoreChatMembers: Bool = false
     
+    // MARK: - User Profile Inspection State
+    @Published public var inspectedUser: DetailedFeishuUser? = nil
+    @Published public var isInspectingUser: Bool = false
+    
     private var oauthServerTask: Task<Void, Never>?
     private var activeMessageLoadTask: Task<Void, Never>?
     private var activeMembersLoadTask: Task<Void, Never>?
@@ -867,5 +871,73 @@ public final class AppState: ObservableObject {
             self.selectedChat = p2pItem
         }
         ConfigManager.shared.saveP2PChats(self.chats)
+    }
+    
+    // MARK: - User Detail Profile Inspection
+    
+    public func inspectUser(openId: String, fallbackName: String? = nil, fallbackAvatar: String? = nil) async {
+        guard !openId.isEmpty else { return }
+        let token = session?.accessToken ?? ""
+        
+        isInspectingUser = true
+        
+        if !token.isEmpty {
+            if let detail = try? await FeishuAPIClient.shared.fetchUserDetail(token: token, userId: openId) {
+                self.inspectedUser = detail
+                UserProfileManager.shared.registerUser(
+                    openId: openId,
+                    name: detail.displayName,
+                    avatarUrl: detail.bestAvatarUrl,
+                    email: detail.email ?? detail.enterpriseEmail,
+                    jobTitle: detail.jobTitle
+                )
+                self.isInspectingUser = false
+                return
+            }
+        }
+        
+        // Fallback: construct detailed user from cached profile
+        let cached = UserProfileManager.shared.getProfile(for: openId)
+        let current = self.session?.user
+        let isSelf = (openId == current?.openId || openId == current?.userId)
+        
+        let name = isSelf ? (current?.displayName ?? fallbackName ?? "我") : (cached?.name ?? fallbackName ?? "飞书用户")
+        let avatarUrl = isSelf ? current?.bestAvatarUrl : (cached?.avatarUrl ?? fallbackAvatar)
+        let email = isSelf ? (current?.email ?? current?.enterpriseEmail) : cached?.email
+        let jobTitle = cached?.jobTitle
+        
+        let fallbackUser = DetailedFeishuUser(
+            openId: openId,
+            userId: isSelf ? current?.userId : nil,
+            unionId: isSelf ? current?.unionId : nil,
+            name: name,
+            enName: isSelf ? current?.enName : nil,
+            nickname: nil,
+            email: email,
+            enterpriseEmail: isSelf ? current?.enterpriseEmail : nil,
+            mobile: isSelf ? current?.mobile : nil,
+            mobileVisible: isSelf,
+            gender: nil,
+            avatar: FeishuContactAvatar(avatar72: avatarUrl, avatar240: avatarUrl, avatar640: avatarUrl, avatarOrigin: avatarUrl),
+            status: DetailedUserStatus(isFrozen: false, isResigned: false, isActivated: true, isExited: false, isUnjoin: false),
+            departmentIds: nil,
+            leaderUserId: nil,
+            city: nil,
+            country: nil,
+            workStation: nil,
+            joinTime: nil,
+            isTenantManager: nil,
+            employeeNo: isSelf ? current?.employeeNo : nil,
+            employeeType: nil,
+            jobTitle: jobTitle,
+            geo: nil,
+            jobLevelId: nil,
+            jobFamilyId: nil,
+            departmentPath: nil,
+            rawJsonString: nil
+        )
+        
+        self.inspectedUser = fallbackUser
+        self.isInspectingUser = false
     }
 }
