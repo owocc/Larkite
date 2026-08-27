@@ -391,10 +391,10 @@ public struct MessageBubbleView: View {
     
     private var bubbleBackground: some View {
         RoundedRectangle(cornerRadius: 12, style: .continuous)
-            .fill(Color(nsColor: .controlBackgroundColor).opacity(0.75))
+            .fill(Color(nsColor: .controlBackgroundColor).opacity(0.85))
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    .stroke(Color(nsColor: .separatorColor).opacity(0.35), lineWidth: 1)
             )
     }
     

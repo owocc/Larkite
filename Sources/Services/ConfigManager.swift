@@ -1,8 +1,27 @@
 import Foundation
+import SwiftUI
+
+public enum ThemeMode: String, CaseIterable, Identifiable, Codable, Sendable {
+    case system = "跟随系统"
+    case light = "浅色模式"
+    case dark = "深色模式"
+    
+    public var id: String { rawValue }
+    
+    public var colorScheme: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light: return .light
+        case .dark: return .dark
+        }
+    }
+}
 
 @MainActor
 public final class ConfigManager: ObservableObject {
     public static let shared = ConfigManager()
+    
+    private let themeModeKey = "LarkNative_ThemeMode"
     
     private let userDefaultsKey = "LarkNative_AppConfig"
     private let sessionKey = "LarkNative_UserSession"
@@ -19,12 +38,23 @@ public final class ConfigManager: ObservableObject {
     
     @Published public var accounts: [AccountSession] = []
     @Published public var activeAccountId: String? = nil
-    
+    @Published public var themeMode: ThemeMode = .system {
+        didSet {
+            UserDefaults.standard.set(themeMode.rawValue, forKey: themeModeKey)
+        }
+    }
     private init() {
+        // 0. Load theme mode
+        if let raw = UserDefaults.standard.string(forKey: themeModeKey),
+           let savedTheme = ThemeMode(rawValue: raw) {
+            self.themeMode = savedTheme
+        } else {
+            self.themeMode = .system
+        }
+        
         // 1. Load active account ID
         let savedActiveId = UserDefaults.standard.string(forKey: activeAccountIdKey)
         self.activeAccountId = savedActiveId
-        
         // 2. Load accounts list
         let loadedAccounts: [AccountSession]
         if let data = UserDefaults.standard.data(forKey: accountsKey),

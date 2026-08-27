@@ -24,10 +24,10 @@ public struct GlassCard<Content: View>: View {
                     .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                            .stroke(Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 1)
                     )
             )
-            .shadow(color: Color.black.opacity(0.12), radius: 10, x: 0, y: 4)
+            .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 3)
     }
 }
 

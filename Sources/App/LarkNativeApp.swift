@@ -11,7 +11,7 @@ struct LarkNativeApp: App {
             MainView()
                 .environmentObject(appState)
                 .environmentObject(configManager)
-                .preferredColorScheme(.dark)
+                .preferredColorScheme(configManager.themeMode.colorScheme)
         }
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified(showsTitle: true))

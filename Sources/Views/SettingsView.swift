@@ -65,6 +65,9 @@ public struct SettingsView: View {
                 }
                 .padding(.bottom, 4)
                 
+                // Appearance Theme Preference Card
+                appearanceCard
+                
                 // Active Session Info Card
                 if let session = appState.session {
                     sessionInfoCard(session: session)
@@ -72,7 +75,6 @@ public struct SettingsView: View {
                 
                 // Developer Credentials Card
                 credentialsCard
-                
                 // Comprehensive Scope Checklist Card
                 scopeChecklistCard
                 
@@ -101,6 +103,39 @@ public struct SettingsView: View {
         .background(Color(nsColor: .windowBackgroundColor))
     }
     
+    
+    private var appearanceCard: some View {
+        GlassCard(cornerRadius: 14, padding: 16) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Image(systemName: "circle.righthalf.filled")
+                        .foregroundColor(Color(hex: "3370FF"))
+                    Text("外观与主题偏好")
+                        .font(.system(size: 13, weight: .semibold))
+                    Spacer()
+                    StatusBadge(configManager.themeMode.rawValue, color: Color(hex: "3370FF"))
+                }
+                
+                Divider()
+                
+                HStack {
+                    Text("系统外观配色")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                    
+                    Spacer()
+                    
+                    Picker("", selection: $configManager.themeMode) {
+                        ForEach(ThemeMode.allCases) { mode in
+                            Text(mode.rawValue).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 260)
+                }
+            }
+        }
+    }
     private func sessionInfoCard(session: UserSession) -> some View {
         GlassCard(cornerRadius: 14, padding: 16) {
             VStack(alignment: .leading, spacing: 12) {
