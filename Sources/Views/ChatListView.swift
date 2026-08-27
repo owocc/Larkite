@@ -186,30 +186,6 @@ public struct ChatListView: View {
                 }
                 .menuStyle(.borderlessButton)
                 .help("会话筛选: \(appState.filterMode.menuTitle)")
-                
-                // Sidebar Toggle Button (macOS 26+ Liquid Glass, rightmost control in header)
-                Button {
-                    NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil)
-                } label: {
-                    Image(systemName: "sidebar.leading")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.secondary)
-                        .padding(5)
-                        .background(
-                            ZStack {
-                                VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
-                                Color(nsColor: .controlBackgroundColor).opacity(0.45)
-                            }
-                            .clipShape(Circle())
-                        )
-                        .overlay(
-                            Circle()
-                                .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
-                        )
-                        .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 1.5)
-                }
-                .buttonStyle(.plain)
-                .help("收起/展开侧边栏")
             }
             
             // Search Field
