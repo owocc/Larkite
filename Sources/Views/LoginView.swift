@@ -3,18 +3,25 @@ import AppKit
 
 @MainActor
 public final class LoginViewModel: ObservableObject {
-    @Published public var selectedLoginTab: Int = 0
+    @Published public var showProfileSheet: Bool = false
+    @Published public var showDirectTokenSheet: Bool = false
+    @Published public var showScopesSheet: Bool = false
+    
+    // Draft App Profile Configuration
     @Published public var draftAppId: String = ""
     @Published public var draftAppSecret: String = ""
     @Published public var draftRedirectUri: String = "http://127.0.0.1:8989/callback"
+    
+    // Direct Token Input
     @Published public var directTokenInput: String = ""
     @Published public var directTokenType: UserSession.TokenType = .userAccessToken
-    @Published public var manualCodeInput: String = ""
-    @Published public var showManualCodeInput: Bool = false
-    @Published public var copiedCallbackToast: Bool = false
+    
+    // Scopes
     @Published public var scopePreset: Int = 0 // 0: 推荐全能, 1: 纯 IM 极简, 2: 自定义
-    @Published public var showCustomScopes: Bool = false
     @Published public var selectedScopeKeys: Set<String> = Set(FeishuScopes.recommendedList.map(\.key))
+    
+    // Feedback
+    @Published public var copiedCallbackToast: Bool = false
     
     public init() {}
     
@@ -45,7 +52,7 @@ public final class LoginViewModel: ObservableObject {
             copiedCallbackToast = true
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
-            if self?.copiedCallbackToast == true {
+            withAnimation {
                 self?.copiedCallbackToast = false
             }
         }
@@ -55,13 +62,9 @@ public final class LoginViewModel: ObservableObject {
         self.scopePreset = preset
         if preset == 0 {
             self.selectedScopeKeys = Set(FeishuScopes.recommendedList.map(\.key))
-            self.showCustomScopes = false
         } else if preset == 1 {
             let minimal = FeishuScopes.recommendedList.filter { $0.isEssential }.map(\.key)
             self.selectedScopeKeys = Set(minimal)
-            self.showCustomScopes = false
-        } else {
-            self.showCustomScopes = true
         }
     }
     
@@ -86,543 +89,549 @@ public struct LoginView: View {
             // Ambient Background
             backgroundGradient
             
-            ScrollView {
-                VStack(spacing: 20) {
-                    // Back to active account button (if adding new account or active account exists)
-                    if appState.isAddingAccount || configManager.activeAccountId != nil {
-                        HStack {
-                            Button {
-                                appState.cancelAddingAccount()
-                            } label: {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "arrow.left")
-                                        .font(.system(size: 11, weight: .bold))
-                                    Text("返回并继续使用当前账号")
-                                        .font(.system(size: 12, weight: .semibold))
-                                }
-                                .foregroundColor(Color(hex: "3370FF"))
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(Color(hex: "3370FF").opacity(0.12))
-                                .clipShape(Capsule())
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            
-                            Spacer()
-                        }
-                        .frame(maxWidth: 520)
-                    }
-                    
-                    // Existing Accounts Switcher Banner (if accounts exist)
-                    if !configManager.accounts.isEmpty {
-                        existingAccountsBanner
-                            .frame(maxWidth: 520)
-                    }
-                    
-                    // Header Brand
-                    headerView
-                    
-                    // Local Server Status Banner
-                    localServerBanner
-                        .frame(maxWidth: 520)
-                    
-                    // Login Card
-                    GlassCard(cornerRadius: 24, padding: 24) {
-                        VStack(spacing: 20) {
-                            // Login Modes Segmented Control
-                            Picker("", selection: $viewModel.selectedLoginTab) {
-                                Text("飞书网页授权登录").tag(0)
-                                Text("自建应用免登录").tag(1)
-                                Text("Direct Token").tag(2)
-                            }
-                            .pickerStyle(.segmented)
-                            .padding(.bottom, 4)
-                            
-                            // Mode Content
-                            if viewModel.selectedLoginTab == 0 {
-                                oauthLoginSection
-                            } else if viewModel.selectedLoginTab == 1 {
-                                appCredentialsSection
-                            } else {
-                                directTokenSection
-                            }
-                            
-                            // Status & Error Banner
-                            if let error = appState.authError {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "exclamationmark.triangle.fill")
-                                        .foregroundColor(.red)
-                                    Text(error)
-                                        .font(.system(size: 12))
-                                        .foregroundColor(.red)
-                                        .lineLimit(3)
-                                }
-                                .padding(10)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Color.red.opacity(0.1))
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                            }
-                            
-                            if !appState.authStatusMessage.isEmpty {
-                                HStack(spacing: 8) {
-                                    ProgressView()
-                                        .controlSize(.small)
-                                    Text(appState.authStatusMessage)
-                                        .font(.system(size: 12))
-                                        .foregroundColor(.secondary)
-                                }
-                                .padding(10)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Color.blue.opacity(0.08))
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                            }
-                        }
-                    }
-                    .frame(maxWidth: 520)
-                    
-                    // Footer
-                    footerLinks
-                }
-                .padding(.horizontal, 32)
-                .padding(.vertical, 24)
+            VStack(spacing: 0) {
+                // Top Header: Back Button (Left) & Liquid Glass Action Group (Right)
+                topHeaderSection
+                    .padding(.horizontal, 16)
+                    .padding(.top, 14)
+                    .padding(.bottom, 8)
+                
+                Spacer(minLength: 0)
+                
+                // Main Login Body (Brand + 3 Buttons)
+                mainContentSection
+                    .padding(.horizontal, 24)
+                
+                Spacer(minLength: 0)
+                
+                // Bottom Callback Info & Status Bar
+                bottomCallbackSection
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 14)
             }
         }
-        .frame(minWidth: 680, minHeight: 680)
+        .frame(minWidth: 480, idealWidth: 500, maxWidth: 540, minHeight: 360, idealHeight: 375, maxHeight: 400)
         .onAppear {
             viewModel.initDrafts(config: configManager.config)
         }
+        .sheet(isPresented: $viewModel.showProfileSheet) {
+            appProfileConfigSheet
+        }
+        .sheet(isPresented: $viewModel.showDirectTokenSheet) {
+            directTokenInputSheet
+        }
+        .sheet(isPresented: $viewModel.showScopesSheet) {
+            scopeSettingsSheet
+        }
     }
     
-    private var existingAccountsBanner: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: "person.2.fill")
+    // MARK: - Top Header Section (Liquid Glass, No Extra Chevrons)
+    
+    private var topHeaderSection: some View {
+        HStack(spacing: 10) {
+            // Left: Back Button (if already logged in or active account exists)
+            if appState.isLoggedIn || configManager.activeAccountId != nil {
+                Button {
+                    AccountWindowManager.shared.closeWindow()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.left")
+                            .font(.system(size: 11, weight: .bold))
+                        Text("返回聊天")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
                     .foregroundColor(Color(hex: "3370FF"))
-                Text("已保存的飞书账号 (点击直接进入)")
-                    .font(.system(size: 12, weight: .bold))
-                Spacer()
-                Text("\(configManager.accounts.count) 个可用")
-                    .font(.system(size: 10))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(
+                        ZStack {
+                            VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
+                            Color(nsColor: .controlBackgroundColor).opacity(0.55)
+                        }
+                        .clipShape(Capsule())
+                    )
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+                .help("返回主聊天窗口")
+            } else {
+                Text("Lark Native")
+                    .font(.system(size: 13, weight: .bold))
                     .foregroundColor(.secondary)
             }
             
-            ForEach(configManager.accounts) { acc in
-                let isActive = acc.id == configManager.activeAccountId
-                HStack(spacing: 10) {
-                    AvatarView(urlString: acc.avatarUrl, name: acc.displayName, size: 30)
-                    
-                    VStack(alignment: .leading, spacing: 1) {
-                        HStack(spacing: 4) {
-                            Text(acc.displayName)
-                                .font(.system(size: 12, weight: .semibold))
-                            if isActive {
-                                StatusBadge("当前使用", color: .green)
+            Spacer()
+            
+            // Right 1: User / Saved Accounts Switcher Pill (Liquid Glass, matching user reference image 5963b2d665ca17ca.png)
+            Menu {
+                if !configManager.accounts.isEmpty {
+                    Section("已保存企业账号") {
+                        ForEach(configManager.accounts) { acc in
+                            let isActive = acc.id == configManager.activeAccountId
+                            Button {
+                                appState.switchAccount(to: acc.id)
+                                AccountWindowManager.shared.closeWindow()
+                            } label: {
+                                HStack {
+                                    Text(acc.displayName)
+                                    if isActive {
+                                        Spacer()
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
                             }
                         }
-                        Text(acc.email ?? acc.id)
-                            .font(.system(size: 9))
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
                     }
                     
-                    Spacer()
-                    
-                    Button {
-                        appState.switchAccount(to: acc.id)
-                    } label: {
-                        HStack(spacing: 3) {
-                            Text(isActive ? "继续使用" : "直接进入")
-                            Image(systemName: "arrow.right")
-                                .font(.system(size: 9))
-                        }
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(Color(hex: "3370FF"))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Color(hex: "3370FF").opacity(0.12))
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
+                    Divider()
                 }
-                .padding(6)
-                .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-            }
-        }
-        .padding(12)
-        .background(Color(nsColor: .quaternaryLabelColor).opacity(0.18))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-    }
-    
-    private var headerView: some View {
-        VStack(spacing: 8) {
-            ZStack {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color(hex: "3370FF"), Color(hex: "1F55E6")],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 56, height: 56)
-                    .shadow(color: Color(hex: "3370FF").opacity(0.4), radius: 14, x: 0, y: 6)
                 
-                Image(systemName: "bird.fill")
-                    .font(.system(size: 26, weight: .bold))
-                    .foregroundColor(.white)
+                Button {
+                    appState.startAddingNewAccount()
+                } label: {
+                    Label("登录新账号 / 添加新企业", systemImage: "person.crop.circle.badge.plus")
+                }
+            } label: {
+                HStack(spacing: 5) {
+                    if let user = appState.session?.user {
+                        AvatarView(urlString: user.bestAvatarUrl, name: user.displayName, size: 20)
+                    } else if let activeId = configManager.activeAccountId, let acc = configManager.accounts.first(where: { $0.id == activeId }) {
+                        AvatarView(urlString: acc.avatarUrl, name: acc.displayName, size: 20)
+                    } else {
+                        Image(systemName: "person.crop.circle.fill")
+                            .font(.system(size: 14))
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 7, weight: .bold))
+                        .foregroundColor(.secondary.opacity(0.8))
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    ZStack {
+                        VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
+                        Color(nsColor: .controlBackgroundColor).opacity(0.55)
+                    }
+                    .clipShape(Capsule())
+                )
+                .overlay(
+                    Capsule()
+                        .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 1.5)
             }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .help("切换企业组织与已保存账号")
             
-            Text("Lark Native")
-                .font(.system(size: 22, weight: .bold, design: .rounded))
-            
-            Text("多组织 · 多应用凭证独立隔离 · 现代原生飞书客户端")
-                .font(.system(size: 12))
-                .foregroundColor(.secondary)
+            // Right 2: Server / App Profile Button (Liquid Glass Circular, matching user reference image 5963b2d665ca17ca.png)
+            Menu {
+                Button {
+                    viewModel.showProfileSheet = true
+                } label: {
+                    Label("配置自建应用凭据 (App ID / Secret)", systemImage: "server.rack")
+                }
+                
+                Button {
+                    viewModel.showScopesSheet = true
+                } label: {
+                    Label("设置 OpenAPI 授权权限 (Scopes)", systemImage: "lock.shield")
+                }
+                
+                Divider()
+                
+                Button {
+                    viewModel.copyCallbackUrl(url: viewModel.draftRedirectUri)
+                } label: {
+                    Label("复制本地回调地址 (8989)", systemImage: "doc.on.doc")
+                }
+            } label: {
+                Image(systemName: "server.rack")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.secondary)
+                    .padding(6)
+                    .background(
+                        ZStack {
+                            VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
+                            Color(nsColor: .controlBackgroundColor).opacity(0.55)
+                        }
+                        .clipShape(Circle())
+                    )
+                    .overlay(
+                        Circle()
+                            .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
+                    )
+                    .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 1.5)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .help("自建应用与服务配置 (Server Profile)")
         }
     }
     
-    private var localServerBanner: some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(appState.isLocalServerRunning ? Color.green : Color.secondary.opacity(0.6))
-                .frame(width: 8, height: 8)
+    // MARK: - Main Login Body (3 Clean Action Buttons)
+    
+    private var mainContentSection: some View {
+        VStack(spacing: 16) {
+            // Brand Logo & Title
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(Color(hex: "3370FF"))
+                        .frame(width: 36, height: 36)
+                    
+                    Image(systemName: "bird.fill")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(.white)
+                }
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Lark Native")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.primary)
+                    
+                    Text("极简原生飞书 / Lark 客户端")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding(.bottom, 4)
             
-            Text(appState.isLocalServerRunning ? "本地回调服务: 临时监听中 (127.0.0.1:\(appState.localServerPort))" : "本地回调服务: 按需启动 (点击授权时临时唤起)")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(appState.isLocalServerRunning ? .primary : .secondary)
+            // 3 Clean Primary Login Buttons
+            VStack(spacing: 10) {
+                // Button 1: OAuth 2.0 Web Login (Primary Action)
+                Button {
+                    let cfg = viewModel.buildDraftConfig()
+                    configManager.config = cfg
+                    appState.startOAuthLogin()
+                } label: {
+                    HStack(spacing: 8) {
+                        if appState.isAuthenticating {
+                            ProgressView()
+                                .controlSize(.small)
+                                .tint(.white)
+                        } else {
+                            Image(systemName: "globe")
+                                .font(.system(size: 13, weight: .semibold))
+                        }
+                        Text("飞书网页一键授权登录 (OAuth 2.0)")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 36)
+                    .background(Color(hex: "3370FF"))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(appState.isAuthenticating)
+                .help("在默认浏览器中打开飞书授权页面，自动捕获凭据")
+                
+                // Button 2: Tenant Access Token (Bot / App Mode)
+                Button {
+                    let cfg = viewModel.buildDraftConfig()
+                    configManager.config = cfg
+                    Task {
+                        await appState.loginWithAppCredentials(appId: cfg.appId, appSecret: cfg.appSecret)
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "cpu.fill")
+                            .font(.system(size: 12))
+                        Text("自建应用机器人模式进入 (Tenant Token)")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .foregroundColor(.primary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 34)
+                    .background(Color(nsColor: .controlBackgroundColor).opacity(0.75))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(Color(nsColor: .separatorColor).opacity(0.3), lineWidth: 0.8)
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(appState.isAuthenticating)
+                .help("使用 App ID 和 App Secret 直接获取 tenant_access_token 免登录进入")
+                // Button 3: Direct User Access Token Input
+                Button {
+                    viewModel.showDirectTokenSheet = true
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "key.fill")
+                            .font(.system(size: 11))
+                        Text("录入 User Access Token 访问凭据...")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 32)
+                    .background(Color(nsColor: .quaternaryLabelColor).opacity(0.15))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .help("手动粘贴 user_access_token (u-xxxx) 或 tenant_access_token (t-xxxx)")
+            }
+            .frame(maxWidth: 380)
+            
+            // Status & Error Toast
+            if let error = appState.authError {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.red)
+                    Text(error)
+                        .font(.system(size: 11))
+                        .foregroundColor(.red)
+                        .lineLimit(2)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(Color.red.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+            } else if !appState.authStatusMessage.isEmpty {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text(appState.authStatusMessage)
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(Color.blue.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+        }
+    }
+    
+    // MARK: - Bottom Callback Info Bar with 1-Click Copy
+    
+    private var bottomCallbackSection: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "network")
+                .font(.system(size: 10))
+                .foregroundColor(.secondary)
+            
+            Text("本地回调: \(viewModel.draftRedirectUri)")
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundColor(.secondary)
+                .lineLimit(1)
             
             Spacer()
             
             Button {
                 viewModel.copyCallbackUrl(url: viewModel.draftRedirectUri)
             } label: {
-                HStack(spacing: 4) {
+                HStack(spacing: 3) {
                     Image(systemName: viewModel.copiedCallbackToast ? "checkmark" : "doc.on.doc")
-                    Text(viewModel.copiedCallbackToast ? "已复制地址" : "复制回调地址")
+                    Text(viewModel.copiedCallbackToast ? "已复制" : "复制")
                 }
-                .font(.system(size: 10, weight: .medium))
-                .foregroundColor(Color(hex: "3370FF"))
+                .font(.system(size: 9, weight: .medium))
+                .foregroundColor(viewModel.copiedCallbackToast ? .green : Color(hex: "3370FF"))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color(hex: "3370FF").opacity(0.1))
+                .clipShape(Capsule())
             }
             .buttonStyle(.plain)
+            .help("一键复制回调地址并在飞书开放平台配置")
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        .background(Color(nsColor: .quaternaryLabelColor).opacity(0.2))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
     
-    private var oauthLoginSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("使用飞书 OAuth 2.0 登录")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(.primary)
-            
-            VStack(alignment: .leading, spacing: 6) {
-                Text("App ID (当前组织应用标识)")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.secondary)
-                TextField("cli_xxxxxxxx", text: $viewModel.draftAppId)
-                    .textFieldStyle(.roundedBorder)
+    // MARK: - App Profile / Server Configuration Sheet
+    
+    private var appProfileConfigSheet: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("自建应用与服务配置 (Profile)")
+                    .font(.system(size: 14, weight: .bold))
+                Spacer()
+                Button("完成") {
+                    let cfg = viewModel.buildDraftConfig()
+                    configManager.config = cfg
+                    viewModel.showProfileSheet = false
+                }
+                .controlSize(.small)
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
             
-            VStack(alignment: .leading, spacing: 6) {
-                Text("App Secret (当前应用密钥)")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.secondary)
-                SecureField("输入应用 Secret", text: $viewModel.draftAppSecret)
-                    .textFieldStyle(.roundedBorder)
-            }
+            Divider()
             
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text("重定向回调 URL (本地临时监听)")
-                        .font(.system(size: 11, weight: .medium))
+            VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("App ID")
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(.secondary)
-                    Spacer()
-                    Text("无需公网服务器")
-                        .font(.system(size: 10))
-                        .foregroundColor(.green)
-                }
-                TextField("http://127.0.0.1:8989/callback", text: $viewModel.draftRedirectUri)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 11, design: .monospaced))
-            }
-            
-            // Scope Presets & Selection
-            VStack(alignment: .leading, spacing: 8) {
-                Text("申请权限 Scope 配置")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.primary)
-                
-                HStack(spacing: 6) {
-                    scopePresetPill(title: "⭐ 推荐全能权限", preset: 0)
-                    scopePresetPill(title: "💬 纯 IM 极简", preset: 1)
-                    scopePresetPill(title: "⚙️ 自定义勾选", preset: 2)
+                    TextField("cli_xxxxxxxxxxxx", text: $viewModel.draftAppId)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 12, design: .monospaced))
                 }
                 
-                if viewModel.showCustomScopes {
-                    customScopeChecklist
-                        .padding(.top, 4)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("App Secret")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.secondary)
+                    SecureField("输入 App Secret", text: $viewModel.draftAppSecret)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 12, design: .monospaced))
                 }
-            }
-            .padding(10)
-            .background(Color(nsColor: .quaternaryLabelColor).opacity(0.15))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            
-            // Manual code paste toggle
-            VStack(alignment: .leading, spacing: 6) {
-                Button {
-                    withAnimation {
-                        viewModel.showManualCodeInput.toggle()
-                    }
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: viewModel.showManualCodeInput ? "chevron.down" : "chevron.right")
-                            .font(.system(size: 10))
-                        Text("或直接粘贴回调链接 / 授权 Code")
-                            .font(.system(size: 11))
-                    }
-                    .foregroundColor(Color(hex: "3370FF"))
-                }
-                .buttonStyle(.plain)
                 
-                if viewModel.showManualCodeInput {
-                    HStack(spacing: 6) {
-                        TextField("粘贴 http://127.0.0.1:8989/callback?code=... 或直接粘贴 code", text: $viewModel.manualCodeInput)
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(size: 11, design: .monospaced))
-                        
-                        Button("确认") {
-                            Task {
-                                await appState.handleIncomingAuthCode(
-                                    viewModel.manualCodeInput,
-                                    customConfig: viewModel.buildDraftConfig()
-                                )
-                            }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
-                        .disabled(viewModel.manualCodeInput.isEmpty)
-                    }
-                    .padding(.top, 2)
-                }
-            }
-            
-            Divider().padding(.vertical, 4)
-            
-            HStack {
-                if appState.isAuthenticating {
-                    Button("取消") {
-                        appState.cancelOAuthLogin()
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundColor(.secondary)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("OAuth 重定向地址")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.secondary)
+                    TextField("http://127.0.0.1:8989/callback", text: $viewModel.draftRedirectUri)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 12, design: .monospaced))
                 }
                 
                 Spacer()
-                
-                PrimaryGradientButton(
-                    appState.isAuthenticating ? "授权进行中..." : "启动飞书授权登录",
-                    icon: "arrow.up.right.square.fill",
-                    isLoading: appState.isAuthenticating
-                ) {
-                    appState.startOAuthLogin(customConfig: viewModel.buildDraftConfig())
-                }
             }
+            .padding(16)
         }
+        .frame(width: 440, height: 320)
     }
     
-    private func scopePresetPill(title: String, preset: Int) -> some View {
-        let isSelected = viewModel.scopePreset == preset
-        return Button {
-            viewModel.selectPreset(preset)
-        } label: {
-            Text(title)
-                .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
-                .foregroundColor(isSelected ? Color(hex: "3370FF") : .secondary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(isSelected ? Color(hex: "3370FF").opacity(0.14) : Color(nsColor: .controlBackgroundColor))
-                )
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
+    // MARK: - Direct Token Input Sheet
     
-    private var customScopeChecklist: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ForEach(FeishuScopes.recommendedList) { scope in
-                Button {
-                    viewModel.toggleScopeKey(scope.key)
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: viewModel.selectedScopeKeys.contains(scope.key) ? "checkmark.square.fill" : "square")
-                            .foregroundColor(viewModel.selectedScopeKeys.contains(scope.key) ? Color(hex: "3370FF") : .secondary)
-                            .font(.system(size: 12))
-                        
-                        Text(scope.key)
-                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                            .foregroundColor(.primary)
-                        
-                        Text("(\(scope.name))")
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
-                    }
-                    .contentShape(Rectangle())
+    private var directTokenInputSheet: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("录入访问凭证 (Direct Token)")
+                    .font(.system(size: 14, weight: .bold))
+                Spacer()
+                Button("关闭") {
+                    viewModel.showDirectTokenSheet = false
                 }
                 .buttonStyle(.plain)
             }
-        }
-        .padding(.vertical, 4)
-    }
-    
-    private var appCredentialsSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("通过自建应用获取 Tenant Token")
-                .font(.system(size: 13, weight: .semibold))
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
             
-            Text("自建应用免登录模式，直接以应用机器人身份查询已加入的群聊列表。")
-                .font(.system(size: 12))
-                .foregroundColor(.secondary)
+            Divider()
             
-            VStack(alignment: .leading, spacing: 6) {
-                Text("App ID")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.secondary)
-                TextField("cli_xxxxxxxx", text: $viewModel.draftAppId)
-                    .textFieldStyle(.roundedBorder)
-            }
-            
-            VStack(alignment: .leading, spacing: 6) {
-                Text("App Secret")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.secondary)
-                SecureField("输入应用 Secret", text: $viewModel.draftAppSecret)
-                    .textFieldStyle(.roundedBorder)
-            }
-            
-            Divider().padding(.vertical, 4)
-            
-            HStack {
-                Spacer()
-                PrimaryGradientButton(
-                    "使用应用凭据连接",
-                    icon: "key.fill",
-                    isLoading: appState.isAuthenticating
-                ) {
-                    Task {
-                        await appState.loginWithAppCredentials(
-                            appId: viewModel.draftAppId,
-                            appSecret: viewModel.draftAppSecret
-                        )
-                    }
+            VStack(alignment: .leading, spacing: 14) {
+                Picker("凭证类型", selection: $viewModel.directTokenType) {
+                    Text("User Access Token (u-xxxx)").tag(UserSession.TokenType.userAccessToken)
+                    Text("Tenant Access Token (t-xxxx)").tag(UserSession.TokenType.tenantAccessToken)
                 }
-            }
-        }
-    }
-    
-    private var directTokenSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("直接输入 Access Token")
-                .font(.system(size: 13, weight: .semibold))
-            
-            Text("支持直接粘贴通过飞书开放平台调试台生成的 user_access_token 或 tenant_access_token 进行快速体验。")
-                .font(.system(size: 12))
-                .foregroundColor(.secondary)
-            
-            Picker("Token 类型", selection: $viewModel.directTokenType) {
-                Text("user_access_token (用户凭证)").tag(UserSession.TokenType.userAccessToken)
-                Text("tenant_access_token (企业凭证)").tag(UserSession.TokenType.tenantAccessToken)
-            }
-            .pickerStyle(.radioGroup)
-            .horizontalRadioGroupLayout()
-            
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Access Token")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.secondary)
+                .pickerStyle(.segmented)
+                
                 TextEditor(text: $viewModel.directTokenInput)
-                    .font(.system(size: 11, design: .monospaced))
-                    .frame(height: 70)
+                    .font(.system(size: 12, design: .monospaced))
+                    .frame(height: 100)
                     .padding(4)
                     .background(Color(nsColor: .controlBackgroundColor))
                     .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.3), lineWidth: 1))
-            }
-            
-            Divider().padding(.vertical, 4)
-            
-            HStack {
-                Spacer()
-                PrimaryGradientButton(
-                    "验证并登录",
-                    icon: "checkmark.shield.fill",
-                    isLoading: appState.isAuthenticating
-                ) {
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 0.8)
+                    )
+                
+                Button {
+                    let clean = viewModel.directTokenInput.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !clean.isEmpty else { return }
+                    viewModel.showDirectTokenSheet = false
                     Task {
-                        await appState.loginWithDirectToken(token: viewModel.directTokenInput, tokenType: viewModel.directTokenType)
+                        await appState.loginWithDirectToken(token: clean, tokenType: viewModel.directTokenType)
                     }
+                } label: {
+                    Text("确认登录并连接")
+                        .font(.system(size: 12, weight: .semibold))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 32)
                 }
+                .buttonStyle(.borderedProminent)
+                .disabled(viewModel.directTokenInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                
+                Spacer()
             }
+            .padding(16)
         }
+        .frame(width: 440, height: 300)
     }
     
-    private var footerLinks: some View {
-        HStack(spacing: 16) {
-            Button("飞书开发者后台") {
-                if let url = URL(string: "https://open.feishu.cn/app") {
-                    NSWorkspace.shared.open(url)
+    // MARK: - Scopes Setting Sheet
+    
+    private var scopeSettingsSheet: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("OpenAPI 授权权限 (Scopes)")
+                    .font(.system(size: 14, weight: .bold))
+                Spacer()
+                Button("完成") {
+                    viewModel.showScopesSheet = false
                 }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
             }
-            .buttonStyle(.link)
-            .font(.system(size: 12))
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
             
-            Text("•").foregroundColor(.secondary)
+            Divider()
             
-            Button("API 调试台") {
-                if let url = URL(string: "https://open.feishu.cn/api-explorer") {
-                    NSWorkspace.shared.open(url)
+            VStack(alignment: .leading, spacing: 10) {
+                Picker("", selection: $viewModel.scopePreset) {
+                    Text("推荐全能权限").tag(0)
+                    Text("极简 IM 消息权限").tag(1)
                 }
-            }
-            .buttonStyle(.link)
-            .font(.system(size: 12))
-            
-            Text("•").foregroundColor(.secondary)
-            
-            Button("查看权限申请指南") {
-                if let url = URL(string: "https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/chat/list") {
-                    NSWorkspace.shared.open(url)
+                .pickerStyle(.segmented)
+                .onChange(of: viewModel.scopePreset) { _, newPreset in
+                    viewModel.selectPreset(newPreset)
                 }
+                
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(FeishuScopes.recommendedList) { scope in
+                            Toggle(isOn: Binding(
+                                get: { viewModel.selectedScopeKeys.contains(scope.key) },
+                                set: { _ in viewModel.toggleScopeKey(scope.key) }
+                            )) {
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(scope.name)
+                                        .font(.system(size: 11, weight: .medium))
+                                    Text(scope.key)
+                                        .font(.system(size: 9, design: .monospaced))
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            .toggleStyle(.checkbox)
+                        }
+                    }
+                    .padding(6)
+                }
+                .frame(maxHeight: 200)
+                .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
             }
-            .buttonStyle(.link)
-            .font(.system(size: 12))
+            .padding(16)
         }
+        .frame(width: 440, height: 340)
     }
     
     private var backgroundGradient: some View {
-        ZStack {
-            Color(nsColor: .windowBackgroundColor)
-            
-            RadialGradient(
-                colors: [Color(hex: "3370FF").opacity(0.12), Color.clear],
-                center: .topLeading,
-                startRadius: 50,
-                endRadius: 450
-            )
-            
-            RadialGradient(
-                colors: [Color(hex: "00B67A").opacity(0.08), Color.clear],
-                center: .bottomTrailing,
-                startRadius: 50,
-                endRadius: 400
-            )
-        }
+        LinearGradient(
+            colors: [
+                Color(nsColor: .windowBackgroundColor),
+                Color(hex: "3370FF").opacity(0.04),
+                Color(nsColor: .windowBackgroundColor)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
         .ignoresSafeArea()
     }
 }

@@ -22,7 +22,7 @@ public final class AccountWindowManager: NSObject, NSWindowDelegate {
         let hostingController = NSHostingController(rootView: contentView)
         
         let newWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 640, height: 740),
+            contentRect: NSRect(x: 0, y: 0, width: 500, height: 375),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -31,7 +31,8 @@ public final class AccountWindowManager: NSObject, NSWindowDelegate {
         newWindow.titleVisibility = .hidden
         newWindow.titlebarAppearsTransparent = true
         newWindow.isReleasedWhenClosed = false
-        newWindow.minSize = NSSize(width: 560, height: 620)
+        newWindow.minSize = NSSize(width: 460, height: 345)
+        newWindow.maxSize = NSSize(width: 560, height: 420)
         newWindow.center()
         newWindow.contentViewController = hostingController
         newWindow.delegate = self
