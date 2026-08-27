@@ -128,44 +128,11 @@ public struct LoginView: View {
     // MARK: - Top Header Section (Liquid Glass, No Extra Chevrons)
     
     private var topHeaderSection: some View {
-        HStack(spacing: 10) {
-            // Left: Back Button (if already logged in or active account exists)
-            if appState.isLoggedIn || configManager.activeAccountId != nil {
-                Button {
-                    AccountWindowManager.shared.closeWindow()
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.left")
-                            .font(.system(size: 11, weight: .bold))
-                        Text("返回聊天")
-                            .font(.system(size: 11, weight: .semibold))
-                    }
-                    .foregroundColor(Color(hex: "3370FF"))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(
-                        ZStack {
-                            VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
-                            Color(nsColor: .controlBackgroundColor).opacity(0.55)
-                        }
-                        .clipShape(Capsule())
-                    )
-                    .overlay(
-                        Capsule()
-                            .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
-                    )
-                }
-                .buttonStyle(.plain)
-                .help("返回主聊天窗口")
-            } else {
-                Text("Lark Native")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(.secondary)
-            }
-            
+        HStack(spacing: 8) {
+            // Left spacer for native traffic lights
             Spacer()
             
-            // Right 1: User / Saved Accounts Switcher Pill (Liquid Glass, matching user reference image 5963b2d665ca17ca.png)
+            // Right 1: User / Saved Accounts Switcher Circular Liquid Glass Button (matching sidebar style)
             Menu {
                 if !configManager.accounts.isEmpty {
                     Section("已保存企业账号") {
@@ -195,32 +162,27 @@ public struct LoginView: View {
                     Label("登录新账号 / 添加新企业", systemImage: "person.crop.circle.badge.plus")
                 }
             } label: {
-                HStack(spacing: 5) {
+                ZStack {
                     if let user = appState.session?.user {
-                        AvatarView(urlString: user.bestAvatarUrl, name: user.displayName, size: 20)
+                        AvatarView(urlString: user.bestAvatarUrl, name: user.displayName, size: 22)
                     } else if let activeId = configManager.activeAccountId, let acc = configManager.accounts.first(where: { $0.id == activeId }) {
-                        AvatarView(urlString: acc.avatarUrl, name: acc.displayName, size: 20)
+                        AvatarView(urlString: acc.avatarUrl, name: acc.displayName, size: 22)
                     } else {
                         Image(systemName: "person.crop.circle.fill")
-                            .font(.system(size: 14))
+                            .font(.system(size: 13))
                             .foregroundColor(.secondary)
                     }
-                    
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 7, weight: .bold))
-                        .foregroundColor(.secondary.opacity(0.8))
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
+                .frame(width: 28, height: 28)
                 .background(
                     ZStack {
                         VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
                         Color(nsColor: .controlBackgroundColor).opacity(0.55)
                     }
-                    .clipShape(Capsule())
+                    .clipShape(Circle())
                 )
                 .overlay(
-                    Capsule()
+                    Circle()
                         .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
                 )
                 .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 1.5)
@@ -229,7 +191,7 @@ public struct LoginView: View {
             .menuIndicator(.hidden)
             .help("切换企业组织与已保存账号")
             
-            // Right 2: Server / App Profile Button (Liquid Glass Circular, matching user reference image 5963b2d665ca17ca.png)
+            // Right 2: Server / App Profile Circular Liquid Glass Button (matching sidebar style)
             Menu {
                 Button {
                     viewModel.showProfileSheet = true
@@ -254,7 +216,7 @@ public struct LoginView: View {
                 Image(systemName: "server.rack")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(.secondary)
-                    .padding(6)
+                    .frame(width: 28, height: 28)
                     .background(
                         ZStack {
                             VisualEffectBackground(material: .popover, blendingMode: .withinWindow)

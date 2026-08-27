@@ -22,12 +22,14 @@ public struct AvatarView: View {
                         image
                             .resizable()
                             .scaledToFill()
+                            .frame(width: size, height: size)
                     case .failure:
                         fallbackAvatar
                     @unknown default:
                         fallbackAvatar
                     }
                 }
+                .frame(width: size, height: size)
             } else {
                 fallbackAvatar
             }
