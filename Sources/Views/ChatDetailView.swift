@@ -2,6 +2,22 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
+extension Color {
+    /// Solid elevated background color for the floating input container (Light: #FFFFFF, Dark: #28282B)
+    public static let elevatedInputBackground = Color(
+        nsColor: NSColor(name: nil) { appearance in
+            let match = appearance.bestMatch(from: [.aqua, .darkAqua, .vibrantLight, .vibrantDark])
+            if match == .darkAqua || match == .vibrantDark || appearance.name.rawValue.lowercased().contains("dark") {
+                // Dark Mode: Elevated Solid Charcoal Grey #28282B
+                return NSColor(red: 40.0 / 255.0, green: 40.0 / 255.0, blue: 43.0 / 255.0, alpha: 1.0)
+            } else {
+                // Light Mode: Elevated Solid Pure White #FFFFFF
+                return NSColor(red: 1.0, green: 1.0, blue: 1.0, alpha: 1.0)
+            }
+        }
+    )
+}
+
 @MainActor
 public final class ChatDetailViewModel: ObservableObject {
     @Published public var isShowingRightPanel: Bool = false
@@ -433,17 +449,14 @@ public struct ChatDetailView: View {
                     .padding(.horizontal, 14)
                     .padding(.vertical, 6)
                     .background(
-                        ZStack {
-                            VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
-                            Color(nsColor: .controlBackgroundColor).opacity(0.75)
-                        }
-                        .clipShape(Capsule())
+                        Color.elevatedInputBackground
+                            .clipShape(Capsule())
                     )
                     .overlay(
                         Capsule()
-                            .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
+                            .strokeBorder(Color(nsColor: .separatorColor).opacity(0.35), lineWidth: 0.8)
                     )
-                    .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 3)
+                    .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 3)
                     .padding(.horizontal, 16)
                 }
                 
@@ -476,17 +489,14 @@ public struct ChatDetailView: View {
                             .foregroundColor(.secondary)
                             .frame(width: 34, height: 34)
                             .background(
-                                ZStack {
-                                    VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
-                                    Color(nsColor: .controlBackgroundColor).opacity(0.65)
-                                }
-                                .clipShape(Circle())
+                                Color.elevatedInputBackground
+                                    .clipShape(Circle())
                             )
                             .overlay(
                                 Circle()
-                                    .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1.2)
+                                    .strokeBorder(Color(nsColor: .separatorColor).opacity(0.35), lineWidth: 0.8)
                             )
-                            .shadow(color: Color.black.opacity(0.12), radius: 6, x: 0, y: 2)
+                            .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 2)
                     }
                     .buttonStyle(.plain)
                     .help("添加附件 (图片、视频、文件)")
@@ -589,12 +599,15 @@ public struct ChatDetailView: View {
                             .padding(.trailing, 4)
                         }
                     }
+                    .background(
+                        Color.elevatedInputBackground
+                            .clipShape(RoundedRectangle(cornerRadius: viewModel.isEditorExpanded ? 18 : 18, style: .continuous))
+                    )
                     .overlay(
                         RoundedRectangle(cornerRadius: viewModel.isEditorExpanded ? 18 : 18, style: .continuous)
-                            .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1.2)
+                            .strokeBorder(Color(nsColor: .separatorColor).opacity(0.35), lineWidth: 0.8)
                     )
-                    .shadow(color: Color.black.opacity(0.12), radius: 10, x: 0, y: 4)
-                    
+                    .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 3)
                     // Right: Send Button (34x34 Circle Liquid Glass, Fixed Bottom)
                     LiquidGlassSendButton(
                         isLoading: appState.isSendingMessage,
