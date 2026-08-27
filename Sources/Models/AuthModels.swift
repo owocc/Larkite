@@ -81,7 +81,7 @@ public enum FeishuScopes {
         
         // 通讯录与用户
         FeishuScopeInfo(key: "contact:user.base:readonly", name: "获取用户基本信息", description: "获取用户名、头像等基本资料", category: .contact, isEssential: true),
-        FeishuScopeInfo(key: "contact:contact:readonly", name: "读取通讯录", description: "获取企业联系人列表以快速发起单聊", category: .contact, isEssential: true),
+        FeishuScopeInfo(key: "contact:contact:readonly", name: "读取通讯录 (可选)", description: "获取企业全量通讯录以展示联系人目录（可选）", category: .contact, isEssential: false),
         FeishuScopeInfo(key: "contact:user.employee_id:readonly", name: "获取用户 ID", description: "读取 User ID / 工号", category: .contact, isEssential: false),
         
         // 系统与离线
@@ -90,6 +90,11 @@ public enum FeishuScopes {
     
     public static var recommendedString: String {
         recommendedList.map(\.key).joined(separator: " ")
+    }
+    
+    /// Minimal IM Scope (Only Chat, Messages, Group Members, User Profile - No Address Book needed)
+    public static var minimalIMString: String {
+        recommendedList.filter { $0.isEssential }.map(\.key).joined(separator: " ")
     }
 }
 
@@ -105,7 +110,7 @@ public struct AppConfig: Codable, Equatable, Sendable {
         appId: "",
         appSecret: "",
         redirectUri: "http://127.0.0.1:8989/callback",
-        scopes: FeishuScopes.recommendedString,
+        scopes: FeishuScopes.minimalIMString,
         port: 8989
     )
 }

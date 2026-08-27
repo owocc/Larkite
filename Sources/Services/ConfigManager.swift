@@ -23,18 +23,22 @@ public final class ConfigManager: ObservableObject {
                 loaded.appSecret = secret
             }
             
-            // Auto-merge any missing essential scopes from recommended list
+            // Auto-merge missing essential IM scopes (pure IM messaging without forcing address book)
             var currentScopes = Set(loaded.scopes.components(separatedBy: " ").filter { !$0.isEmpty })
-            let recommended = FeishuScopes.recommendedList.map(\.key)
-            for key in recommended {
+            let essential = FeishuScopes.recommendedList.filter { $0.isEssential }.map(\.key)
+            for key in essential {
                 currentScopes.insert(key)
             }
             loaded.scopes = currentScopes.sorted().joined(separator: " ")
-            
             self.config = loaded
         } else {
             self.config = .default
         }
+    }
+    
+    public func resetToMinimalIMScopes() {
+        self.config.scopes = FeishuScopes.minimalIMString
+        saveConfig()
     }
     
     public func resetToRecommendedScopes() {
