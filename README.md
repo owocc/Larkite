@@ -28,9 +28,9 @@
 Larkite/
 ├── Package.swift               # SPM 配置
 ├── build_app.sh                # 原生 macOS .app 打包脚本
+├── build_dmg.sh                # 制作官方拖拽安装包 .dmg 脚本
+├── Larkite.dmg                 # 生成的 macOS 安装镜像包
 ├── Larkite.app/                # 编译生成的 macOS 应用包
-└── Sources/
-    ├── App/
     │   ├── LarkiteApp.swift    # 应用入口
     │   └── AppState.swift      # 全局响应式状态管理 (Auth & Chat)
     │   ├── AuthModels.swift    # OAuth / Token / Session 数据结构
@@ -64,12 +64,13 @@ Larkite/
 
 ```bash
 cd LarkNative
-./build_app.sh
+./build_app.sh       # 快速编译为 Larkite.app
 open Larkite.app
+
+# 或一键打包为官方 DMG 拖拽安装镜像 (带背景图与 Applications 替身)
+./build_dmg.sh
+open Larkite.dmg
 ```
-
-### 2. 飞书开放平台配置说明
-
 1. 登录 [飞书开放平台开发者后台](https://open.feishu.cn/app) 创建或选择自建应用；
 2. 在 **开发配置 -> 安全设置 -> 重定向 URL** 中添加：
    ```
