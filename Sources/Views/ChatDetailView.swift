@@ -125,12 +125,17 @@ public struct ChatDetailView: View {
             let avatarUrl = chat.resolvedAvatarUrl(currentUserId: currentUser?.openId)
             
             HStack(spacing: 0) {
-                // Main Chat Column with Messages Stream & Liquid Glass Dock
+                // Main Chat Column with 100% Full-Height Messages Stream & Floating Liquid Glass Dock
                 ZStack(alignment: .bottom) {
                     Color(nsColor: .windowBackgroundColor)
                         .ignoresSafeArea()
                     
+                    // 100% Full-Height Scrollable Messages Stream
                     messagesStreamView(chat: chat)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    
+                    // macOS 26+ Floating Liquid Glass Input Dock
+                    messageInputBar
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 
@@ -254,7 +259,7 @@ public struct ChatDetailView: View {
     // MARK: - Messages Stream View
     
     private func messagesStreamView(chat: FeishuChatItem) -> some View {
-        VStack(spacing: 0) {
+        Group {
             if appState.isLoadingMessages && appState.messages.isEmpty {
                 loadingMessagesView
             } else if let error = appState.messageError, appState.messages.isEmpty {
@@ -297,6 +302,10 @@ public struct ChatDetailView: View {
                                 MessageBubbleView(message: msg)
                                     .id(msg.id)
                             }
+                            
+                            // Bottom breathing spacer so content scrolls completely above the floating dock
+                            Color.clear
+                                .frame(height: 110)
                         }
                         .padding(.vertical, 8)
                     }
@@ -314,9 +323,6 @@ public struct ChatDetailView: View {
                     }
                 }
             }
-            
-            // Bottom Floating Liquid Glass Dock
-            messageInputBar
         }
     }
     
