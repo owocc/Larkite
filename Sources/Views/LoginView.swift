@@ -85,30 +85,31 @@ public struct LoginView: View {
     public init() {}
     
     public var body: some View {
-        ZStack {
+        ZStack(alignment: .top) {
             // Ambient Background
             backgroundGradient
             
+            // Main Centered Content
             VStack(spacing: 0) {
-                // Top Header: Action Group right at the top-right corner
-                topHeaderSection
-                    .padding(.horizontal, 14)
-                    .padding(.top, 10)
-                    .padding(.bottom, 4)
-                Spacer(minLength: 0)
+                Spacer()
                 
-                // Main Login Body (Brand + 3 Buttons)
                 mainContentSection
                     .padding(.horizontal, 24)
                 
-                Spacer(minLength: 0)
+                Spacer()
                 
-                // Bottom Callback Info & Status Bar
                 bottomCallbackSection
                     .padding(.horizontal, 20)
-                    .padding(.bottom, 14)
+                    .padding(.bottom, 12)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            
+            // Top Header: Right Action Buttons pinned at exact window title bar level (horizontally level with traffic lights)
+            topHeaderSection
+                .padding(.horizontal, 14)
+                .padding(.top, 10)
         }
+        .ignoresSafeArea()
         .frame(minWidth: 480, idealWidth: 500, maxWidth: 540, minHeight: 360, idealHeight: 375, maxHeight: 400)
         .onAppear {
             viewModel.initDrafts(config: configManager.config)
@@ -123,7 +124,6 @@ public struct LoginView: View {
             scopeSettingsSheet
         }
     }
-    
     // MARK: - Top Header Section (Liquid Glass, No Extra Chevrons)
     
     private var topHeaderSection: some View {
