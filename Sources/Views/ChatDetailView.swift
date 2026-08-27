@@ -117,18 +117,20 @@ public struct ChatDetailView: View {
     
     public var body: some View {
         if let chat = chat {
+            let currentUser = appState.session?.user
+            let title = chat.resolvedDisplayName(
+                currentUserName: currentUser?.displayName,
+                currentUserId: currentUser?.openId
+            )
+            let avatarUrl = chat.resolvedAvatarUrl(currentUserId: currentUser?.openId)
+            
             HStack(spacing: 0) {
-                // Main Chat Column with Floating Header & Liquid Glass Dock
-                ZStack(alignment: .top) {
+                // Main Chat Column with Messages Stream & Liquid Glass Dock
+                ZStack(alignment: .bottom) {
                     Color(nsColor: .windowBackgroundColor)
                         .ignoresSafeArea()
                     
-                    // Messages Stream with exact matching top padding
                     messagesStreamView(chat: chat)
-                        .padding(.top, 44)
-                    
-                    // Floating Modern macOS Header Bar aligned with sidebar
-                    floatingHeaderBar(chat: chat)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 
@@ -141,169 +143,129 @@ public struct ChatDetailView: View {
                 }
             }
             .animation(.spring(response: 0.32, dampingFraction: 0.85), value: viewModel.isShowingRightPanel)
+            .toolbar {
+                // Center Principal Pill: Avatar + Name + Chevron
+                ToolbarItem(placement: .principal) {
+                    Button {
+                        withAnimation {
+                            viewModel.isShowingRightPanel.toggle()
+                        }
+                        if viewModel.isShowingRightPanel {
+                            Task {
+                                await appState.loadChatMembers(for: chat, reset: true)
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            AvatarView(urlString: avatarUrl, name: title, size: 20)
+                            
+                            Text(title)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(.primary)
+                                .lineLimit(1)
+                            
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundColor(.secondary.opacity(0.8))
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(
+                            ZStack {
+                                VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
+                                Color(nsColor: .controlBackgroundColor).opacity(0.55)
+                            }
+                            .clipShape(Capsule())
+                        )
+                        .overlay(
+                            Capsule()
+                                .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
+                        )
+                        .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 1.5)
+                        .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .help("点击打开侧边详细信息与成员面板")
+                }
+                
+                // Trailing Action Buttons: Refresh, Dropdown Actions, Right Inspector Toggle
+                ToolbarItemGroup(placement: .primaryAction) {
+                    Button {
+                        Task {
+                            await appState.loadMessages(for: chat, reset: true)
+                            await appState.loadChatMembers(for: chat, reset: true)
+                        }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(appState.isLoadingMessages || appState.isLoadingChatMembers ? Color(hex: "3370FF") : .secondary)
+                            .rotationEffect(.degrees(appState.isLoadingMessages || appState.isLoadingChatMembers ? 360 : 0))
+                            .animation(appState.isLoadingMessages || appState.isLoadingChatMembers ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: appState.isLoadingMessages)
+                    }
+                    .help("刷新消息与成员")
+                    
+                    Menu {
+                        Button {
+                            viewModel.copyToClipboard(text: chat.chatId, field: "header_\(chat.chatId)")
+                        } label: {
+                            Label("复制 Chat ID", systemImage: "doc.on.doc")
+                        }
+                        
+                        Button {
+                            withAnimation {
+                                viewModel.isShowingRightPanel = true
+                                viewModel.sidePanelTab = 0
+                            }
+                            Task {
+                                await appState.loadChatMembers(for: chat, reset: true)
+                            }
+                        } label: {
+                            Label("查看群属性与成员", systemImage: "person.2.fill")
+                        }
+                        
+                        Button {
+                            withAnimation {
+                                viewModel.isShowingRightPanel = true
+                                viewModel.sidePanelTab = 1
+                            }
+                        } label: {
+                            Label("查看 API 原始 JSON 载荷", systemImage: "curlybraces")
+                        }
+                        
+                        Divider()
+                        
+                        Button {
+                            Task {
+                                await appState.loadMessages(for: chat, reset: true)
+                            }
+                        } label: {
+                            Label("重新拉取消息", systemImage: "arrow.clockwise")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
+                    .help("会话更多选项")
+                    
+                    Button {
+                        withAnimation {
+                            viewModel.isShowingRightPanel.toggle()
+                        }
+                        if viewModel.isShowingRightPanel {
+                            Task {
+                                await appState.loadChatMembers(for: chat, reset: true)
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "sidebar.right")
+                            .foregroundColor(viewModel.isShowingRightPanel ? Color(hex: "3370FF") : .secondary)
+                    }
+                    .help("展开/折叠会话信息面板")
+                }
+            }
         } else {
             emptySelectionView
         }
     }
-    
-    // MARK: - Floating Modern Header Bar (Apple Messages & Liquid Glass Style)
-    
-    private func floatingHeaderBar(chat: FeishuChatItem) -> some View {
-        let currentUser = appState.session?.user
-        let title = chat.resolvedDisplayName(
-            currentUserName: currentUser?.displayName,
-            currentUserId: currentUser?.openId
-        )
-        let avatarUrl = chat.resolvedAvatarUrl(currentUserId: currentUser?.openId)
-        
-        return HStack(spacing: 12) {
-            // Far Left: Refresh Liquid Glass Capsule Button
-            Button {
-                Task {
-                    await appState.loadMessages(for: chat, reset: true)
-                    await appState.loadChatMembers(for: chat, reset: true)
-                }
-            } label: {
-                HStack(spacing: 3) {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(appState.isLoadingMessages || appState.isLoadingChatMembers ? Color(hex: "3370FF") : .secondary)
-                        .rotationEffect(.degrees(appState.isLoadingMessages || appState.isLoadingChatMembers ? 360 : 0))
-                        .animation(appState.isLoadingMessages || appState.isLoadingChatMembers ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: appState.isLoadingMessages)
-                }
-                .padding(6)
-                .background(
-                    ZStack {
-                        VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
-                        Color(nsColor: .controlBackgroundColor).opacity(0.55)
-                    }
-                    .clipShape(Circle())
-                )
-                .overlay(
-                    Circle()
-                        .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
-                )
-                .shadow(color: Color.black.opacity(0.12), radius: 6, x: 0, y: 2)
-            }
-            .buttonStyle(.plain)
-            .help("刷新消息与成员")
-            
-            Spacer()
-            
-            // Center: Floating Liquid Glass Avatar + Name Pill with '>'
-            Button {
-                withAnimation {
-                    viewModel.isShowingRightPanel.toggle()
-                }
-                if viewModel.isShowingRightPanel {
-                    Task {
-                        await appState.loadChatMembers(for: chat, reset: true)
-                    }
-                }
-            } label: {
-                HStack(spacing: 6) {
-                    AvatarView(urlString: avatarUrl, name: title, size: 20)
-                    
-                    Text(title)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.primary)
-                        .lineLimit(1)
-                    
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundColor(.secondary.opacity(0.8))
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(
-                    ZStack {
-                        VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
-                        Color(nsColor: .controlBackgroundColor).opacity(0.55)
-                    }
-                    .clipShape(Capsule())
-                )
-                .overlay(
-                    Capsule()
-                        .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
-                )
-                .shadow(color: Color.black.opacity(0.12), radius: 6, x: 0, y: 2)
-                .contentShape(Capsule())
-            }
-            .buttonStyle(.plain)
-            .help("点击打开侧边详细信息与成员面板")
-            
-            Spacer()
-            
-            // Far Right: Dropdown Action Menu Liquid Glass Capsule
-            Menu {
-                Button {
-                    viewModel.copyToClipboard(text: chat.chatId, field: "header_\(chat.chatId)")
-                } label: {
-                    Label("复制 Chat ID", systemImage: "doc.on.doc")
-                }
-                
-                Button {
-                    withAnimation {
-                        viewModel.isShowingRightPanel = true
-                        viewModel.sidePanelTab = 0
-                    }
-                    Task {
-                        await appState.loadChatMembers(for: chat, reset: true)
-                    }
-                } label: {
-                    Label("查看群属性与成员", systemImage: "person.2.fill")
-                }
-                
-                Button {
-                    withAnimation {
-                        viewModel.isShowingRightPanel = true
-                        viewModel.sidePanelTab = 1
-                    }
-                } label: {
-                    Label("查看 API 原始 JSON 载荷", systemImage: "curlybraces")
-                }
-                
-                Divider()
-                
-                Button {
-                    Task {
-                        await appState.loadMessages(for: chat, reset: true)
-                    }
-                } label: {
-                    Label("重新拉取消息", systemImage: "arrow.clockwise")
-                }
-            } label: {
-                HStack(spacing: 3) {
-                    Image(systemName: viewModel.isShowingRightPanel ? "sidebar.right" : "ellipsis")
-                        .font(.system(size: 11, weight: .semibold))
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 7, weight: .bold))
-                        .opacity(0.6)
-                }
-                .foregroundColor(viewModel.isShowingRightPanel ? Color(hex: "3370FF") : .secondary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 5)
-                .background(
-                    ZStack {
-                        VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
-                        Color(nsColor: .controlBackgroundColor).opacity(0.55)
-                    }
-                    .clipShape(Capsule())
-                )
-                .overlay(
-                    Capsule()
-                        .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
-                )
-                .shadow(color: Color.black.opacity(0.12), radius: 6, x: 0, y: 2)
-            }
-            .menuStyle(.borderlessButton)
-            .help("会话选项与信息面板")
-        }
-        .padding(.horizontal, 14)
-        .padding(.top, 14)
-        .padding(.bottom, 8)
-    }
-    
     // MARK: - Messages Stream View
     
     private func messagesStreamView(chat: FeishuChatItem) -> some View {

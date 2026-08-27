@@ -39,11 +39,11 @@ public struct ChatListView: View {
     
     public var body: some View {
         VStack(spacing: 0) {
-            // Header / Traffic light spacing + Search & Filters
+            // Search & Active Filter Chip
             headerSection
-                .padding(.horizontal, 12)
-                .padding(.top, 14)
-                .padding(.bottom, 8)
+                .padding(.horizontal, 10)
+                .padding(.top, 8)
+                .padding(.bottom, 6)
             
             Divider()
             
@@ -69,42 +69,15 @@ public struct ChatListView: View {
             VisualEffectBackground(material: .sidebar, blendingMode: .behindWindow)
                 .ignoresSafeArea()
         )
-        .sheet(isPresented: $viewModel.showAddChatSheet) {
-            addChatSheet
-        }
-    }
-    
-    private var headerSection: some View {
-        VStack(spacing: 8) {
-            // Top Row: Title, Add, Refresh, Filter Dropdown Menu (Left of Sidebar Toggle), Sidebar Toggle Button
-            HStack(spacing: 6) {
-                Text("消息会话")
-                    .font(.system(size: 15, weight: .bold))
-                
-                Spacer()
-                
+        .navigationTitle("消息会话")
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
                 // Add / Open Direct Chat Button
                 Button {
                     viewModel.showAddChatSheet = true
                 } label: {
-                    Image(systemName: "plus.bubble.fill")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(Color(hex: "3370FF"))
-                        .padding(5)
-                        .background(
-                            ZStack {
-                                VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
-                                Color(nsColor: .controlBackgroundColor).opacity(0.45)
-                            }
-                            .clipShape(Circle())
-                        )
-                        .overlay(
-                            Circle()
-                                .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
-                        )
-                        .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 1.5)
+                    Image(systemName: "plus.bubble")
                 }
-                .buttonStyle(.plain)
                 .help("按 Chat ID / Open ID 发起或查询私聊")
                 
                 // Refresh Button
@@ -114,28 +87,11 @@ public struct ChatListView: View {
                     }
                 } label: {
                     Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(appState.isLoadingChats ? Color(hex: "3370FF") : .secondary)
-                        .rotationEffect(.degrees(appState.isLoadingChats ? 360 : 0))
-                        .animation(appState.isLoadingChats ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: appState.isLoadingChats)
-                        .padding(5)
-                        .background(
-                            ZStack {
-                                VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
-                                Color(nsColor: .controlBackgroundColor).opacity(0.45)
-                            }
-                            .clipShape(Circle())
-                        )
-                        .overlay(
-                            Circle()
-                                .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
-                        )
-                        .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 1.5)
                 }
-                .buttonStyle(.plain)
                 .help("刷新会话列表 (Cmd+R)")
                 
-                // Filter Dropdown Button (macOS 26+ Liquid Glass, positioned strictly to the left of Sidebar Toggle)
+                // Filter Dropdown Button
                 Menu {
                     ForEach(ChatFilterMode.allCases) { mode in
                         Button {
@@ -145,49 +101,25 @@ public struct ChatListView: View {
                                 Label(mode.menuTitle, systemImage: mode.icon)
                                 if appState.filterMode == mode {
                                     Spacer()
-                                     Image(systemName: "checkmark")
+                                    Image(systemName: "checkmark")
                                 }
                             }
                         }
                     }
                 } label: {
-                    ZStack(alignment: .topTrailing) {
-                        Image(systemName: "line.3.horizontal.decrease")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(appState.filterMode != .all ? Color(hex: "3370FF") : .secondary)
-                            .padding(5)
-                        
-                        if appState.filterMode != .all {
-                            Circle()
-                                .fill(Color(hex: "3370FF"))
-                                .frame(width: 5, height: 5)
-                                .offset(x: -1, y: 1)
-                        }
-                    }
-                    .background(
-                        ZStack {
-                            VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
-                            Color(nsColor: .controlBackgroundColor).opacity(appState.filterMode != .all ? 0.75 : 0.45)
-                        }
-                        .clipShape(Circle())
-                    )
-                    .overlay(
-                        Group {
-                            if appState.filterMode != .all {
-                                Circle()
-                                    .strokeBorder(Color(hex: "3370FF").opacity(0.6), lineWidth: 1)
-                            } else {
-                                Circle()
-                                    .strokeBorder(LiquidGlassTheme.specularRimLight, lineWidth: 1)
-                            }
-                        }
-                    )
-                    .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 1.5)
+                    Image(systemName: appState.filterMode != .all ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease")
+                        .foregroundColor(appState.filterMode != .all ? Color(hex: "3370FF") : .primary)
                 }
-                .menuStyle(.borderlessButton)
                 .help("会话筛选: \(appState.filterMode.menuTitle)")
             }
-            
+        }
+        .sheet(isPresented: $viewModel.showAddChatSheet) {
+            addChatSheet
+        }
+    }
+    
+    private var headerSection: some View {
+        VStack(spacing: 6) {
             // Search Field
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
