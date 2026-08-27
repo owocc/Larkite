@@ -35,13 +35,25 @@ public struct MainView: View {
     }
     private var notLoggedInPlaceholderView: some View {
         VStack(spacing: 16) {
-            Image(systemName: "person.crop.circle.badge.plus")
-                .font(.system(size: 48))
-                .foregroundColor(Color(hex: "3370FF"))
+            if let appIcon = NSApp.applicationIconImage ?? NSImage(named: "AppIcon") {
+                Image(nsImage: appIcon)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 64, height: 64)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(Color(nsColor: .separatorColor).opacity(0.3), lineWidth: 1)
+                    )
+                    .shadow(color: Color.black.opacity(0.12), radius: 8, x: 0, y: 3)
+            } else {
+                Image(systemName: "person.crop.circle.badge.plus")
+                    .font(.system(size: 48))
+                    .foregroundColor(configManager.accentColorChoice.color)
+            }
             
             Text("欢迎使用 Lark Native")
                 .font(.system(size: 18, weight: .bold))
-            
             Text("请在独立登录窗口中登录或选择企业账号，开始消息与会话管理")
                 .font(.system(size: 13))
                 .foregroundColor(.secondary)

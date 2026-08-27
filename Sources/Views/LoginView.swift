@@ -345,16 +345,29 @@ public struct LoginView: View {
     
     private var primaryButtonsView: some View {
         VStack(spacing: 16) {
-            // Brand Logo & Title
-            HStack(spacing: 10) {
-                ZStack {
-                    Circle()
-                        .fill(configManager.accentColorChoice.color)
-                        .frame(width: 36, height: 36)
-                    
-                    Image(systemName: "bird.fill")
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(.white)
+            // Brand App Icon & Title
+            HStack(spacing: 12) {
+                if let appIcon = NSApp.applicationIconImage ?? NSImage(named: "AppIcon") {
+                    Image(nsImage: appIcon)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 44, height: 44)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(Color(nsColor: .separatorColor).opacity(0.3), lineWidth: 0.8)
+                        )
+                        .shadow(color: Color.black.opacity(0.1), radius: 6, x: 0, y: 2)
+                } else {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(configManager.accentColorChoice.color)
+                            .frame(width: 44, height: 44)
+                        
+                        Image(systemName: "bird.fill")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundColor(.white)
+                    }
                 }
                 
                 VStack(alignment: .leading, spacing: 2) {
