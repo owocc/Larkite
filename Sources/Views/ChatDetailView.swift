@@ -354,9 +354,9 @@ public struct ChatDetailView: View {
                                 .equatable()
                                 .id(msg.id)
                             }
-                            // Bottom breathing spacer dynamically adapting to floating dock expansion (with 16pt bottom margin)
+                            // Bottom breathing spacer dynamically adapting to floating dock expansion & reply bar (with 16pt bottom margin)
                             Color.clear
-                                .frame(height: viewModel.isEditorExpanded ? 350 : min(180, max(76, viewModel.editorContentHeight + 52)))
+                                .frame(height: viewModel.isEditorExpanded ? 350 : (appState.replyingToMessage != nil ? min(220, max(112, viewModel.editorContentHeight + 88)) : min(180, max(76, viewModel.editorContentHeight + 52))))
                                 .id("messages_bottom_anchor")
                         }
                         .padding(.vertical, 8)
@@ -469,68 +469,65 @@ public struct ChatDetailView: View {
     // MARK: - Liquid Glass Floating Input Dock (Telegram macOS Style)
     
     private var messageInputBar: some View {
-        GeometryReader { geo in
-            let windowHalfHeight = max(220, min(400, geo.size.height > 0 ? geo.size.height * 0.5 : 280))
-            let dynamicEditorHeight: CGFloat = viewModel.isEditorExpanded ? windowHalfHeight : min(120, max(34, viewModel.editorContentHeight + 8))
-            
-            VStack(spacing: 6) {
-                Spacer()
-                
-                // Floating Reply Bar
-                if let replying = appState.replyingToMessage {
-                    HStack(spacing: 8) {
-                        Image(systemName: "arrowshape.turn.up.left.fill")
-                            .font(.system(size: 11))
-                            .foregroundColor(configManager.accentColorChoice.color)
-                        Text("正在回复: \(replying.parsedContent.previewSummary)")
-                            .font(.system(size: 11))
+        let dynamicEditorHeight: CGFloat = viewModel.isEditorExpanded ? 280 : min(120, max(34, viewModel.editorContentHeight + 8))
+        
+        return VStack(spacing: 6) {
+            // Floating Reply Bar (Stacked upwards above input dock)
+            if let replying = appState.replyingToMessage {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrowshape.turn.up.left.fill")
+                        .font(.system(size: 11))
+                        .foregroundColor(configManager.accentColorChoice.color)
+                    Text("正在回复: \(replying.parsedContent.previewSummary)")
+                        .font(.system(size: 11))
+                        .foregroundColor(.primary)
+                        .lineLimit(1)
+                    
+                    Spacer()
+                    
+                    Button {
+                        appState.replyingToMessage = nil
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 12))
                             .foregroundColor(.secondary)
-                            .lineLimit(1)
-                        
-                        Spacer()
-                        
-                        Button {
-                            appState.replyingToMessage = nil
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 12))
-                                .foregroundColor(.secondary)
-                        }
-                        .buttonStyle(.plain)
                     }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 6)
-                    .background(
-                        Color.elevatedInputBackground
-                            .clipShape(Capsule())
-                    )
-                    .overlay(
-                        Capsule()
-                            .strokeBorder(Color(nsColor: .separatorColor).opacity(0.35), lineWidth: 0.8)
-                    )
-                    .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 3)
-                    .padding(.horizontal, 16)
+                    .buttonStyle(.plain)
                 }
-                
-                // Error toast if any
-                if let error = viewModel.sendError {
-                    HStack(spacing: 6) {
-                        Image(systemName: "exclamationmark.circle.fill")
-                            .foregroundColor(.red)
-                        Text("发送失败: \(error)")
-                            .font(.system(size: 11))
-                            .foregroundColor(.red)
-                            .lineLimit(1)
-                        Spacer()
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 5)
-                    .background(Color.red.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .padding(.horizontal, 16)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+                .background(
+                    Color.elevatedInputBackground
+                        .clipShape(Capsule())
+                )
+                .overlay(
+                    Capsule()
+                        .strokeBorder(Color(nsColor: .separatorColor).opacity(0.35), lineWidth: 0.8)
+                )
+                .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 3)
+                .padding(.horizontal, 16)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+            
+            // Error toast if any
+            if let error = viewModel.sendError {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .foregroundColor(.red)
+                    Text("发送失败: \(error)")
+                        .font(.system(size: 11))
+                        .foregroundColor(.red)
+                        .lineLimit(1)
+                    Spacer()
                 }
-                
-                // Bottom Dock: Left Attachment (Fixed Bottom) + Middle Expanding Editor + Right Send Button (Fixed Bottom)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 5)
+                .background(Color.red.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .padding(.horizontal, 16)
+            }
+            
+            // Bottom Dock: Left Attachment + Middle Expanding Editor + Right Send Button
                 HStack(alignment: .bottom, spacing: 8) {
                     // Left: Attachment Liquid Glass Button (34x34 Circle, Fixed Bottom, Native Popover)
                     Button {
@@ -673,10 +670,9 @@ public struct ChatDetailView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 16)
             }
+            .animation(.spring(response: 0.32, dampingFraction: 0.82), value: appState.replyingToMessage?.messageId)
             .animation(.spring(response: 0.32, dampingFraction: 0.82), value: viewModel.isEditorExpanded)
             .animation(.spring(response: 0.32, dampingFraction: 0.82), value: viewModel.editorContentHeight)
-        }
-        .frame(height: viewModel.isEditorExpanded ? 330 : min(160, max(56, viewModel.editorContentHeight + 32)))
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
             guard let provider = providers.first else { return false }
             _ = provider.loadObject(ofClass: URL.self) { url, _ in
