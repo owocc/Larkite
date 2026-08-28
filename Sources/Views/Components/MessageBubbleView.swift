@@ -509,30 +509,6 @@ public struct MessageBubbleView: View, Equatable {
                             }
                         }
                     }
-                    
-                    // Add Reaction Plus Button [+]
-                    Menu {
-                        ForEach(FeishuEmojiHelper.standardEmojis, id: \.key) { item in
-                            Button("\(item.emoji) \(item.name)") {
-                                Task {
-                                    await appState.toggleReaction(message: message, emojiType: item.key)
-                                }
-                            }
-                        }
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 8.5, weight: .bold))
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 4)
-                            .background(
-                                Capsule()
-                                    .fill(Color(nsColor: .windowBackgroundColor))
-                            )
-                    }
-                    .menuStyle(.borderlessButton)
-                    .fixedSize()
-                    .help("添加表情回应")
                 }
                 .padding(.top, 4)
             }
