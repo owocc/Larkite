@@ -272,6 +272,9 @@ public struct ChatDetailView: View {
                     .help("展开/折叠会话信息面板")
                 }
             }
+            .sheet(item: $appState.inspectingReadReceiptMessage) { msg in
+                MessageReadUsersSheet(message: msg)
+            }
         } else {
             emptySelectionView
         }

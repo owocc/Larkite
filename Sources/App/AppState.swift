@@ -107,6 +107,11 @@ public final class AppState: ObservableObject {
     @Published public var isSendingMessage: Bool = false
     @Published public var replyingToMessage: FeishuMessageItem? = nil
     @Published public var lastMessages: [String: FeishuMessageItem] = [:]
+    @Published public var readReceipts: [String: (readCount: Int, isAllRead: Bool, users: [FeishuReadUserItem])] = [:]
+    @Published public var inspectingReadReceiptMessage: FeishuMessageItem? = nil
+    @Published public var inspectingReadUsers: [FeishuReadUserItem] = []
+    @Published public var isLoadingReadUsers: Bool = false
+    @Published public var readReceiptError: String? = nil
     
     // MARK: - Group Members State
     @Published public var chatMembers: [FeishuChatMemberItem] = []
@@ -287,6 +292,41 @@ public final class AppState: ObservableObject {
                     }
                 }
             }
+        }
+    }
+    
+    // MARK: - Message Read Receipt Operations
+    
+    public func loadReadReceipts(for messageId: String) async {
+        guard let token = session?.accessToken else { return }
+        if let result = try? await FeishuAPIClient.shared.fetchMessageReadUsers(token: token, messageId: messageId, pageSize: 50) {
+            let totalMembers = self.chatMemberTotal > 0 ? self.chatMemberTotal : (self.selectedChat?.userCount.flatMap(Int.init) ?? self.chatMembers.count)
+            let isAll = totalMembers > 1 && result.total >= (totalMembers - 1)
+            self.readReceipts[messageId] = (readCount: result.total, isAllRead: isAll, users: result.items)
+        }
+    }
+    
+    public func inspectReadUsers(for message: FeishuMessageItem) async {
+        self.inspectingReadReceiptMessage = message
+        self.inspectingReadUsers = []
+        self.isLoadingReadUsers = true
+        self.readReceiptError = nil
+        
+        guard let token = session?.accessToken else {
+            self.isLoadingReadUsers = false
+            return
+        }
+        
+        do {
+            let result = try await FeishuAPIClient.shared.fetchMessageReadUsers(token: token, messageId: message.messageId, pageSize: 50)
+            self.inspectingReadUsers = result.items
+            let totalMembers = self.chatMemberTotal > 0 ? self.chatMemberTotal : (self.selectedChat?.userCount.flatMap(Int.init) ?? self.chatMembers.count)
+            let isAll = totalMembers > 1 && result.total >= (totalMembers - 1)
+            self.readReceipts[message.messageId] = (readCount: result.total, isAllRead: isAll, users: result.items)
+            self.isLoadingReadUsers = false
+        } catch {
+            self.readReceiptError = error.localizedDescription
+            self.isLoadingReadUsers = false
         }
     }
     

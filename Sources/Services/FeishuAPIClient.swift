@@ -610,6 +610,53 @@ public final class FeishuAPIClient: Sendable {
             return results
         }
     }
+    // MARK: - Message Read Receipts
+    
+    /// Fetches the list of users who have read a specific message
+    public func fetchMessageReadUsers(
+        token: String,
+        messageId: String,
+        pageSize: Int = 50,
+        pageToken: String? = nil
+    ) async throws -> (items: [FeishuReadUserItem], total: Int, hasMore: Bool) {
+        var components = URLComponents(string: "https://open.feishu.cn/open-apis/im/v1/messages/\(messageId)/read_users")
+        var queryItems: [URLQueryItem] = [
+            URLQueryItem(name: "user_id_type", value: "open_id"),
+            URLQueryItem(name: "page_size", value: "\(pageSize)")
+        ]
+        if let pageToken = pageToken, !pageToken.isEmpty {
+            queryItems.append(URLQueryItem(name: "page_token", value: pageToken))
+        }
+        components?.queryItems = queryItems
+        
+        guard let url = components?.url else {
+            throw APIError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+        
+        let decoded = try JSONDecoder().decode(FeishuReadUsersResponse.self, from: data)
+        guard decoded.code == 0 else {
+            throw APIError.feishuError(code: decoded.code, msg: decoded.msg)
+        }
+        
+        let items = decoded.data?.items ?? []
+        let total = decoded.data?.total ?? items.count
+        let hasMore = decoded.data?.hasMore ?? false
+        return (items: items, total: total, hasMore: hasMore)
+    }
+    
     
     public func fetchSingleMessage(
         token: String,

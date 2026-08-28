@@ -26,6 +26,47 @@ public struct FeishuMessageListData: Codable, Sendable {
     }
 }
 
+
+/// Feishu Message Read Receipt Item
+public struct FeishuReadUserItem: Codable, Identifiable, Equatable, Hashable, Sendable {
+    public let userId: String
+    public let timestamp: String?
+    
+    public var id: String { userId }
+    
+    public var formattedReadTime: String {
+        guard let ts = timestamp, let ms = Double(ts) else { return "" }
+        let date = Date(timeIntervalSince1970: ms / 1000.0)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MM-dd HH:mm"
+        return formatter.string(from: date)
+    }
+    
+    enum CodingKeys: String, CodingKey {
+        case userId = "user_id"
+        case timestamp
+    }
+}
+
+public struct FeishuReadUsersResponse: Codable, Sendable {
+    public let code: Int
+    public let msg: String
+    public let data: FeishuReadUsersData?
+}
+
+public struct FeishuReadUsersData: Codable, Sendable {
+    public let items: [FeishuReadUserItem]?
+    public let hasMore: Bool?
+    public let pageToken: String?
+    public let total: Int?
+    
+    enum CodingKeys: String, CodingKey {
+        case items
+        case hasMore = "has_more"
+        case pageToken = "page_token"
+        case total
+    }
+}
 /// Message Sender Info
 public struct MessageSender: Codable, Equatable, Hashable, Sendable {
     public let id: String

@@ -143,17 +143,57 @@ public struct MessageBubbleView: View, Equatable {
         }
     }
     // MARK: - My Messages (Right Aligned, Accent Colored)
-    
     private func myMessageRow(content: ParsedMessageContent) -> some View {
-        HStack(alignment: .bottom, spacing: 8) {
+        let receipt = appState.readReceipts[message.messageId]
+        let isP2P = appState.selectedChat?.isP2P ?? true
+        let isAllRead = receipt?.isAllRead ?? false || (isP2P && (receipt?.readCount ?? 0) > 0)
+        let readCount = receipt?.readCount ?? 0
+        
+        return HStack(alignment: .bottom, spacing: 8) {
             Spacer(minLength: 48)
             
             VStack(alignment: .trailing, spacing: 4) {
-                // Time Header
-                Text(message.formattedTime)
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
-                    .frame(height: 14)
+                // Time & Read Status Header (Telegram style ✓✓ / 👁️ N)
+                HStack(spacing: 4) {
+                    Text(message.formattedTime)
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                    
+                    if isAllRead {
+                        // All Read: Double checkmark ✓✓ (matching reference image c6d1c5ecdbaddeaa.png!)
+                        HStack(spacing: -5) {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 8, weight: .bold))
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 8, weight: .bold))
+                        }
+                        .foregroundColor(configManager.accentColorChoice.color)
+                        .help("已全部已读")
+                    } else if readCount > 0 {
+                        // Partial Read in Group: Eye icon + readCount 👁️ N (matching reference image d800674c2547b3d1.png!)
+                        HStack(spacing: 2) {
+                            Image(systemName: "eye.fill")
+                                .font(.system(size: 8))
+                            Text("\(readCount)")
+                                .font(.system(size: 9, weight: .medium))
+                        }
+                        .foregroundColor(.secondary)
+                        .help("\(readCount) 人已读")
+                    } else {
+                        // Sent / Unread: Single checkmark ✓
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundColor(.secondary.opacity(0.6))
+                            .help("已送达")
+                    }
+                }
+                .frame(height: 14)
+                .onAppear {
+                    Task {
+                        await appState.loadReadReceipts(for: message.messageId)
+                    }
+                }
+                
                 // Bubble Content with Right-Click Context Menu
                 bubbleContent(content: content, isSelf: true)
                     .contextMenu {
@@ -169,7 +209,11 @@ public struct MessageBubbleView: View, Equatable {
     // MARK: - Other's Messages (Left Aligned, Apple Messages Grey)
     
     private func otherMessageRow(content: ParsedMessageContent) -> some View {
-        HStack(alignment: .bottom, spacing: 10) {
+        let receipt = appState.readReceipts[message.messageId]
+        let readCount = receipt?.readCount ?? 0
+        let isGroup = !(appState.selectedChat?.isP2P ?? false)
+        
+        return HStack(alignment: .bottom, spacing: 10) {
             // Sender Avatar
             Button {
                 if let senderId = message.sender?.id {
@@ -193,7 +237,7 @@ public struct MessageBubbleView: View, Equatable {
             .help("查看「\(senderDisplayName)」详细资料")
             
             VStack(alignment: .leading, spacing: 4) {
-                // Sender Name, Bot Badge, Time
+                // Sender Name, Bot Badge, Time & Read Count
                 HStack(spacing: 6) {
                     Text(senderDisplayName)
                         .font(.system(size: 12, weight: .semibold))
@@ -206,8 +250,24 @@ public struct MessageBubbleView: View, Equatable {
                     Text(message.formattedTime)
                         .font(.system(size: 10))
                         .foregroundColor(.secondary)
+                    
+                    if isGroup && readCount > 0 {
+                        HStack(spacing: 2) {
+                            Image(systemName: "eye.fill")
+                                .font(.system(size: 8))
+                            Text("\(readCount)")
+                                .font(.system(size: 9, weight: .medium))
+                        }
+                        .foregroundColor(.secondary)
+                        .help("\(readCount) 人已读")
+                    }
                 }
                 .frame(height: 14)
+                .onAppear {
+                    Task {
+                        await appState.loadReadReceipts(for: message.messageId)
+                    }
+                }
                 
                 // Bubble Content with Right-Click Context Menu
                 bubbleContent(content: content, isSelf: false)
@@ -222,7 +282,6 @@ public struct MessageBubbleView: View, Equatable {
         .padding(.vertical, 3)
         .frame(minHeight: 36, alignment: .leading)
     }
-    
     // MARK: - Native Right-Click Context Menu for Reactions & Actions
     
     @ViewBuilder
@@ -270,6 +329,16 @@ public struct MessageBubbleView: View, Equatable {
             Label("复制 Message ID", systemImage: "number")
         }
         
+        
+        Divider()
+        
+        Button {
+            Task {
+                await appState.inspectReadUsers(for: message)
+            }
+        } label: {
+            Label("查看详细已读人 (\(appState.readReceipts[message.messageId]?.readCount ?? 0) 人已读)", systemImage: "eye.fill")
+        }
         if isSelf {
             Divider()
             Button(role: .destructive) {
