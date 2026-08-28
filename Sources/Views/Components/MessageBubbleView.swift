@@ -24,6 +24,79 @@ public enum BubbleClusterPosition: String, Equatable, Sendable {
     case last
 }
 
+/// Flow Layout for automatic horizontal wrapping of reaction pills
+public struct ReactionFlowLayout: Layout {
+    public var spacing: CGFloat
+    public var lineSpacing: CGFloat
+    public var alignment: HorizontalAlignment
+    
+    public init(spacing: CGFloat = 4, lineSpacing: CGFloat = 4, alignment: HorizontalAlignment = .leading) {
+        self.spacing = spacing
+        self.lineSpacing = lineSpacing
+        self.alignment = alignment
+    }
+    
+    public func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? .infinity
+        var currentX: CGFloat = 0
+        var currentY: CGFloat = 0
+        var lineHeight: CGFloat = 0
+        var maxWidth: CGFloat = 0
+        
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if currentX + size.width > width && currentX > 0 {
+                currentX = 0
+                currentY += lineHeight + lineSpacing
+                lineHeight = 0
+            }
+            currentX += size.width + spacing
+            lineHeight = max(lineHeight, size.height)
+            maxWidth = max(maxWidth, currentX - spacing)
+        }
+        
+        return CGSize(width: maxWidth, height: currentY + lineHeight)
+    }
+    
+    public func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let width = bounds.width
+        var rows: [[(subview: LayoutSubview, size: CGSize)]] = [[]]
+        var currentX: CGFloat = 0
+        
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if currentX + size.width > width && currentX > 0 {
+                rows.append([])
+                currentX = 0
+            }
+            rows[rows.count - 1].append((subview, size))
+            currentX += size.width + spacing
+        }
+        
+        var y = bounds.minY
+        for row in rows {
+            let rowHeight = row.map { $0.size.height }.max() ?? 0
+            let rowWidth = row.reduce(0) { $0 + $1.size.width } + CGFloat(max(0, row.count - 1)) * spacing
+            var x: CGFloat = {
+                switch alignment {
+                case .trailing:
+                    return bounds.maxX - rowWidth
+                case .center:
+                    return bounds.minX + (width - rowWidth) / 2.0
+                default:
+                    return bounds.minX
+                }
+            }()
+            
+            for item in row {
+                item.subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(item.size))
+                x += item.size.width + spacing
+            }
+            y += rowHeight + lineSpacing
+        }
+    }
+}
+
 /// Native Apple Messages Chat Bubble Shape with bottom-left and bottom-right tail curves
 /// and dynamic corner radii according to cluster position (first, middle, last, single)
 public struct ChatBubbleShape: Shape {
@@ -264,9 +337,6 @@ public struct MessageBubbleView: View, Equatable {
                     .contextMenu {
                         messageContextMenu(content: content, isSelf: true)
                     }
-                
-                // Reaction Badges (Matching reference image 52b51ef27af20661.png)
-                reactionsView
             }
         }
         .padding(.horizontal, 16)
@@ -352,9 +422,6 @@ public struct MessageBubbleView: View, Equatable {
                     .contextMenu {
                         messageContextMenu(content: content, isSelf: false)
                     }
-                
-                // Reaction Badges (Matching reference image 52b51ef27af20661.png)
-                reactionsView
             }
             
             Spacer(minLength: 48)
@@ -373,11 +440,13 @@ public struct MessageBubbleView: View, Equatable {
     
     // MARK: - Reaction Badges View (Matching reference image 52b51ef27af20661.png)
     
-    private var reactionsView: some View {
+    // MARK: - In-Bubble Reaction Badges View (Matching reference image 323446f68c5135ba.png)
+    
+    private func inBubbleReactionsView(isSelf: Bool) -> some View {
         let grouped = appState.groupedReactions(for: message.messageId)
         return Group {
             if !grouped.isEmpty {
-                HStack(spacing: 5) {
+                ReactionFlowLayout(spacing: 4, lineSpacing: 4, alignment: isSelf ? .trailing : .leading) {
                     ForEach(grouped) { group in
                         Button {
                             if group.count >= 5 {
@@ -390,7 +459,7 @@ public struct MessageBubbleView: View, Equatable {
                         } label: {
                             HStack(spacing: 4) {
                                 Text(group.emojiChar)
-                                    .font(.system(size: 11))
+                                    .font(.system(size: 11.5))
                                 
                                 // Overlapping circular mini avatars
                                 HStack(spacing: -5) {
@@ -401,27 +470,22 @@ public struct MessageBubbleView: View, Equatable {
                                             currentOpenId: appState.session?.user?.openId
                                         )
                                         let avatar = UserProfileManager.shared.resolveAvatarUrl(for: uid)
-                                        AvatarView(urlString: avatar, name: name, size: 14)
+                                        AvatarView(urlString: avatar, name: name, size: 15)
                                             .clipShape(Circle())
-                                            .overlay(Circle().stroke(Color(nsColor: .windowBackgroundColor), lineWidth: 0.8))
                                     }
                                 }
                                 
                                 if group.count > 3 {
                                     Text("+\(group.count - 3)")
-                                        .font(.system(size: 8, weight: .bold))
+                                        .font(.system(size: 8.5, weight: .bold))
                                         .foregroundColor(.secondary)
                                 }
                             }
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 3)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3.5)
                             .background(
                                 Capsule()
-                                    .fill(group.isReactedByMe ? configManager.accentColorChoice.color.opacity(0.18) : Color(nsColor: .controlBackgroundColor).opacity(0.85))
-                            )
-                            .overlay(
-                                Capsule()
-                                    .stroke(group.isReactedByMe ? configManager.accentColorChoice.color.opacity(0.5) : Color.secondary.opacity(0.2), lineWidth: 0.8)
+                                    .fill(Color(nsColor: .windowBackgroundColor))
                             )
                         }
                         .buttonStyle(.plain)
@@ -446,7 +510,7 @@ public struct MessageBubbleView: View, Equatable {
                         }
                     }
                     
-                    // Quick Add Reaction Plus Button [+]
+                    // Add Reaction Plus Button [+]
                     Menu {
                         ForEach(FeishuEmojiHelper.standardEmojis, id: \.key) { item in
                             Button("\(item.emoji) \(item.name)") {
@@ -457,24 +521,20 @@ public struct MessageBubbleView: View, Equatable {
                         }
                     } label: {
                         Image(systemName: "plus")
-                            .font(.system(size: 8, weight: .bold))
+                            .font(.system(size: 8.5, weight: .bold))
                             .foregroundColor(.secondary)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 3.5)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 4)
                             .background(
                                 Capsule()
-                                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.6))
-                            )
-                            .overlay(
-                                Capsule()
-                                    .stroke(Color.secondary.opacity(0.2), lineWidth: 0.8)
+                                    .fill(Color(nsColor: .windowBackgroundColor))
                             )
                     }
                     .menuStyle(.borderlessButton)
                     .fixedSize()
                     .help("添加表情回应")
                 }
-                .padding(.top, 2)
+                .padding(.top, 4)
             }
         }
     }
@@ -668,60 +728,12 @@ public struct MessageBubbleView: View, Equatable {
     private func bubbleContent(content: ParsedMessageContent, isSelf: Bool) -> some View {
         switch content {
         case .text(let text):
-            Text(text)
-                .font(.system(size: 13.5))
-                .foregroundColor(isSelf ? .white : .primary)
-                .padding(.leading, isSelf ? 14 : 19)
-                .padding(.trailing, isSelf ? 19 : 14)
-                .padding(.vertical, 9)
-                .background(
-                    ChatBubbleShape(isSelf: isSelf, position: position)
-                        .fill(isSelf ? configManager.accentColorChoice.color : Color.appleMessagesIncomingBubble)
-                )
-                .overlay(
-                    ChatBubbleShape(isSelf: isSelf, position: position)
-                        .stroke(isSelf ? Color.white.opacity(0.12) : Color.clear, lineWidth: 0.8)
-                )
-        case .image(let imageKey):
-            // Apple Messages style: Frameless edge-to-edge image attachment
-            MessageImageView(messageId: message.messageId, imageKey: imageKey)
-                .contextMenu {
-                    Button("复制 Message ID") {
-                        copyToClipboard(text: message.messageId)
-                    }
-                    Button("回复此图片") {
-                        appState.replyingToMessage = message
-                    }
-                }
-        case .file(let fileKey, let fileName, let fileSize):
-            MessageFileView(
-                messageId: message.messageId,
-                fileKey: fileKey,
-                fileName: fileName,
-                fileSize: fileSize
-            )
-            .contextMenu {
-                Button("复制 Message ID") {
-                    copyToClipboard(text: message.messageId)
-                }
-                Button("回复此文件") {
-                    appState.replyingToMessage = message
-                }
-            }
-            
-        case .audio(_, let durationMs):
-            HStack(spacing: 8) {
-                Image(systemName: "waveform")
-                    .font(.system(size: 16))
-                    .foregroundColor(isSelf ? .white : Color(hex: "3370FF"))
-                Text("语音消息")
-                    .font(.system(size: 12, weight: .medium))
+            VStack(alignment: isSelf ? .trailing : .leading, spacing: 4) {
+                Text(text)
+                    .font(.system(size: 13.5))
                     .foregroundColor(isSelf ? .white : .primary)
-                if let ms = durationMs {
-                    Text("\(ms / 1000)s")
-                        .font(.system(size: 11))
-                        .foregroundColor(isSelf ? .white.opacity(0.8) : .secondary)
-                }
+                
+                inBubbleReactionsView(isSelf: isSelf)
             }
             .padding(.leading, isSelf ? 14 : 19)
             .padding(.trailing, isSelf ? 19 : 14)
@@ -734,14 +746,64 @@ public struct MessageBubbleView: View, Equatable {
                 ChatBubbleShape(isSelf: isSelf, position: position)
                     .stroke(isSelf ? Color.white.opacity(0.12) : Color.clear, lineWidth: 0.8)
             )
-        case .media(let fileKey, let imageKey, let fileName, let durationSec):
-            MessageMediaView(
-                messageId: message.messageId,
-                fileKey: fileKey,
-                imageKey: imageKey,
-                fileName: fileName,
-                durationSec: durationSec
+            
+        case .image(let imageKey):
+            VStack(alignment: isSelf ? .trailing : .leading, spacing: 4) {
+                MessageImageView(messageId: message.messageId, imageKey: imageKey)
+                inBubbleReactionsView(isSelf: isSelf)
+            }
+            
+        case .file(let fileKey, let fileName, let fileSize):
+            VStack(alignment: isSelf ? .trailing : .leading, spacing: 4) {
+                MessageFileView(
+                    messageId: message.messageId,
+                    fileKey: fileKey,
+                    fileName: fileName,
+                    fileSize: fileSize
+                )
+                inBubbleReactionsView(isSelf: isSelf)
+            }
+            
+        case .audio(_, let durationMs):
+            VStack(alignment: isSelf ? .trailing : .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Image(systemName: "waveform")
+                        .font(.system(size: 16))
+                        .foregroundColor(isSelf ? .white : Color(hex: "3370FF"))
+                    Text("语音消息")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(isSelf ? .white : .primary)
+                    if let ms = durationMs {
+                        Text("\(ms / 1000)s")
+                            .font(.system(size: 11))
+                            .foregroundColor(isSelf ? .white.opacity(0.8) : .secondary)
+                    }
+                }
+                inBubbleReactionsView(isSelf: isSelf)
+            }
+            .padding(.leading, isSelf ? 14 : 19)
+            .padding(.trailing, isSelf ? 19 : 14)
+            .padding(.vertical, 9)
+            .background(
+                ChatBubbleShape(isSelf: isSelf, position: position)
+                    .fill(isSelf ? configManager.accentColorChoice.color : Color.appleMessagesIncomingBubble)
             )
+            .overlay(
+                ChatBubbleShape(isSelf: isSelf, position: position)
+                    .stroke(isSelf ? Color.white.opacity(0.12) : Color.clear, lineWidth: 0.8)
+            )
+            
+        case .media(let fileKey, let imageKey, let fileName, let durationSec):
+            VStack(alignment: isSelf ? .trailing : .leading, spacing: 4) {
+                MessageMediaView(
+                    messageId: message.messageId,
+                    fileKey: fileKey,
+                    imageKey: imageKey,
+                    fileName: fileName,
+                    durationSec: durationSec
+                )
+                inBubbleReactionsView(isSelf: isSelf)
+            }
             
         case .post(let title, let segments):
             VStack(alignment: .leading, spacing: 6) {
@@ -754,6 +816,8 @@ public struct MessageBubbleView: View, Equatable {
                 ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
                     renderPostSegment(segment, isSelf: isSelf)
                 }
+                
+                inBubbleReactionsView(isSelf: isSelf)
             }
             .padding(.leading, isSelf ? 14 : 19)
             .padding(.trailing, isSelf ? 19 : 14)
@@ -766,6 +830,7 @@ public struct MessageBubbleView: View, Equatable {
                 ChatBubbleShape(isSelf: isSelf, position: position)
                     .stroke(isSelf ? Color.white.opacity(0.12) : Color.clear, lineWidth: 0.8)
             )
+            
         case .card(let rawJson):
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
@@ -779,6 +844,8 @@ public struct MessageBubbleView: View, Equatable {
                     .font(.system(size: 11, design: .monospaced))
                     .lineLimit(4)
                     .foregroundColor(.secondary)
+                
+                inBubbleReactionsView(isSelf: isSelf)
             }
             .padding(12)
             .background(
@@ -787,11 +854,14 @@ public struct MessageBubbleView: View, Equatable {
             )
             
         case .shareChat(let chatId):
-            HStack(spacing: 8) {
-                Image(systemName: "person.2.fill")
-                    .foregroundColor(Color(hex: "3370FF"))
-                Text("分享群聊 (Chat ID: \(chatId.prefix(12))...)")
-                    .font(.system(size: 12, weight: .medium))
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Image(systemName: "person.2.fill")
+                        .foregroundColor(Color(hex: "3370FF"))
+                    Text("分享群聊 (Chat ID: \(chatId.prefix(12))...)")
+                        .font(.system(size: 12, weight: .medium))
+                }
+                inBubbleReactionsView(isSelf: isSelf)
             }
             .padding(10)
             .background(
