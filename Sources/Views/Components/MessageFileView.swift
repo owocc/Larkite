@@ -175,26 +175,6 @@ public struct MessageFileView: View {
         .onHover { hovering in
             viewModel.isHovered = hovering
         }
-        .contextMenu {
-            Button {
-                viewModel.previewFile(messageId: messageId, fileKey: fileKey, fileName: fileName)
-            } label: {
-                Label("使用系统默认程序打开", systemImage: "eye.fill")
-            }
-            
-            Button {
-                viewModel.downloadFile(messageId: messageId, fileKey: fileKey, fileName: fileName)
-            } label: {
-                Label("保存到下载目录并在 Finder 显示", systemImage: "arrow.down.circle.fill")
-            }
-            
-            Button {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(fileName, forType: .string)
-            } label: {
-                Label("复制文件名", systemImage: "doc.on.doc")
-            }
-        }
     }
     
     private var fileSystemIcon: String {

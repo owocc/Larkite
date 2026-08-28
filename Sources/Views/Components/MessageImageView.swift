@@ -148,25 +148,6 @@ public struct MessageImageView: View {
                             viewModel.isHovered = hovering
                         }
                     }
-                    .contextMenu {
-                        Button {
-                            viewModel.previewInSystem(messageId: messageId, imageKey: imageKey)
-                        } label: {
-                            Label("空格快速预览 (Quick Look)", systemImage: "eye.fill")
-                        }
-                        
-                        Button {
-                            viewModel.downloadImage(messageId: messageId, imageKey: imageKey)
-                        } label: {
-                            Label("保存到下载目录并在 Finder 显示", systemImage: "arrow.down.circle.fill")
-                        }
-                        
-                        Button {
-                            viewModel.copyImageToClipboard()
-                        } label: {
-                            Label("复制图片", systemImage: "doc.on.doc")
-                        }
-                    }
                 } else if viewModel.isLoading {
                     HStack(spacing: 8) {
                         ProgressView()

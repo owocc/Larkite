@@ -117,7 +117,8 @@ public final class AppState: ObservableObject {
     @Published public var inspectingReadUsers: [FeishuReadUserItem] = []
     @Published public var isLoadingReadUsers: Bool = false
     @Published public var readReceiptError: String? = nil
-    
+    @Published public var messageReactions: [String: [FeishuReactionItem]] = [:]
+    @Published public var inspectingReactionMessage: FeishuMessageItem? = nil
     // MARK: - Group Members State
     @Published public var chatMembers: [FeishuChatMemberItem] = []
     @Published public var isLoadingChatMembers: Bool = false
@@ -1165,6 +1166,46 @@ public final class AppState: ObservableObject {
         }
     }
     
+    public func groupedReactions(for messageId: String) -> [GroupedReaction] {
+        guard let items = messageReactions[messageId], !items.isEmpty else { return [] }
+        let myOpenId = session?.user?.openId ?? ""
+        let myUserId = session?.user?.userId ?? ""
+        
+        var dict: [String: [FeishuReactionItem]] = [:]
+        for item in items {
+            dict[item.emojiType, default: []].append(item)
+        }
+        
+        return dict.map { (emojiType, reactionItems) in
+            let count = reactionItems.count
+            let userIds = reactionItems.map { $0.userId }
+            var userReactionMap: [String: String] = [:]
+            var isReactedByMe = false
+            for r in reactionItems {
+                userReactionMap[r.userId] = r.reactionId
+                if (!myOpenId.isEmpty && r.userId == myOpenId) || (!myUserId.isEmpty && r.userId == myUserId) {
+                    isReactedByMe = true
+                }
+            }
+            return GroupedReaction(
+                emojiType: emojiType,
+                emojiChar: FeishuEmojiHelper.emoji(for: emojiType),
+                emojiName: FeishuEmojiHelper.name(for: emojiType),
+                count: count,
+                userIds: userIds,
+                userReactionMap: userReactionMap,
+                isReactedByMe: isReactedByMe
+            )
+        }.sorted { $0.count > $1.count }
+    }
+    
+    public func loadReactions(for messageId: String) async {
+        guard let token = session?.accessToken else { return }
+        if let items = try? await FeishuAPIClient.shared.fetchMessageReactions(token: token, messageId: messageId) {
+            self.messageReactions[messageId] = items
+        }
+    }
+    
     public func addReaction(to message: FeishuMessageItem, emojiType: String) async throws {
         guard let token = session?.accessToken else { return }
         try await FeishuAPIClient.shared.addMessageReaction(
@@ -1172,6 +1213,32 @@ public final class AppState: ObservableObject {
             messageId: message.messageId,
             emojiType: emojiType
         )
+        await loadReactions(for: message.messageId)
+    }
+    
+    public func toggleReaction(message: FeishuMessageItem, emojiType: String) async {
+        guard let token = session?.accessToken else { return }
+        let myOpenId = session?.user?.openId ?? ""
+        let myUserId = session?.user?.userId ?? ""
+        
+        let currentList = messageReactions[message.messageId] ?? []
+        if let existing = currentList.first(where: {
+            $0.emojiType.caseInsensitiveCompare(emojiType) == .orderedSame &&
+            ((!myOpenId.isEmpty && $0.userId == myOpenId) || (!myUserId.isEmpty && $0.userId == myUserId))
+        }) {
+            try? await FeishuAPIClient.shared.deleteMessageReaction(
+                token: token,
+                messageId: message.messageId,
+                reactionId: existing.reactionId
+            )
+        } else {
+            try? await FeishuAPIClient.shared.addMessageReaction(
+                token: token,
+                messageId: message.messageId,
+                emojiType: emojiType
+            )
+        }
+        await loadReactions(for: message.messageId)
     }
     
     // MARK: - Group Members Query

@@ -264,6 +264,9 @@ public struct MessageBubbleView: View, Equatable {
                     .contextMenu {
                         messageContextMenu(content: content, isSelf: true)
                     }
+                
+                // Reaction Badges (Matching reference image 52b51ef27af20661.png)
+                reactionsView
             }
         }
         .padding(.horizontal, 16)
@@ -272,6 +275,7 @@ public struct MessageBubbleView: View, Equatable {
         .onAppear {
             Task {
                 await appState.loadReadReceipts(for: message.messageId)
+                await appState.loadReactions(for: message.messageId)
             }
         }
     }
@@ -343,12 +347,14 @@ public struct MessageBubbleView: View, Equatable {
                     }
                     .frame(height: 14)
                 }
-                
                 // Bubble Content with Right-Click Context Menu
                 bubbleContent(content: content, isSelf: false)
                     .contextMenu {
                         messageContextMenu(content: content, isSelf: false)
                     }
+                
+                // Reaction Badges (Matching reference image 52b51ef27af20661.png)
+                reactionsView
             }
             
             Spacer(minLength: 48)
@@ -359,48 +365,200 @@ public struct MessageBubbleView: View, Equatable {
         .onAppear {
             Task {
                 await appState.loadReadReceipts(for: message.messageId)
+                await appState.loadReactions(for: message.messageId)
             }
         }
     }
     // MARK: - Native Right-Click Context Menu for Reactions & Actions
     
+    // MARK: - Reaction Badges View (Matching reference image 52b51ef27af20661.png)
+    
+    private var reactionsView: some View {
+        let grouped = appState.groupedReactions(for: message.messageId)
+        return Group {
+            if !grouped.isEmpty {
+                HStack(spacing: 5) {
+                    ForEach(grouped) { group in
+                        Button {
+                            if group.count >= 5 {
+                                appState.inspectingReactionMessage = message
+                            } else {
+                                Task {
+                                    await appState.toggleReaction(message: message, emojiType: group.emojiType)
+                                }
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text(group.emojiChar)
+                                    .font(.system(size: 11))
+                                
+                                // Overlapping circular mini avatars
+                                HStack(spacing: -5) {
+                                    ForEach(Array(group.userIds.prefix(3).enumerated()), id: \.offset) { _, uid in
+                                        let name = UserProfileManager.shared.resolveDisplayName(
+                                            for: uid,
+                                            currentUserId: appState.session?.user?.userId,
+                                            currentOpenId: appState.session?.user?.openId
+                                        )
+                                        let avatar = UserProfileManager.shared.resolveAvatarUrl(for: uid)
+                                        AvatarView(urlString: avatar, name: name, size: 14)
+                                            .clipShape(Circle())
+                                            .overlay(Circle().stroke(Color(nsColor: .windowBackgroundColor), lineWidth: 0.8))
+                                    }
+                                }
+                                
+                                if group.count > 3 {
+                                    Text("+\(group.count - 3)")
+                                        .font(.system(size: 8, weight: .bold))
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(
+                                Capsule()
+                                    .fill(group.isReactedByMe ? configManager.accentColorChoice.color.opacity(0.18) : Color(nsColor: .controlBackgroundColor).opacity(0.85))
+                            )
+                            .overlay(
+                                Capsule()
+                                    .stroke(group.isReactedByMe ? configManager.accentColorChoice.color.opacity(0.5) : Color.secondary.opacity(0.2), lineWidth: 0.8)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .help("\(group.emojiName): \(group.userIds.map { UserProfileManager.shared.resolveDisplayName(for: $0, currentUserId: appState.session?.user?.userId, currentOpenId: appState.session?.user?.openId) }.joined(separator: ", "))")
+                        .contextMenu {
+                            Button("查看详细回应人 (\(group.count) 人)") {
+                                appState.inspectingReactionMessage = message
+                            }
+                            if group.isReactedByMe {
+                                Button("取消回应 \(group.emojiChar)") {
+                                    Task {
+                                        await appState.toggleReaction(message: message, emojiType: group.emojiType)
+                                    }
+                                }
+                            } else {
+                                Button("回应 \(group.emojiChar)") {
+                                    Task {
+                                        await appState.toggleReaction(message: message, emojiType: group.emojiType)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Quick Add Reaction Plus Button [+]
+                    Menu {
+                        ForEach(FeishuEmojiHelper.standardEmojis, id: \.key) { item in
+                            Button("\(item.emoji) \(item.name)") {
+                                Task {
+                                    await appState.toggleReaction(message: message, emojiType: item.key)
+                                }
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 3.5)
+                            .background(
+                                Capsule()
+                                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.6))
+                            )
+                            .overlay(
+                                Capsule()
+                                    .stroke(Color.secondary.opacity(0.2), lineWidth: 0.8)
+                            )
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                    .help("添加表情回应")
+                }
+                .padding(.top, 2)
+            }
+        }
+    }
+    
+    // MARK: - Native Right-Click Context Menu (Matching reference image aba1a426446c0ecf.png)
+    
     @ViewBuilder
     private func messageContextMenu(content: ParsedMessageContent, isSelf: Bool) -> some View {
-        Section("回应表情") {
-            Button("👍 点赞") {
-                sendReaction("THUMBSUP")
-            }
-            Button("❤️ 爱心") {
-                sendReaction("HEART")
-            }
-            Button("👏 鼓掌") {
-                sendReaction("APPLAUD")
-            }
-            Button("😄 开心") {
-                sendReaction("JOY")
-            }
-            Button("🎉 庆祝") {
-                sendReaction("PARTY")
-            }
-            Button("🔥 火力") {
-                sendReaction("FIRE")
+        // Section 1: Top Preset Tapback Emoji Rows
+        Section("快速表情回应 (Tapback)") {
+            Button("❤️ 爱心") { sendReaction("HEART") }
+            Button("👍 点赞") { sendReaction("THUMBSUP") }
+            Button("👎 踩") { sendReaction("THUMBSDOWN") }
+            Button("😂 破涕为笑") { sendReaction("JOY") }
+            Button("‼️ 惊叹") { sendReaction("EXCLAMATION") }
+            Button("❓ 疑问") { sendReaction("QUESTION") }
+            Button("👀 吃瓜围观") { sendReaction("EYES") }
+            Button("🙄 偷笑") { sendReaction("FACEWITHROLLINGEYES") }
+            Button("😲 震惊") { sendReaction("ASTONISHED") }
+            Button("🎉 庆祝") { sendReaction("PARTY") }
+            Button("🔥 太火了") { sendReaction("FIRE") }
+            Button("👏 鼓掌") { sendReaction("APPLAUD") }
+            
+            Menu("更多表情回应...") {
+                ForEach(FeishuEmojiHelper.standardEmojis.dropFirst(12), id: \.key) { item in
+                    Button("\(item.emoji) \(item.name)") {
+                        sendReaction(item.key)
+                    }
+                }
             }
         }
         
         Divider()
         
+        // Section 2: Reply & Common Content Actions
         Button {
             appState.replyingToMessage = message
         } label: {
             Label("回复此消息", systemImage: "arrowshape.turn.up.left")
         }
         
-        if case .text(let text) = content {
+        // Media Specific Actions (Images & Files)
+        switch content {
+        case .text(let text):
             Button {
                 copyToClipboard(text: text)
             } label: {
                 Label("复制文本内容", systemImage: "doc.on.doc")
             }
+            
+        case .image(let imageKey):
+            Button {
+                previewImageInSystem(imageKey: imageKey)
+            } label: {
+                Label("快速查看图片 (空格键)", systemImage: "eye")
+            }
+            
+            Button {
+                downloadImageToDownloads(imageKey: imageKey)
+            } label: {
+                Label("在访达中显示 / 下载", systemImage: "folder")
+            }
+            
+            Button {
+                copyImageToClipboard(imageKey: imageKey)
+            } label: {
+                Label("复制图片", systemImage: "photo.on.rectangle")
+            }
+            
+        case .file(let fileKey, let fileName, _):
+            Button {
+                previewFileInSystem(fileKey: fileKey, fileName: fileName)
+            } label: {
+                Label("快速查看文件 (空格键)", systemImage: "eye")
+            }
+            
+            Button {
+                downloadFileToDownloads(fileKey: fileKey, fileName: fileName)
+            } label: {
+                Label("在访达中显示 / 下载", systemImage: "folder")
+            }
+            
+        default:
+            EmptyView()
         }
         
         Button {
@@ -409,9 +567,9 @@ public struct MessageBubbleView: View, Equatable {
             Label("复制 Message ID", systemImage: "number")
         }
         
-        
         Divider()
         
+        // Section 3: Read Receipts & Reaction Details
         Button {
             Task {
                 await appState.inspectReadUsers(for: message)
@@ -419,18 +577,17 @@ public struct MessageBubbleView: View, Equatable {
         } label: {
             Label("查看详细已读人 (\(appState.readReceipts[message.messageId]?.readCount ?? 0) 人已读)", systemImage: "eye.fill")
         }
-        if isSelf {
-            Divider()
-            Button(role: .destructive) {
-                Task {
-                    try? await appState.recallMessageItem(message)
-                }
+        
+        let reactionCount = appState.messageReactions[message.messageId]?.count ?? 0
+        if reactionCount > 0 {
+            Button {
+                appState.inspectingReactionMessage = message
             } label: {
-                Label("撤回消息", systemImage: "trash")
+                Label("查看表情回应详情 (\(reactionCount) 人已回应)", systemImage: "face.smiling")
             }
         }
         
-        if let senderId = message.sender?.id {
+        if !isSelf, let senderId = message.sender?.id {
             Divider()
             Button {
                 Task {
@@ -444,6 +601,17 @@ public struct MessageBubbleView: View, Equatable {
                 Label("查看发送者资料", systemImage: "person.crop.circle")
             }
         }
+        
+        if isSelf {
+            Divider()
+            Button(role: .destructive) {
+                Task {
+                    try? await appState.recallMessageItem(message)
+                }
+            } label: {
+                Label("撤回消息", systemImage: "trash")
+            }
+        }
     }
     
     private func copyToClipboard(text: String) {
@@ -454,10 +622,47 @@ public struct MessageBubbleView: View, Equatable {
     
     private func sendReaction(_ type: String) {
         Task {
-            try? await appState.addReaction(to: message, emojiType: type)
+            await appState.toggleReaction(message: message, emojiType: type)
         }
     }
     
+    private func previewImageInSystem(imageKey: String) {
+        guard let token = appState.session?.accessToken, !token.isEmpty else { return }
+        Task {
+            try? await MessageResourceManager.shared.previewImage(token: token, messageId: message.messageId, imageKey: imageKey)
+        }
+    }
+    
+    private func downloadImageToDownloads(imageKey: String) {
+        guard let token = appState.session?.accessToken, !token.isEmpty else { return }
+        Task {
+            _ = try? await MessageResourceManager.shared.downloadAndSaveImage(token: token, messageId: message.messageId, imageKey: imageKey)
+        }
+    }
+    
+    private func copyImageToClipboard(imageKey: String) {
+        let cacheKey = "\(message.messageId)_\(imageKey)"
+        if let cached = MessageResourceManager.shared.getCachedImage(key: cacheKey),
+           let tiff = cached.tiffRepresentation {
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setData(tiff, forType: .tiff)
+        }
+    }
+    
+    private func previewFileInSystem(fileKey: String, fileName: String) {
+        guard let token = appState.session?.accessToken, !token.isEmpty else { return }
+        Task {
+            try? await MessageResourceManager.shared.previewFile(token: token, messageId: message.messageId, fileKey: fileKey, fileName: fileName)
+        }
+    }
+    
+    private func downloadFileToDownloads(fileKey: String, fileName: String) {
+        guard let token = appState.session?.accessToken, !token.isEmpty else { return }
+        Task {
+            _ = try? await MessageResourceManager.shared.downloadAndSaveFile(token: token, messageId: message.messageId, fileKey: fileKey, fileName: fileName)
+        }
+    }
     
     @ViewBuilder
     private func bubbleContent(content: ParsedMessageContent, isSelf: Bool) -> some View {

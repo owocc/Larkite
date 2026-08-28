@@ -335,3 +335,169 @@ extension ParsedMessageContent {
         }
     }
 }
+
+// MARK: - Message Reaction Models
+
+public struct FeishuReactionType: Codable, Equatable, Hashable, Sendable {
+    public let emojiType: String
+    
+    public init(emojiType: String) {
+        self.emojiType = emojiType
+    }
+    
+    enum CodingKeys: String, CodingKey {
+        case emojiType = "emoji_type"
+    }
+}
+
+public struct FeishuReactionOperator: Codable, Equatable, Hashable, Sendable {
+    public let operatorId: String
+    public let operatorType: String?
+    
+    public init(operatorId: String, operatorType: String? = "user") {
+        self.operatorId = operatorId
+        self.operatorType = operatorType
+    }
+    
+    enum CodingKeys: String, CodingKey {
+        case operatorId = "operator_id"
+        case operatorType = "operator_type"
+    }
+}
+
+public struct FeishuReactionItem: Codable, Identifiable, Equatable, Hashable, Sendable {
+    public let reactionId: String
+    public let reactionType: FeishuReactionType
+    public let `operator`: FeishuReactionOperator
+    public let actionTime: String?
+    
+    public var id: String { reactionId }
+    public var emojiType: String { reactionType.emojiType }
+    public var userId: String { `operator`.operatorId }
+    
+    public init(
+        reactionId: String,
+        reactionType: FeishuReactionType,
+        operator: FeishuReactionOperator,
+        actionTime: String? = nil
+    ) {
+        self.reactionId = reactionId
+        self.reactionType = reactionType
+        self.operator = `operator`
+        self.actionTime = actionTime
+    }
+    
+    public var formattedActionTime: String {
+        guard let ts = actionTime, let ms = Double(ts) else { return "" }
+        let date = Date(timeIntervalSince1970: ms / 1000.0)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MM-dd HH:mm"
+        return formatter.string(from: date)
+    }
+    
+    enum CodingKeys: String, CodingKey {
+        case reactionId = "reaction_id"
+        case reactionType = "reaction_type"
+        case `operator`
+        case actionTime = "action_time"
+    }
+}
+
+public struct FeishuReactionsResponse: Codable, Sendable {
+    public let code: Int
+    public let msg: String
+    public let data: FeishuReactionsData?
+}
+
+public struct FeishuReactionsData: Codable, Sendable {
+    public let items: [FeishuReactionItem]?
+    public let hasMore: Bool?
+    public let pageToken: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case items
+        case hasMore = "has_more"
+        case pageToken = "page_token"
+    }
+}
+
+public struct GroupedReaction: Identifiable, Equatable, Hashable, Sendable {
+    public let emojiType: String
+    public let emojiChar: String
+    public let emojiName: String
+    public let count: Int
+    public let userIds: [String]
+    public let userReactionMap: [String: String] // userId -> reactionId
+    public let isReactedByMe: Bool
+    
+    public var id: String { emojiType }
+    
+    public init(
+        emojiType: String,
+        emojiChar: String,
+        emojiName: String,
+        count: Int,
+        userIds: [String],
+        userReactionMap: [String: String],
+        isReactedByMe: Bool
+    ) {
+        self.emojiType = emojiType
+        self.emojiChar = emojiChar
+        self.emojiName = emojiName
+        self.count = count
+        self.userIds = userIds
+        self.userReactionMap = userReactionMap
+        self.isReactedByMe = isReactedByMe
+    }
+}
+
+public struct FeishuEmojiHelper {
+    public static let standardEmojis: [(key: String, emoji: String, name: String)] = [
+        ("HEART", "❤️", "爱心"),
+        ("THUMBSUP", "👍", "点赞"),
+        ("THUMBSDOWN", "👎", "踩"),
+        ("JOY", "😂", "破涕为笑"),
+        ("EXCLAMATION", "‼️", "惊叹"),
+        ("QUESTION", "❓", "疑问"),
+        ("EYES", "👀", "吃瓜围观"),
+        ("FACEWITHROLLINGEYES", "🙄", "偷笑"),
+        ("ASTONISHED", "😲", "震惊"),
+        ("FIRE", "🔥", "太火了"),
+        ("PARTY", "🎉", "庆祝"),
+        ("APPLAUD", "👏", "鼓掌"),
+        ("SMILE", "😄", "微笑"),
+        ("LAUGH", "🤣", "大笑"),
+        ("SOB", "😭", "大哭"),
+        ("THINKING", "🤔", "思考"),
+        ("PRAY", "🙏", "感谢"),
+        ("OK", "👌", "好的"),
+        ("ROCKET", "🚀", "起飞"),
+        ("HUG", "🤗", "拥抱"),
+        ("SLIGHTSMILE", "🙂", "淡淡一笑"),
+        ("SALUTE", "🫡", "收到"),
+        ("BEER", "🍻", "干杯"),
+        ("COFFEE", "☕️", "咖啡"),
+        ("ROSE", "🌹", "鲜花"),
+        ("SUN", "☀️", "阳光"),
+        ("MUSCLE", "💪", "加油")
+    ]
+    
+    public static func emoji(for key: String) -> String {
+        let upper = key.uppercased()
+        if let match = standardEmojis.first(where: { $0.key == upper }) {
+            return match.emoji
+        }
+        if key.count <= 2 {
+            return key
+        }
+        return "👍"
+    }
+    
+    public static func name(for key: String) -> String {
+        let upper = key.uppercased()
+        if let match = standardEmojis.first(where: { $0.key == upper }) {
+            return match.name
+        }
+        return key
+    }
+}

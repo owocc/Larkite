@@ -275,6 +275,9 @@ public struct ChatDetailView: View {
             .sheet(item: $appState.inspectingReadReceiptMessage) { msg in
                 MessageReadUsersSheet(message: msg)
             }
+            .sheet(item: $appState.inspectingReactionMessage) { msg in
+                MessageReactionDetailSheet(message: msg)
+            }
         } else {
             emptySelectionView
         }
