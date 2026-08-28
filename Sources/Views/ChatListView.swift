@@ -151,38 +151,6 @@ public struct ChatListView: View {
             .background(Color(nsColor: .controlBackgroundColor).opacity(0.6))
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             
-            // Active Filter Chip / Status Indicator if filter is enabled
-            if appState.filterMode != .all {
-                HStack(spacing: 6) {
-                    Image(systemName: appState.filterMode.icon)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(configManager.accentColorChoice.color)
-                    
-                    Text("当前筛选: \(appState.filterMode.menuTitle)")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(configManager.accentColorChoice.color)
-                    
-                    Spacer()
-                    
-                    Button {
-                        appState.filterMode = .all
-                    } label: {
-                        HStack(spacing: 2) {
-                            Text("清除")
-                                .font(.system(size: 10))
-                            Image(systemName: "xmark")
-                                .font(.system(size: 9, weight: .bold))
-                        }
-                        .foregroundColor(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .help("重置为全部会话")
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(configManager.accentColorChoice.color.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-            }
         }
     }
     
