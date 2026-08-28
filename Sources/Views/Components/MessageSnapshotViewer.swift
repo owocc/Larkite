@@ -59,6 +59,12 @@ public enum SnapshotCardTheme: String, CaseIterable, Identifiable, Sendable {
 @MainActor
 public final class MessageSnapshotViewerViewModel: ObservableObject {
     @Published public var selectedTheme: SnapshotCardTheme = .sunset
+    @Published public var showUIFrame: Bool = false
+    @Published public var showChatTitle: Bool = true
+    @Published public var showSenderNames: Bool = true
+    @Published public var showTimestamps: Bool = true
+    @Published public var showWatermark: Bool = true
+    
     @Published public var isRendering: Bool = false
     @Published public var actionToast: String? = nil
     
@@ -89,7 +95,7 @@ public struct MessageSnapshotViewer: View {
     
     public var body: some View {
         VStack(spacing: 0) {
-            // Scrollable Card Preview Container
+            // Scrollable Card Preview Area
             ScrollView([.vertical, .horizontal]) {
                 VStack {
                     cardContent
@@ -101,17 +107,17 @@ public struct MessageSnapshotViewer: View {
             
             Divider()
             
-            // Bottom Controls Bar: Theme Switcher + Action Buttons (All Single-Line, No Wrapping)
+            // Bottom Controls Bar: Themes + Customization Options + Action Buttons
             bottomToolbarView
         }
-        .frame(minWidth: 580, minHeight: 640)
+        .frame(minWidth: 620, minHeight: 640)
     }
     
     // MARK: - Bottom Controls Bar (Fixed Single Line, No Wrapping)
     
     private var bottomToolbarView: some View {
         HStack(spacing: 12) {
-            // Theme Selector Pills
+            // 1. Theme Selector Pills (Whole Pill Clickable)
             HStack(spacing: 6) {
                 Text("主题:")
                     .font(.system(size: 11, weight: .semibold))
@@ -121,7 +127,9 @@ public struct MessageSnapshotViewer: View {
                 
                 ForEach(SnapshotCardTheme.allCases) { theme in
                     Button {
-                        viewModel.selectedTheme = theme
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            viewModel.selectedTheme = theme
+                        }
                     } label: {
                         HStack(spacing: 5) {
                             Circle()
@@ -142,13 +150,48 @@ public struct MessageSnapshotViewer: View {
                             Capsule()
                                 .stroke(viewModel.selectedTheme == theme ? configManager.accentColorChoice.color.opacity(0.6) : Color.secondary.opacity(0.2), lineWidth: 1)
                         )
+                        .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
+                    .contentShape(Capsule())
                     .fixedSize()
                 }
             }
             
-            Spacer(minLength: 16)
+            // 2. Customization Menu (UI Frame, Title, Names, Timestamps, Watermark)
+            Menu {
+                Toggle("显示 UI 卡片框架", isOn: $viewModel.showUIFrame)
+                Divider()
+                Toggle("显示会话标题", isOn: $viewModel.showChatTitle)
+                Toggle("显示发信人名称", isOn: $viewModel.showSenderNames)
+                Toggle("显示消息时间", isOn: $viewModel.showTimestamps)
+                Toggle("显示底部水印", isOn: $viewModel.showWatermark)
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 11))
+                    Text("卡片选项")
+                        .font(.system(size: 11, weight: .medium))
+                        .fixedSize()
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4.5)
+                .background(
+                    Capsule()
+                        .fill(Color(nsColor: .controlBackgroundColor).opacity(0.6))
+                )
+                .overlay(
+                    Capsule()
+                        .stroke(Color.secondary.opacity(0.25), lineWidth: 0.8)
+                )
+                .contentShape(Capsule())
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("自定义卡片框架、标题、时间戳与水印展示")
+            
+            Spacer(minLength: 12)
             
             if let toast = viewModel.actionToast {
                 Text(toast)
@@ -159,7 +202,7 @@ public struct MessageSnapshotViewer: View {
                     .transition(.opacity)
             }
             
-            // Copy Image Button (SF Symbol, No Emoji)
+            // 3. Action Buttons (SF Symbols, No Emoji)
             Button {
                 copyCardImage()
             } label: {
@@ -173,7 +216,6 @@ public struct MessageSnapshotViewer: View {
             .fixedSize()
             .help("将生成的卡片长图复制到系统剪贴板")
             
-            // Save Image to Downloads Button (SF Symbol, No Emoji)
             Button {
                 saveCardImage()
             } label: {
@@ -192,92 +234,148 @@ public struct MessageSnapshotViewer: View {
         .background(Color(nsColor: .windowBackgroundColor))
     }
     
-    // MARK: - Message Snapshot Card View
+    // MARK: - Message Snapshot Card View (Zero Shadow, Pure Clean Flat Design)
     
     private var cardContent: some View {
         VStack(spacing: 0) {
             // Outer Theme Gradient Container
             VStack(spacing: 0) {
-                // Inner White/Charcoal Card
-                VStack(alignment: .leading, spacing: 14) {
-                    // Card Header: Chat Avatar + Name + Branding Badge
-                    HStack(spacing: 10) {
-                        AvatarView(
-                            urlString: chat.resolvedAvatarUrl(currentUserId: appState.session?.user?.openId),
-                            name: chat.displayName,
-                            size: 34
-                        )
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(chat.displayName)
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundColor(.primary)
-                                .lineLimit(1)
+                if viewModel.showUIFrame {
+                    // Mode A: Full UI Frame Container (Zero Shadow)
+                    VStack(alignment: .leading, spacing: 14) {
+                        if viewModel.showChatTitle {
+                            // Header: Chat Avatar + Name + Branding Badge
+                            HStack(spacing: 10) {
+                                AvatarView(
+                                    urlString: chat.resolvedAvatarUrl(currentUserId: appState.session?.user?.openId),
+                                    name: chat.displayName,
+                                    size: 34
+                                )
+                                
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(chat.displayName)
+                                        .font(.system(size: 13, weight: .bold))
+                                        .foregroundColor(.primary)
+                                        .lineLimit(1)
+                                    
+                                    Text("会话记录分享 • 共 \(messages.count) 条消息")
+                                        .font(.system(size: 10))
+                                        .foregroundColor(.secondary)
+                                        .lineLimit(1)
+                                }
+                                
+                                Spacer()
+                                
+                                HStack(spacing: 4) {
+                                    Image(systemName: "bolt.fill")
+                                        .font(.system(size: 10))
+                                        .foregroundColor(Color(hex: "FF9500"))
+                                    Text("Larkite")
+                                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                                        .foregroundColor(.primary)
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color(nsColor: .controlBackgroundColor).opacity(0.8))
+                                .clipShape(Capsule())
+                            }
                             
-                            Text("会话记录分享 • 共 \(messages.count) 条消息")
-                                .font(.system(size: 10))
-                                .foregroundColor(.secondary)
-                                .lineLimit(1)
+                            Divider()
                         }
                         
-                        Spacer()
-                        
-                        // Larkite Logo Badge
-                        HStack(spacing: 4) {
-                            Image(systemName: "bolt.fill")
-                                .font(.system(size: 10))
-                                .foregroundColor(Color(hex: "FF9500"))
-                            Text("Larkite")
-                                .font(.system(size: 11, weight: .bold, design: .rounded))
-                                .foregroundColor(.primary)
+                        // Messages Stream
+                        VStack(alignment: .leading, spacing: 10) {
+                            ForEach(Array(messages.enumerated()), id: \.element.id) { _, msg in
+                                snapshotMessageRow(msg, isFlatOnGradient: false)
+                            }
                         }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color(nsColor: .controlBackgroundColor).opacity(0.8))
-                        .clipShape(Capsule())
-                    }
-                    
-                    Divider()
-                    
-                    // Messages Stream
-                    VStack(alignment: .leading, spacing: 10) {
-                        ForEach(Array(messages.enumerated()), id: \.element.id) { _, msg in
-                            snapshotMessageRow(msg)
+                        
+                        if viewModel.showWatermark {
+                            Divider()
+                            
+                            // Card Footer: Watermark & Date
+                            HStack {
+                                Text("由 Larkite for macOS 生成")
+                                    .font(.system(size: 9, weight: .medium))
+                                    .foregroundColor(.secondary)
+                                
+                                Spacer()
+                                
+                                Text(currentDateString)
+                                    .font(.system(size: 9))
+                                    .foregroundColor(.secondary)
+                            }
                         }
                     }
-                    
-                    Divider()
-                    
-                    // Card Footer: Watermark & Date
-                    HStack {
-                        Text("由 Larkite for macOS 生成")
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundColor(.secondary)
+                    .padding(18)
+                    .background(
+                        Color(nsColor: .windowBackgroundColor)
+                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    )
+                } else {
+                    // Mode B: Pure Clean Message Flow directly on Gradient (Default, No Heavy UI Frame, Zero Shadow)
+                    VStack(alignment: .leading, spacing: 12) {
+                        if viewModel.showChatTitle {
+                            HStack(spacing: 8) {
+                                AvatarView(
+                                    urlString: chat.resolvedAvatarUrl(currentUserId: appState.session?.user?.openId),
+                                    name: chat.displayName,
+                                    size: 26
+                                )
+                                
+                                Text(chat.displayName)
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .lineLimit(1)
+                                
+                                Spacer()
+                                
+                                Text("Larkite")
+                                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                                    .foregroundColor(.white.opacity(0.85))
+                                    .padding(.horizontal, 7)
+                                    .padding(.vertical, 3)
+                                    .background(Color.white.opacity(0.18))
+                                    .clipShape(Capsule())
+                            }
+                            .padding(.bottom, 4)
+                        }
                         
-                        Spacer()
+                        // Messages Stream
+                        VStack(alignment: .leading, spacing: 10) {
+                            ForEach(Array(messages.enumerated()), id: \.element.id) { _, msg in
+                                snapshotMessageRow(msg, isFlatOnGradient: true)
+                            }
+                        }
                         
-                        Text(currentDateString)
-                            .font(.system(size: 9))
-                            .foregroundColor(.secondary)
+                        if viewModel.showWatermark {
+                            HStack {
+                                Text("由 Larkite for macOS 生成")
+                                    .font(.system(size: 9, weight: .medium))
+                                    .foregroundColor(.white.opacity(0.75))
+                                
+                                Spacer()
+                                
+                                Text(currentDateString)
+                                    .font(.system(size: 9))
+                                    .foregroundColor(.white.opacity(0.75))
+                            }
+                            .padding(.top, 4)
+                        }
                     }
+                    .padding(16)
                 }
-                .padding(18)
-                .background(
-                    Color(nsColor: .windowBackgroundColor)
-                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                )
-                .shadow(color: Color.black.opacity(0.2), radius: 16, x: 0, y: 8)
             }
-            .padding(20)
+            .padding(16)
             .background(viewModel.selectedTheme.gradient)
-            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         }
         .frame(width: 440)
     }
     
-    // MARK: - Snapshot Message Item Row
+    // MARK: - Snapshot Message Item Row (Zero Shadows, Clean Flat Design)
     
-    private func snapshotMessageRow(_ msg: FeishuMessageItem) -> some View {
+    private func snapshotMessageRow(_ msg: FeishuMessageItem, isFlatOnGradient: Bool) -> some View {
         let myOpenId = appState.session?.user?.openId ?? ""
         let myUserId = appState.session?.user?.userId ?? ""
         let isSelf = (msg.sender?.id == myOpenId && !myOpenId.isEmpty) || (msg.sender?.id == myUserId && !myUserId.isEmpty)
@@ -296,16 +394,20 @@ public struct MessageSnapshotViewer: View {
             
             VStack(alignment: isSelf ? .trailing : .leading, spacing: 3) {
                 // Header (Name + Time)
-                HStack(spacing: 4) {
-                    if !isSelf {
-                        Text(senderName)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(.secondary)
+                if (viewModel.showSenderNames && !isSelf) || viewModel.showTimestamps {
+                    HStack(spacing: 4) {
+                        if viewModel.showSenderNames && !isSelf {
+                            Text(senderName)
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(isFlatOnGradient ? .white.opacity(0.9) : .secondary)
+                        }
+                        
+                        if viewModel.showTimestamps {
+                            Text(msg.formattedTime)
+                                .font(.system(size: 9))
+                                .foregroundColor(isFlatOnGradient ? .white.opacity(0.7) : .secondary.opacity(0.8))
+                        }
                     }
-                    
-                    Text(msg.formattedTime)
-                        .font(.system(size: 9))
-                        .foregroundColor(.secondary.opacity(0.8))
                 }
                 
                 // Bubble Content
@@ -314,7 +416,7 @@ public struct MessageSnapshotViewer: View {
                     case .text(let text):
                         Text(text)
                             .font(.system(size: 12.5))
-                            .foregroundColor(isSelf ? .white : .primary)
+                            .foregroundColor(isSelf ? .white : (isFlatOnGradient ? .primary : .primary))
                             .multilineTextAlignment(.leading)
                         
                     case .image(let imageKey):
@@ -370,7 +472,7 @@ public struct MessageSnapshotViewer: View {
                 .padding(.vertical, 7)
                 .background(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(isSelf ? configManager.accentColorChoice.color : Color.appleMessagesIncomingBubble)
+                        .fill(isSelf ? configManager.accentColorChoice.color : (isFlatOnGradient ? Color.white.opacity(0.94) : Color.appleMessagesIncomingBubble))
                 )
             }
             
