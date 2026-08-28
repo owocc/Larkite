@@ -20,13 +20,13 @@ public final class InAppImageLightboxViewModel: ObservableObject {
     
     public func zoomIn() {
         withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
-            scale = min(5.0, scale + 0.5)
+            scale = min(4.0, scale + 0.3)
         }
     }
     
     public func zoomOut() {
         withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
-            scale = max(0.5, scale - 0.5)
+            scale = max(0.5, scale - 0.3)
             if scale <= 1.0 {
                 offset = .zero
                 lastOffset = .zero
@@ -44,32 +44,39 @@ public final class InAppImageLightboxViewModel: ObservableObject {
     }
 }
 
+/// Apple Photos Style In-Detail-Column Image Maximize Viewer (Does not cover sidebar)
 public struct InAppImageLightboxView: View {
     let preview: InAppImagePreviewData
+    let chatTitle: String
     
     @ObservedObject var appState: AppState = .shared
     @ObservedObject var configManager: ConfigManager = .shared
     @StateObject private var viewModel = InAppImageLightboxViewModel()
     
-    public init(preview: InAppImagePreviewData) {
+    public init(preview: InAppImagePreviewData, chatTitle: String = "图片详情") {
         self.preview = preview
+        self.chatTitle = chatTitle
     }
     
     public var body: some View {
-        ZStack {
-            // Dark Translucent Glass Backdrop (Click to dismiss)
-            Color.black.opacity(0.85)
-                .ignoresSafeArea()
-                .onTapGesture {
-                    appState.closeInAppImagePreview()
-                }
+        VStack(spacing: 0) {
+            // Apple Photos Style Top Header Bar
+            applePhotosTopBar
             
-            // Centered High-Res Image with Pinch & Pan
+            Divider()
+            
+            // Center Image Stage with Clean Native Window Background
             GeometryReader { geo in
-                let maxW = max(100, geo.size.width - 80)
-                let maxH = max(100, geo.size.height - 100)
+                let maxW = max(100, geo.size.width - 32)
+                let maxH = max(100, geo.size.height - 32)
                 
                 ZStack {
+                    Color(nsColor: .windowBackgroundColor)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            appState.closeInAppImagePreview()
+                        }
+                    
                     Image(nsImage: preview.image)
                         .resizable()
                         .scaledToFit()
@@ -79,7 +86,7 @@ public struct InAppImageLightboxView: View {
                         .gesture(
                             MagnificationGesture()
                                 .onChanged { value in
-                                    viewModel.scale = max(0.5, min(5.0, value))
+                                    viewModel.scale = max(0.5, min(4.0, value))
                                 }
                                 .onEnded { _ in
                                     if viewModel.scale < 1.0 {
@@ -114,167 +121,171 @@ public struct InAppImageLightboxView: View {
                                 }
                             }
                         }
-                        .shadow(color: Color.black.opacity(0.4), radius: 24, x: 0, y: 10)
-                }
-                .frame(width: geo.size.width, height: geo.size.height)
-            }
-            
-            // Floating Top Toolbar
-            VStack {
-                topToolbarView
-                    .padding(.top, 14)
-                    .padding(.horizontal, 20)
-                
-                Spacer()
-                
-                // Bottom hint & toast
-                HStack(spacing: 8) {
-                    if let toast = viewModel.actionToast {
-                        Text(toast)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(Capsule().fill(Color.black.opacity(0.75)))
-                            .transition(.opacity)
-                    } else {
-                        Text("双击缩放 • 点击背景或按 Esc 退出")
-                            .font(.system(size: 10))
-                            .foregroundColor(.white.opacity(0.6))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(Capsule().fill(Color.black.opacity(0.4)))
+                    
+                    // Floating Bottom Hint & Toast
+                    VStack {
+                        Spacer()
+                        
+                        if let toast = viewModel.actionToast {
+                            Text(toast)
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Capsule().fill(Color.black.opacity(0.8)))
+                                .transition(.opacity)
+                                .padding(.bottom, 16)
+                        }
                     }
                 }
-                .padding(.bottom, 16)
+                .frame(width: geo.size.width, height: geo.size.height)
+                .clipped()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(nsColor: .windowBackgroundColor))
     }
     
-    // MARK: - Floating Top Toolbar
+    // MARK: - Apple Photos Style Top Header Bar (1:1 Matching Reference Image)
     
-    private var topToolbarView: some View {
+    private var applePhotosTopBar: some View {
         HStack(spacing: 12) {
-            // Resolution Badge
-            HStack(spacing: 6) {
-                Image(systemName: "photo")
-                    .font(.system(size: 11))
-                Text("\(Int(preview.image.size.width)) × \(Int(preview.image.size.height))")
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+            // Left: Back button + Zoom Slider
+            HStack(spacing: 8) {
+                Button {
+                    appState.closeInAppImagePreview()
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.primary)
+                        .frame(width: 28, height: 28)
+                        .background(
+                            Circle()
+                                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.8))
+                        )
+                }
+                .buttonStyle(.plain)
+                .help("返回聊天流 (Esc)")
+                
+                // Zoom Slider Capsule
+                HStack(spacing: 6) {
+                    Button {
+                        viewModel.zoomOut()
+                    } label: {
+                        Image(systemName: "minus")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Slider(value: $viewModel.scale, in: 0.5...3.0)
+                        .frame(width: 80)
+                        .controlSize(.mini)
+                    
+                    Button {
+                        viewModel.zoomIn()
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    Capsule()
+                        .fill(Color(nsColor: .controlBackgroundColor).opacity(0.6))
+                )
             }
-            .foregroundColor(.white.opacity(0.85))
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(
-                Capsule()
-                    .fill(Color.white.opacity(0.15))
-            )
             
             Spacer()
             
-            // Action Buttons Pill
-            HStack(spacing: 4) {
-                // Zoom Out
-                Button {
-                    viewModel.zoomOut()
-                } label: {
-                    Image(systemName: "minus.magnifyingglass")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.white)
-                        .frame(width: 28, height: 28)
-                        .contentShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .help("缩小")
+            // Center: Image Info / Dimensions
+            VStack(spacing: 1) {
+                Text(chatTitle)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
                 
-                // Zoom In
-                Button {
-                    viewModel.zoomIn()
-                } label: {
-                    Image(systemName: "plus.magnifyingglass")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.white)
-                        .frame(width: 28, height: 28)
-                        .contentShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .help("放大")
-                
-                // Reset Zoom (1:1)
-                Button {
-                    viewModel.resetZoom()
-                } label: {
-                    Image(systemName: "arrow.counterclockwise")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.white)
-                        .frame(width: 28, height: 28)
-                        .contentShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .help("还原原始尺寸")
-                
-                Divider()
-                    .frame(height: 14)
-                    .background(Color.white.opacity(0.3))
-                    .padding(.horizontal, 2)
-                
+                Text("\(Int(preview.image.size.width)) × \(Int(preview.image.size.height)) 像素")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+            }
+            
+            Spacer()
+            
+            // Right: Copy, Save, Reset 1:1, Close
+            HStack(spacing: 6) {
                 // Copy Image
                 Button {
                     copyImageToClipboard()
                 } label: {
                     Image(systemName: "doc.on.doc")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.white)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.primary)
                         .frame(width: 28, height: 28)
-                        .contentShape(Circle())
+                        .background(
+                            Circle()
+                                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.8))
+                        )
                 }
                 .buttonStyle(.plain)
                 .help("复制图片到剪贴板")
                 
-                // Save Image to Downloads
+                // Save to Downloads
                 Button {
                     saveImageToDownloads()
                 } label: {
                     Image(systemName: "arrow.down.circle")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.white)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.primary)
                         .frame(width: 28, height: 28)
-                        .contentShape(Circle())
+                        .background(
+                            Circle()
+                                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.8))
+                        )
                 }
                 .buttonStyle(.plain)
                 .help("保存至下载文件夹并在 Finder 中显示")
                 
-                Divider()
-                    .frame(height: 14)
-                    .background(Color.white.opacity(0.3))
-                    .padding(.horizontal, 2)
+                // Reset 1:1
+                Button {
+                    viewModel.resetZoom()
+                } label: {
+                    Image(systemName: "arrow.counterclockwise")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.primary)
+                        .frame(width: 28, height: 28)
+                        .background(
+                            Circle()
+                                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.8))
+                        )
+                }
+                .buttonStyle(.plain)
+                .help("还原缩放 (1:1)")
                 
-                // Close Lightbox Button
+                // Close
                 Button {
                     appState.closeInAppImagePreview()
                 } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 16))
-                        .foregroundColor(.white.opacity(0.85))
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(.secondary)
                         .frame(width: 28, height: 28)
-                        .contentShape(Circle())
+                        .background(
+                            Circle()
+                                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.8))
+                        )
                 }
                 .buttonStyle(.plain)
-                .help("关闭预览 (Esc)")
+                .help("关闭查看 (Esc)")
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(
-                Capsule()
-                    .fill(Color.black.opacity(0.55))
-            )
-            .overlay(
-                Capsule()
-                    .strokeBorder(Color.white.opacity(0.2), lineWidth: 0.8)
-            )
-            .shadow(color: Color.black.opacity(0.3), radius: 10, x: 0, y: 4)
         }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(Color(nsColor: .windowBackgroundColor))
     }
     
     // MARK: - Actions

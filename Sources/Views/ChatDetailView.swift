@@ -203,15 +203,23 @@ public struct ChatDetailView: View {
                     messagesStreamView(chat: chat)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     
-                    // macOS 26+ Floating Liquid Glass Input Dock or Multi-Select Action Bar
-                    if appState.isMultiSelectingMessages {
-                        multiSelectBottomBar(chat: chat)
-                    } else {
-                        messageInputBar
+                    // macOS 26+ Floating Liquid Glass Input Dock or Multi-Select Action Bar (Hidden when previewing image)
+                    if appState.previewingImage == nil {
+                        if appState.isMultiSelectingMessages {
+                            multiSelectBottomBar(chat: chat)
+                        } else {
+                            messageInputBar
+                        }
+                    }
+                    
+                    // Apple Photos Style In-Detail-Column Image Maximize Viewer (Does not cover sidebar!)
+                    if let preview = appState.previewingImage {
+                        InAppImageLightboxView(preview: preview, chatTitle: title)
+                            .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                            .zIndex(100)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                
                 // Collapsible Right-Side Inspector Panel (Apple Messages Seamless Style)
                 if viewModel.isShowingRightPanel {
                     rightSideInspectorPanel(chat: chat)
