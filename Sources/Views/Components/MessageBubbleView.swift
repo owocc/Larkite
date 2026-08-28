@@ -446,7 +446,7 @@ public struct MessageBubbleView: View, Equatable {
         let grouped = appState.groupedReactions(for: message.messageId)
         return Group {
             if !grouped.isEmpty {
-                ReactionFlowLayout(spacing: 4, lineSpacing: 4, alignment: isSelf ? .trailing : .leading) {
+                ReactionFlowLayout(spacing: 4, lineSpacing: 4, alignment: .leading) {
                     ForEach(grouped) { group in
                         Button {
                             if group.count >= 5 {
@@ -704,10 +704,11 @@ public struct MessageBubbleView: View, Equatable {
     private func bubbleContent(content: ParsedMessageContent, isSelf: Bool) -> some View {
         switch content {
         case .text(let text):
-            VStack(alignment: isSelf ? .trailing : .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(text)
                     .font(.system(size: 13.5))
                     .foregroundColor(isSelf ? .white : .primary)
+                    .multilineTextAlignment(.leading)
                 
                 inBubbleReactionsView(isSelf: isSelf)
             }
@@ -724,13 +725,13 @@ public struct MessageBubbleView: View, Equatable {
             )
             
         case .image(let imageKey):
-            VStack(alignment: isSelf ? .trailing : .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 4) {
                 MessageImageView(messageId: message.messageId, imageKey: imageKey)
                 inBubbleReactionsView(isSelf: isSelf)
             }
             
         case .file(let fileKey, let fileName, let fileSize):
-            VStack(alignment: isSelf ? .trailing : .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 4) {
                 MessageFileView(
                     messageId: message.messageId,
                     fileKey: fileKey,
@@ -741,7 +742,7 @@ public struct MessageBubbleView: View, Equatable {
             }
             
         case .audio(_, let durationMs):
-            VStack(alignment: isSelf ? .trailing : .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
                     Image(systemName: "waveform")
                         .font(.system(size: 16))
@@ -770,7 +771,7 @@ public struct MessageBubbleView: View, Equatable {
             )
             
         case .media(let fileKey, let imageKey, let fileName, let durationSec):
-            VStack(alignment: isSelf ? .trailing : .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 4) {
                 MessageMediaView(
                     messageId: message.messageId,
                     fileKey: fileKey,
@@ -780,7 +781,6 @@ public struct MessageBubbleView: View, Equatable {
                 )
                 inBubbleReactionsView(isSelf: isSelf)
             }
-            
         case .post(let title, let segments):
             VStack(alignment: .leading, spacing: 6) {
                 if let title = title, !title.isEmpty {
