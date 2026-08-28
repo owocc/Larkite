@@ -500,9 +500,12 @@ public final class FeishuAPIClient: Sendable {
         pageToken: String? = nil,
         pageSize: Int = 50
     ) async throws -> FeishuContactListData {
+        // Strategy 1: Query users with department_id=0 (root department / all users)
         var components = URLComponents(string: "https://open.feishu.cn/open-apis/contact/v3/users")
         var queryItems: [URLQueryItem] = [
             URLQueryItem(name: "user_id_type", value: "open_id"),
+            URLQueryItem(name: "department_id_type", value: "open_department_id"),
+            URLQueryItem(name: "department_id", value: "0"),
             URLQueryItem(name: "page_size", value: "\(pageSize)")
         ]
         if let pageToken = pageToken, !pageToken.isEmpty {
@@ -527,12 +530,54 @@ public final class FeishuAPIClient: Sendable {
             throw APIError.unauthorized
         }
         
-        let decoded = try JSONDecoder().decode(FeishuContactListResponse.self, from: data)
-        if decoded.code != 0 {
-            throw APIError.feishuError(code: decoded.code, msg: decoded.msg)
+        if let decoded = try? JSONDecoder().decode(FeishuContactListResponse.self, from: data), decoded.code == 0, let dataObj = decoded.data {
+            return dataObj
         }
         
-        return decoded.data ?? FeishuContactListData(hasMore: false, pageToken: nil, items: [])
+        // Strategy 2: Fallback to querying contact scopes (GET /open-apis/contact/v3/scopes)
+        if let scopesResult = try? await fetchContactScopes(token: token), !scopesResult.isEmpty {
+            return FeishuContactListData(hasMore: false, pageToken: nil, items: scopesResult)
+        }
+        
+        return FeishuContactListData(hasMore: false, pageToken: nil, items: [])
+    }
+    
+    /// Queries accessible contact scopes (/open-apis/contact/v3/scopes) and resolves each user
+    public func fetchContactScopes(token: String) async throws -> [FeishuContactUser] {
+        guard let url = URL(string: "https://open.feishu.cn/open-apis/contact/v3/scopes?user_id_type=open_id") else {
+            throw APIError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            return []
+        }
+        
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let code = json["code"] as? Int, code == 0,
+           let dataObj = json["data"] as? [String: Any],
+           let userIds = dataObj["user_ids"] as? [String], !userIds.isEmpty {
+            
+            var contactsList: [FeishuContactUser] = []
+            for uid in userIds.prefix(50) {
+                if let userDetail = try? await fetchUserDetail(token: token, userId: uid) {
+                    let contact = FeishuContactUser(
+                        openId: userDetail.openId,
+                        userId: userDetail.userId,
+                        name: userDetail.displayName,
+                        avatarUrl: userDetail.bestAvatarUrl
+                    )
+                    contactsList.append(contact)
+                }
+            }
+            return contactsList
+        }
+        
+        return []
     }
     
     public func fetchUserDetail(
