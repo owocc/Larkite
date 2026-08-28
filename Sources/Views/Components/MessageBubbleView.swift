@@ -605,6 +605,22 @@ public struct MessageBubbleView: View, Equatable {
         
         Divider()
         
+        // Section 2.5: Share & Multi-Select Easter Egg
+        Button {
+            if let chat = appState.selectedChat {
+                appState.shareSingleMessage(message, chat: chat)
+            }
+        } label: {
+            Label("生成消息卡片分享 📸", systemImage: "square.and.arrow.up")
+        }
+        
+        Button {
+            appState.enterMultiSelectMode(preselecting: message.messageId)
+        } label: {
+            Label("多选消息并分享...", systemImage: "checkmark.circle")
+        }
+        
+        Divider()
         // Section 3: Read Receipts & Reaction Details
         Button {
             Task {

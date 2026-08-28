@@ -140,6 +140,11 @@ public final class AppState: ObservableObject {
     @Published public var readReceiptError: String? = nil
     @Published public var messageReactions: [String: [FeishuReactionItem]] = [:]
     @Published public var inspectingReactionMessage: FeishuMessageItem? = nil
+    
+    // MARK: - Multi-Message Selection & Snapshot Sharing Easter Egg State
+    @Published public var isMultiSelectingMessages: Bool = false
+    @Published public var selectedMessageIdsForShare: Set<String> = []
+    
     // MARK: - Group Members State
     @Published public var chatMembers: [FeishuChatMemberItem] = []
     @Published public var isLoadingChatMembers: Bool = false
@@ -1287,6 +1292,47 @@ public final class AppState: ObservableObject {
         await loadReactions(for: message.messageId)
     }
     
+    // MARK: - Message Snapshot Sharing Easter Egg Methods
+    
+    public func enterMultiSelectMode(preselecting messageId: String? = nil) {
+        self.isMultiSelectingMessages = true
+        self.selectedMessageIdsForShare = []
+        if let id = messageId {
+            self.selectedMessageIdsForShare.insert(id)
+        }
+    }
+    
+    public func exitMultiSelectMode() {
+        self.isMultiSelectingMessages = false
+        self.selectedMessageIdsForShare = []
+    }
+    
+    public func toggleMessageSelectionForShare(_ messageId: String) {
+        if selectedMessageIdsForShare.contains(messageId) {
+            selectedMessageIdsForShare.remove(messageId)
+        } else {
+            selectedMessageIdsForShare.insert(messageId)
+        }
+    }
+    
+    public func selectAllMessagesForShare() {
+        self.selectedMessageIdsForShare = Set(messages.map { $0.messageId })
+    }
+    
+    public func deselectAllMessagesForShare() {
+        self.selectedMessageIdsForShare = []
+    }
+    
+    public func shareSelectedMessages(chat: FeishuChatItem) {
+        let selected = messages.filter { selectedMessageIdsForShare.contains($0.messageId) }
+        guard !selected.isEmpty else { return }
+        MessageSnapshotWindowManager.shared.showSnapshotWindow(messages: selected, chat: chat)
+        exitMultiSelectMode()
+    }
+    
+    public func shareSingleMessage(_ message: FeishuMessageItem, chat: FeishuChatItem) {
+        MessageSnapshotWindowManager.shared.showSnapshotWindow(messages: [message], chat: chat)
+    }
     // MARK: - Group Members Query
     
     public func loadChatMembers(for chat: FeishuChatItem, reset: Bool = false) async {

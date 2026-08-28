@@ -154,8 +154,12 @@ public struct ChatDetailView: View {
                     messagesStreamView(chat: chat)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     
-                    // macOS 26+ Floating Liquid Glass Input Dock
-                    messageInputBar
+                    // macOS 26+ Floating Liquid Glass Input Dock or Multi-Select Action Bar
+                    if appState.isMultiSelectingMessages {
+                        multiSelectBottomBar(chat: chat)
+                    } else {
+                        messageInputBar
+                    }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 
@@ -344,15 +348,31 @@ public struct ChatDetailView: View {
                                 let showSenderHeader = !isPrevConsecutive
                                 let showTime = !isPrevConsecutive || timeDiffWithPrevMins >= 10
                                 
-                                MessageBubbleView(
-                                    message: msg,
-                                    showSenderHeader: showSenderHeader,
-                                    showTime: showTime,
-                                    position: clusterPosition
-                                )
-                                .equatable()
+                                HStack(spacing: 4) {
+                                    if appState.isMultiSelectingMessages {
+                                        Button {
+                                            appState.toggleMessageSelectionForShare(msg.messageId)
+                                        } label: {
+                                            Image(systemName: appState.selectedMessageIdsForShare.contains(msg.messageId) ? "checkmark.circle.fill" : "circle")
+                                                .font(.system(size: 16, weight: .semibold))
+                                                .foregroundColor(appState.selectedMessageIdsForShare.contains(msg.messageId) ? configManager.accentColorChoice.color : .secondary)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .padding(.leading, 14)
+                                        .transition(.move(edge: .leading).combined(with: .opacity))
+                                    }
+                                    
+                                    MessageBubbleView(
+                                        message: msg,
+                                        showSenderHeader: showSenderHeader,
+                                        showTime: showTime,
+                                        position: clusterPosition
+                                    )
+                                    .equatable()
+                                }
                                 .id(msg.id)
                             }
+                            
                             // Bottom breathing spacer dynamically adapting to floating dock expansion & reply bar (with 16pt bottom margin)
                             Color.clear
                                 .frame(height: viewModel.isEditorExpanded ? 350 : (appState.replyingToMessage != nil ? min(220, max(112, viewModel.editorContentHeight + 88)) : min(180, max(76, viewModel.editorContentHeight + 52))))
@@ -463,6 +483,74 @@ public struct ChatDetailView: View {
             Spacer()
         }
     }
+    // MARK: - Multi-Message Selection Action Bar (Snapshot Sharing Easter Egg)
+    
+    private func multiSelectBottomBar(chat: FeishuChatItem) -> some View {
+        HStack(spacing: 12) {
+            // Selected count indicator
+            HStack(spacing: 6) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(configManager.accentColorChoice.color)
+                Text("已选择 \(appState.selectedMessageIdsForShare.count) 条消息")
+                    .font(.system(size: 12, weight: .bold))
+            }
+            
+            Spacer()
+            
+            // Select All / Deselect All Button
+            Button {
+                if appState.selectedMessageIdsForShare.count == appState.messages.count {
+                    appState.deselectAllMessagesForShare()
+                } else {
+                    appState.selectAllMessagesForShare()
+                }
+            } label: {
+                Text(appState.selectedMessageIdsForShare.count == appState.messages.count ? "取消全选" : "全选")
+                    .font(.system(size: 11, weight: .medium))
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            
+            // Generate Snapshot Button
+            Button {
+                appState.shareSelectedMessages(chat: chat)
+            } label: {
+                Label("生成长图卡片 📸", systemImage: "sparkles")
+                    .font(.system(size: 11, weight: .semibold))
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .disabled(appState.selectedMessageIdsForShare.isEmpty)
+            
+            // Cancel / Exit Button
+            Button {
+                appState.exitMultiSelectMode()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(.secondary)
+                    .frame(width: 22, height: 22)
+                    .background(Circle().fill(Color.secondary.opacity(0.15)))
+            }
+            .buttonStyle(.plain)
+            .help("退出多选")
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(
+            Color.elevatedInputBackground
+                .clipShape(Capsule())
+        )
+        .overlay(
+            Capsule()
+                .strokeBorder(Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 0.8)
+        )
+        .shadow(color: Color.black.opacity(0.12), radius: 12, x: 0, y: 4)
+        .padding(.horizontal, 20)
+        .padding(.bottom, 16)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+    }
+    
     
     // MARK: - Liquid Glass Floating Input Dock
     // MARK: - Liquid Glass Floating Input Dock (Telegram macOS Style)
