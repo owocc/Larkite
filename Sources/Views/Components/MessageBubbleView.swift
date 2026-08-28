@@ -17,83 +17,134 @@ extension Color {
     )
 }
 
+public enum BubbleClusterPosition: String, Equatable, Sendable {
+    case single
+    case first
+    case middle
+    case last
+}
+
 /// Native Apple Messages Chat Bubble Shape with bottom-left and bottom-right tail curves
+/// and dynamic corner radii according to cluster position (first, middle, last, single)
 public struct ChatBubbleShape: Shape {
     public let isSelf: Bool
+    public let position: BubbleClusterPosition
     
-    public init(isSelf: Bool) {
+    public init(isSelf: Bool, position: BubbleClusterPosition = .single) {
         self.isSelf = isSelf
+        self.position = position
     }
     
     public func path(in rect: CGRect) -> Path {
         var path = Path()
-        let r: CGFloat = 16
+        let rLarge: CGFloat = 16
+        let rSmall: CGFloat = 4
         let tailW: CGFloat = 5
         let tailH: CGFloat = 6
         
+        let hasTail = (position == .single || position == .last)
+        
         if isSelf {
+            // Outgoing message (Right-aligned):
+            // Body right edge is at (rect.maxX - tailW) for all messages, so all messages have identical right alignment
             let bMaxX = rect.maxX - tailW
-            path.move(to: CGPoint(x: rect.minX + r, y: rect.minY))
+            let bMinX = rect.minX
+            let bMinY = rect.minY
+            let bMaxY = rect.maxY
             
-            // Top edge & top-right corner
-            path.addLine(to: CGPoint(x: bMaxX - r, y: rect.minY))
-            path.addArc(center: CGPoint(x: bMaxX - r, y: rect.minY + r), radius: r, startAngle: .degrees(-90), endAngle: .degrees(0), clockwise: false)
+            let rTL: CGFloat = rLarge
+            let rBL: CGFloat = rLarge
+            // Top-Right is rSmall (4) for .middle and .last; rLarge (16) for .single and .first
+            let rTR: CGFloat = (position == .middle || position == .last) ? rSmall : rLarge
+            // Bottom-Right is rSmall (4) for .first and .middle; Tail for .single and .last
+            let rBR: CGFloat = (position == .first || position == .middle) ? rSmall : rLarge
             
-            // Right edge down to tail start
-            path.addLine(to: CGPoint(x: bMaxX, y: rect.maxY - tailH - 4))
+            // Start at Top-Left after arc
+            path.move(to: CGPoint(x: bMinX + rTL, y: bMinY))
             
-            // Tail curve out to bottom-right tip
-            path.addCurve(
-                to: CGPoint(x: rect.maxX, y: rect.maxY),
-                control1: CGPoint(x: bMaxX, y: rect.maxY - 2),
-                control2: CGPoint(x: rect.maxX - 1, y: rect.maxY)
-            )
-            // Tail curve in to bottom edge
-            path.addCurve(
-                to: CGPoint(x: bMaxX - 12, y: rect.maxY),
-                control1: CGPoint(x: rect.maxX - 3, y: rect.maxY),
-                control2: CGPoint(x: bMaxX - 6, y: rect.maxY)
-            )
+            // Top edge & Top-Right corner
+            path.addLine(to: CGPoint(x: bMaxX - rTR, y: bMinY))
+            path.addArc(center: CGPoint(x: bMaxX - rTR, y: bMinY + rTR), radius: rTR, startAngle: .degrees(-90), endAngle: .degrees(0), clockwise: false)
             
-            // Bottom edge to bottom-left corner
-            path.addLine(to: CGPoint(x: rect.minX + r, y: rect.maxY))
-            path.addArc(center: CGPoint(x: rect.minX + r, y: rect.maxY - r), radius: r, startAngle: .degrees(90), endAngle: .degrees(180), clockwise: false)
+            if hasTail {
+                // Right edge down to tail start
+                path.addLine(to: CGPoint(x: bMaxX, y: bMaxY - tailH - 4))
+                // Tail curve out to bottom-right tip
+                path.addCurve(
+                    to: CGPoint(x: rect.maxX, y: bMaxY),
+                    control1: CGPoint(x: bMaxX, y: bMaxY - 2),
+                    control2: CGPoint(x: rect.maxX - 1, y: bMaxY)
+                )
+                // Tail curve in to bottom edge
+                path.addCurve(
+                    to: CGPoint(x: bMaxX - 12, y: bMaxY),
+                    control1: CGPoint(x: rect.maxX - 3, y: bMaxY),
+                    control2: CGPoint(x: bMaxX - 6, y: bMaxY)
+                )
+            } else {
+                // Right edge down & Bottom-Right corner (rBR is rSmall = 4)
+                path.addLine(to: CGPoint(x: bMaxX, y: bMaxY - rBR))
+                path.addArc(center: CGPoint(x: bMaxX - rBR, y: bMaxY - rBR), radius: rBR, startAngle: .degrees(0), endAngle: .degrees(90), clockwise: false)
+            }
             
-            // Left edge up & top-left corner
-            path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + r))
-            path.addArc(center: CGPoint(x: rect.minX + r, y: rect.minY + r), radius: r, startAngle: .degrees(180), endAngle: .degrees(270), clockwise: false)
+            // Bottom edge to Bottom-Left corner
+            path.addLine(to: CGPoint(x: bMinX + rBL, y: bMaxY))
+            path.addArc(center: CGPoint(x: bMinX + rBL, y: bMaxY - rBL), radius: rBL, startAngle: .degrees(90), endAngle: .degrees(180), clockwise: false)
+            
+            // Left edge up & Top-Left corner
+            path.addLine(to: CGPoint(x: bMinX, y: bMinY + rTL))
+            path.addArc(center: CGPoint(x: bMinX + rTL, y: bMinY + rTL), radius: rTL, startAngle: .degrees(180), endAngle: .degrees(270), clockwise: false)
             
         } else {
+            // Incoming message (Left-aligned):
+            // Body left edge is at (rect.minX + tailW) for all messages, so all messages have identical left margin
             let bMinX = rect.minX + tailW
-            path.move(to: CGPoint(x: bMinX + r, y: rect.minY))
+            let bMaxX = rect.maxX
+            let bMinY = rect.minY
+            let bMaxY = rect.maxY
             
-            // Top edge & top-right corner
-            path.addLine(to: CGPoint(x: rect.maxX - r, y: rect.minY))
-            path.addArc(center: CGPoint(x: rect.maxX - r, y: rect.minY + r), radius: r, startAngle: .degrees(-90), endAngle: .degrees(0), clockwise: false)
+            let rTR: CGFloat = rLarge
+            let rBR: CGFloat = rLarge
+            // Top-Left is rSmall (4) for .middle and .last; rLarge (16) for .single and .first
+            let rTL: CGFloat = (position == .middle || position == .last) ? rSmall : rLarge
+            // Bottom-Left is rSmall (4) for .first and .middle; Tail for .single and .last
+            let rBL: CGFloat = (position == .first || position == .middle) ? rSmall : rLarge
             
-            // Right edge down & bottom-right corner
-            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - r))
-            path.addArc(center: CGPoint(x: rect.maxX - r, y: rect.maxY - r), radius: r, startAngle: .degrees(0), endAngle: .degrees(90), clockwise: false)
+            // Start at Top-Left after arc
+            path.move(to: CGPoint(x: bMinX + rTL, y: bMinY))
             
-            // Bottom edge to tail start
-            path.addLine(to: CGPoint(x: bMinX + 12, y: rect.maxY))
+            // Top edge & Top-Right corner
+            path.addLine(to: CGPoint(x: bMaxX - rTR, y: bMinY))
+            path.addArc(center: CGPoint(x: bMaxX - rTR, y: bMinY + rTR), radius: rTR, startAngle: .degrees(-90), endAngle: .degrees(0), clockwise: false)
             
-            // Tail curve out to bottom-left tip
-            path.addCurve(
-                to: CGPoint(x: rect.minX, y: rect.maxY),
-                control1: CGPoint(x: bMinX + 6, y: rect.maxY),
-                control2: CGPoint(x: rect.minX + 3, y: rect.maxY)
-            )
-            // Tail curve in to left edge
-            path.addCurve(
-                to: CGPoint(x: bMinX, y: rect.maxY - tailH - 4),
-                control1: CGPoint(x: rect.minX + 1, y: rect.maxY),
-                control2: CGPoint(x: bMinX, y: rect.maxY - 2)
-            )
+            // Right edge down & Bottom-Right corner
+            path.addLine(to: CGPoint(x: bMaxX, y: bMaxY - rBR))
+            path.addArc(center: CGPoint(x: bMaxX - rBR, y: bMaxY - rBR), radius: rBR, startAngle: .degrees(0), endAngle: .degrees(90), clockwise: false)
             
-            // Left edge up & top-left corner
-            path.addLine(to: CGPoint(x: bMinX, y: rect.minY + r))
-            path.addArc(center: CGPoint(x: bMinX + r, y: rect.minY + r), radius: r, startAngle: .degrees(180), endAngle: .degrees(270), clockwise: false)
+            if hasTail {
+                // Bottom edge to tail start
+                path.addLine(to: CGPoint(x: bMinX + 12, y: bMaxY))
+                // Tail curve out to bottom-left tip
+                path.addCurve(
+                    to: CGPoint(x: rect.minX, y: bMaxY),
+                    control1: CGPoint(x: bMinX + 6, y: bMaxY),
+                    control2: CGPoint(x: rect.minX + 3, y: bMaxY)
+                )
+                // Tail curve in to left edge
+                path.addCurve(
+                    to: CGPoint(x: bMinX, y: bMaxY - tailH - 4),
+                    control1: CGPoint(x: rect.minX + 1, y: bMaxY),
+                    control2: CGPoint(x: bMinX, y: bMaxY - 2)
+                )
+            } else {
+                // Bottom edge to Bottom-Left corner (rBL is rSmall = 4)
+                path.addLine(to: CGPoint(x: bMinX + rBL, y: bMaxY))
+                path.addArc(center: CGPoint(x: bMinX + rBL, y: bMaxY - rBL), radius: rBL, startAngle: .degrees(90), endAngle: .degrees(180), clockwise: false)
+            }
+            
+            // Left edge up & Top-Left corner
+            path.addLine(to: CGPoint(x: bMinX, y: bMinY + rTL))
+            path.addArc(center: CGPoint(x: bMinX + rTL, y: bMinY + rTL), radius: rTL, startAngle: .degrees(180), endAngle: .degrees(270), clockwise: false)
         }
         
         path.closeSubpath()
@@ -106,7 +157,7 @@ public struct MessageBubbleView: View, Equatable {
     let isCurrentUser: Bool
     let showSenderHeader: Bool
     let showTime: Bool
-    let isTailVisible: Bool
+    let position: BubbleClusterPosition
     
     @ObservedObject var appState: AppState = .shared
     @ObservedObject var configManager: ConfigManager = .shared
@@ -116,13 +167,13 @@ public struct MessageBubbleView: View, Equatable {
         isCurrentUser: Bool = false,
         showSenderHeader: Bool = true,
         showTime: Bool = true,
-        isTailVisible: Bool = true
+        position: BubbleClusterPosition = .single
     ) {
         self.message = message
         self.isCurrentUser = isCurrentUser
         self.showSenderHeader = showSenderHeader
         self.showTime = showTime
-        self.isTailVisible = isTailVisible
+        self.position = position
     }
     
     public static func == (lhs: MessageBubbleView, rhs: MessageBubbleView) -> Bool {
@@ -131,7 +182,7 @@ public struct MessageBubbleView: View, Equatable {
         lhs.isCurrentUser == rhs.isCurrentUser &&
         lhs.showSenderHeader == rhs.showSenderHeader &&
         lhs.showTime == rhs.showTime &&
-        lhs.isTailVisible == rhs.isTailVisible &&
+        lhs.position == rhs.position &&
         lhs.configManager.accentColorChoice == rhs.configManager.accentColorChoice
     }
     
@@ -142,6 +193,9 @@ public struct MessageBubbleView: View, Equatable {
             return sender.id == current.openId || sender.id == current.userId
         }
         return false
+    }
+    private var isTailVisible: Bool {
+        position == .single || position == .last
     }
     
     public var body: some View {
@@ -412,30 +466,16 @@ public struct MessageBubbleView: View, Equatable {
             Text(text)
                 .font(.system(size: 13.5))
                 .foregroundColor(isSelf ? .white : .primary)
-                .padding(.leading, isTailVisible ? (isSelf ? 14 : 18) : 14)
-                .padding(.trailing, isTailVisible ? (isSelf ? 18 : 14) : 14)
+                .padding(.leading, isSelf ? 14 : 19)
+                .padding(.trailing, isSelf ? 19 : 14)
                 .padding(.vertical, 9)
                 .background(
-                    Group {
-                        if isTailVisible {
-                            ChatBubbleShape(isSelf: isSelf)
-                                .fill(isSelf ? configManager.accentColorChoice.color : Color.appleMessagesIncomingBubble)
-                        } else {
-                            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                .fill(isSelf ? configManager.accentColorChoice.color : Color.appleMessagesIncomingBubble)
-                        }
-                    }
+                    ChatBubbleShape(isSelf: isSelf, position: position)
+                        .fill(isSelf ? configManager.accentColorChoice.color : Color.appleMessagesIncomingBubble)
                 )
                 .overlay(
-                    Group {
-                        if isTailVisible {
-                            ChatBubbleShape(isSelf: isSelf)
-                                .stroke(isSelf ? Color.white.opacity(0.12) : Color.clear, lineWidth: 0.8)
-                        } else {
-                            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                .stroke(isSelf ? Color.white.opacity(0.12) : Color.clear, lineWidth: 0.8)
-                        }
-                    }
+                    ChatBubbleShape(isSelf: isSelf, position: position)
+                        .stroke(isSelf ? Color.white.opacity(0.12) : Color.clear, lineWidth: 0.8)
                 )
         case .image(let imageKey):
             // Apple Messages style: Frameless edge-to-edge image attachment
@@ -448,7 +488,6 @@ public struct MessageBubbleView: View, Equatable {
                         appState.replyingToMessage = message
                     }
                 }
-            
         case .file(let fileKey, let fileName, let fileSize):
             MessageFileView(
                 messageId: message.messageId,
@@ -479,32 +518,17 @@ public struct MessageBubbleView: View, Equatable {
                         .foregroundColor(isSelf ? .white.opacity(0.8) : .secondary)
                 }
             }
-            .padding(.leading, isTailVisible ? (isSelf ? 14 : 18) : 14)
-            .padding(.trailing, isTailVisible ? (isSelf ? 18 : 14) : 14)
+            .padding(.leading, isSelf ? 14 : 19)
+            .padding(.trailing, isSelf ? 19 : 14)
             .padding(.vertical, 9)
             .background(
-                Group {
-                    if isTailVisible {
-                        ChatBubbleShape(isSelf: isSelf)
-                            .fill(isSelf ? configManager.accentColorChoice.color : Color.appleMessagesIncomingBubble)
-                    } else {
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(isSelf ? configManager.accentColorChoice.color : Color.appleMessagesIncomingBubble)
-                    }
-                }
+                ChatBubbleShape(isSelf: isSelf, position: position)
+                    .fill(isSelf ? configManager.accentColorChoice.color : Color.appleMessagesIncomingBubble)
             )
             .overlay(
-                Group {
-                    if isTailVisible {
-                        ChatBubbleShape(isSelf: isSelf)
-                            .stroke(isSelf ? Color.white.opacity(0.12) : Color.clear, lineWidth: 0.8)
-                    } else {
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .stroke(isSelf ? Color.white.opacity(0.12) : Color.clear, lineWidth: 0.8)
-                    }
-                }
+                ChatBubbleShape(isSelf: isSelf, position: position)
+                    .stroke(isSelf ? Color.white.opacity(0.12) : Color.clear, lineWidth: 0.8)
             )
-            
         case .media(let fileKey, let imageKey, let fileName, let durationSec):
             MessageMediaView(
                 messageId: message.messageId,
@@ -526,30 +550,16 @@ public struct MessageBubbleView: View, Equatable {
                     renderPostSegment(segment, isSelf: isSelf)
                 }
             }
-            .padding(.leading, isTailVisible ? (isSelf ? 14 : 18) : 14)
-            .padding(.trailing, isTailVisible ? (isSelf ? 18 : 14) : 14)
+            .padding(.leading, isSelf ? 14 : 19)
+            .padding(.trailing, isSelf ? 19 : 14)
             .padding(.vertical, 12)
             .background(
-                Group {
-                    if isTailVisible {
-                        ChatBubbleShape(isSelf: isSelf)
-                            .fill(isSelf ? configManager.accentColorChoice.color : Color.appleMessagesIncomingBubble)
-                    } else {
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(isSelf ? configManager.accentColorChoice.color : Color.appleMessagesIncomingBubble)
-                    }
-                }
+                ChatBubbleShape(isSelf: isSelf, position: position)
+                    .fill(isSelf ? configManager.accentColorChoice.color : Color.appleMessagesIncomingBubble)
             )
             .overlay(
-                Group {
-                    if isTailVisible {
-                        ChatBubbleShape(isSelf: isSelf)
-                            .stroke(isSelf ? Color.white.opacity(0.12) : Color.clear, lineWidth: 0.8)
-                    } else {
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .stroke(isSelf ? Color.white.opacity(0.12) : Color.clear, lineWidth: 0.8)
-                    }
-                }
+                ChatBubbleShape(isSelf: isSelf, position: position)
+                    .stroke(isSelf ? Color.white.opacity(0.12) : Color.clear, lineWidth: 0.8)
             )
         case .card(let rawJson):
             VStack(alignment: .leading, spacing: 6) {

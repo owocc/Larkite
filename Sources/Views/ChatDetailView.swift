@@ -320,24 +320,33 @@ public struct ChatDetailView: View {
                                 let prevTimeMs = prevMsg.flatMap { Double($0.createTime) } ?? 0
                                 let currTimeMs = Double(msg.createTime) ?? 0
                                 let timeDiffWithPrevMins = prevMsg != nil ? abs(currTimeMs - prevTimeMs) / (1000 * 60) : 999
+                                let isPrevConsecutive = isSameSenderAsPrev && timeDiffWithPrevMins < 10
                                 
-                                // Sender name header & time are shown if new sender OR time gap >= 10 minutes
-                                let isConsecutive = isSameSenderAsPrev && timeDiffWithPrevMins < 10
-                                let showSenderHeader = !isConsecutive
-                                let showTime = !isConsecutive || timeDiffWithPrevMins >= 10
-                                
-                                // Tail & Avatar are anchored to the last message of consecutive cluster
                                 let isSameSenderAsNext = nextMsg != nil && nextMsg?.sender?.id == msg.sender?.id
                                 let nextTimeMs = nextMsg.flatMap { Double($0.createTime) } ?? 0
                                 let timeDiffWithNextMins = nextMsg != nil ? abs(nextTimeMs - currTimeMs) / (1000 * 60) : 999
                                 let isNextConsecutive = isSameSenderAsNext && timeDiffWithNextMins < 10
-                                let isTailVisible = !isNextConsecutive
+                                
+                                let clusterPosition: BubbleClusterPosition = {
+                                    if isPrevConsecutive && isNextConsecutive {
+                                        return .middle
+                                    } else if isPrevConsecutive && !isNextConsecutive {
+                                        return .last
+                                    } else if !isPrevConsecutive && isNextConsecutive {
+                                        return .first
+                                    } else {
+                                        return .single
+                                    }
+                                }()
+                                
+                                let showSenderHeader = !isPrevConsecutive
+                                let showTime = !isPrevConsecutive || timeDiffWithPrevMins >= 10
                                 
                                 MessageBubbleView(
                                     message: msg,
                                     showSenderHeader: showSenderHeader,
                                     showTime: showTime,
-                                    isTailVisible: isTailVisible
+                                    position: clusterPosition
                                 )
                                 .equatable()
                                 .id(msg.id)
