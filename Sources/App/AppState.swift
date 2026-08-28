@@ -123,6 +123,8 @@ public final class AppState: ObservableObject {
     private var oauthServerTask: Task<Void, Never>?
     private var activeMessageLoadTask: Task<Void, Never>?
     private var activeMembersLoadTask: Task<Void, Never>?
+    private var autoRefreshTask: Task<Void, Never>?
+    private var notificationObservers: [NSObjectProtocol] = []
     
     public var isLoggedIn: Bool {
         !isAddingAccount && session != nil && !(session?.accessToken.isEmpty ?? true)
@@ -165,6 +167,125 @@ public final class AppState: ObservableObject {
             Task {
                 await self.loadUserInfo()
                 await self.loadChats(reset: true)
+            }
+        }
+        
+        setupFocusObservers()
+        startAutoRefreshTimer()
+    }
+    
+    // MARK: - Focus & Background Auto-Sync
+    
+    private func setupFocusObservers() {
+        let obs1 = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                await self?.onAppFocused()
+            }
+        }
+        
+        let obs2 = NotificationCenter.default.addObserver(
+            forName: NSWindow.didBecomeKeyNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                await self?.onAppFocused()
+            }
+        }
+        
+        self.notificationObservers = [obs1, obs2]
+    }
+    
+    public func onAppFocused() async {
+        guard isLoggedIn, !isAuthenticating else { return }
+        await silentRefreshAll()
+    }
+    
+    public func startAutoRefreshTimer() {
+        autoRefreshTask?.cancel()
+        autoRefreshTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 12_000_000_000) // Poll every 12 seconds
+                guard let self = self else { break }
+                if self.isLoggedIn && !self.isAuthenticating {
+                    await self.silentRefreshAll()
+                }
+            }
+        }
+    }
+    
+    public func silentRefreshAll() async {
+        guard let token = session?.accessToken, isLoggedIn, !isAuthenticating else { return }
+        
+        // 1. Silently fetch updated chat list without screen flicker
+        if let result = try? await FeishuAPIClient.shared.fetchChatList(token: token, pageToken: nil, pageSize: 50) {
+            let newItems = result.items ?? []
+            if !newItems.isEmpty {
+                let savedP2P = ConfigManager.shared.loadP2PChats()
+                var merged = newItems + savedP2P.filter { saved in
+                    !newItems.contains(where: { $0.chatId == saved.chatId })
+                }
+                
+                // Preserve existing hydration details
+                for (i, item) in merged.enumerated() {
+                    if let existing = self.chats.first(where: { $0.chatId == item.chatId }) {
+                        if item.name == nil && existing.name != nil {
+                            merged[i] = existing
+                        }
+                    }
+                }
+                
+                self.chats = merged
+                
+                // Update latest message previews quietly
+                let latestMap = await FeishuAPIClient.shared.batchFetchLatestMessages(
+                    token: token,
+                    chatIds: self.chats.prefix(25).map(\.chatId)
+                )
+                for (cid, msg) in latestMap {
+                    self.lastMessages[cid] = msg
+                }
+            }
+        }
+        
+        // 2. If a chat is actively selected, fetch any newly arrived messages quietly
+        if let currentChat = self.selectedChat {
+            await silentRefreshMessages(for: currentChat)
+        }
+    }
+    
+    public func silentRefreshMessages(for chat: FeishuChatItem) async {
+        guard let token = session?.accessToken, isLoggedIn, !isAuthenticating else { return }
+        
+        var targetChatId = chat.chatId
+        if !targetChatId.hasPrefix("oc_") {
+            if let matched = self.chats.first(where: { $0.isP2P && $0.chatId.hasPrefix("oc_") && ($0.ownerId == chat.chatId || $0.ownerId == chat.ownerId) }) {
+                targetChatId = matched.chatId
+            } else {
+                return
+            }
+        }
+        
+        if let result = try? await FeishuAPIClient.shared.fetchChatMessages(
+            token: token,
+            chatId: targetChatId,
+            sortType: "ByCreateTimeDesc",
+            pageSize: 20
+        ) {
+            var fetched = result.items ?? []
+            fetched.reverse()
+            if !fetched.isEmpty {
+                let existingIds = Set(self.messages.map(\.id))
+                let brandNew = fetched.filter { !existingIds.contains($0.id) }
+                if !brandNew.isEmpty {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        self.messages.append(contentsOf: brandNew)
+                    }
+                }
             }
         }
     }
