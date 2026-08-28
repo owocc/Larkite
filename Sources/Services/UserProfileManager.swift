@@ -104,16 +104,18 @@ public final class UserProfileManager: ObservableObject {
     }
     
     /// Resolves display name for an openId
-    public func resolveDisplayName(for openId: String, currentUserId: String?) -> String {
-        if let current = currentUserId, openId == current {
-            return profiles[openId]?.name ?? "我"
+    public func resolveDisplayName(for openId: String, currentUserId: String? = nil, currentOpenId: String? = nil) -> String {
+        if let current = currentOpenId, !current.isEmpty, openId == current {
+            return profiles[openId]?.name.appending(" (我)") ?? "我"
+        }
+        if let current = currentUserId, !current.isEmpty, openId == current {
+            return profiles[openId]?.name.appending(" (我)") ?? "我"
         }
         if let profile = profiles[openId] {
             return profile.name
         }
         return "用户 (\(openId.prefix(6)))"
     }
-    
     /// Resolves avatar URL for an openId
     public func resolveAvatarUrl(for openId: String) -> String? {
         profiles[openId]?.avatarUrl

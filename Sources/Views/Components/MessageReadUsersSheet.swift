@@ -111,7 +111,11 @@ public struct MessageReadUsersSheet: View {
                     ScrollView {
                         LazyVStack(spacing: 4) {
                             ForEach(appState.inspectingReadUsers) { item in
-                                let name = UserProfileManager.shared.resolveDisplayName(for: item.userId, currentUserId: appState.session?.user?.openId)
+                                let name = UserProfileManager.shared.resolveDisplayName(
+                                    for: item.userId,
+                                    currentUserId: appState.session?.user?.userId,
+                                    currentOpenId: appState.session?.user?.openId
+                                )
                                 let avatar = UserProfileManager.shared.resolveAvatarUrl(for: item.userId)
                                 HStack(spacing: 10) {
                                     AvatarView(urlString: avatar, name: name, size: 28)

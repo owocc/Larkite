@@ -78,10 +78,15 @@ public final class AppState: ObservableObject {
                 
                 activeMembersLoadTask?.cancel()
                 self.chatMembers = []
-                self.chatMemberTotal = 0
+                self.chatMemberTotal = chat.isP2P ? 2 : (chat.userCount.flatMap(Int.init) ?? 0)
                 self.chatMemberError = nil
                 self.chatMemberPageToken = nil
                 self.hasMoreChatMembers = false
+                
+                // Pre-warm group members and user profiles in background immediately upon chat selection
+                activeMembersLoadTask = Task {
+                    await loadChatMembers(for: chat, reset: true)
+                }
             }
         }
     }
@@ -300,8 +305,16 @@ public final class AppState: ObservableObject {
     public func loadReadReceipts(for messageId: String) async {
         guard let token = session?.accessToken else { return }
         if let result = try? await FeishuAPIClient.shared.fetchMessageReadUsers(token: token, messageId: messageId, pageSize: 50) {
-            let totalMembers = self.chatMemberTotal > 0 ? self.chatMemberTotal : (self.selectedChat?.userCount.flatMap(Int.init) ?? self.chatMembers.count)
-            let isAll = totalMembers > 1 && result.total >= (totalMembers - 1)
+            let isP2P = self.selectedChat?.isP2P ?? false
+            let totalMembers: Int = {
+                if isP2P { return 2 }
+                if self.chatMemberTotal > 0 { return self.chatMemberTotal }
+                if let count = self.selectedChat?.userCount.flatMap(Int.init), count > 0 { return count }
+                if !self.chatMembers.isEmpty { return self.chatMembers.count }
+                return 0
+            }()
+            
+            let isAll = isP2P ? (result.total >= 1) : (totalMembers > 1 && result.total >= (totalMembers - 1))
             self.readReceipts[messageId] = (readCount: result.total, isAllRead: isAll, users: result.items)
         }
     }
@@ -320,8 +333,15 @@ public final class AppState: ObservableObject {
         do {
             let result = try await FeishuAPIClient.shared.fetchMessageReadUsers(token: token, messageId: message.messageId, pageSize: 50)
             self.inspectingReadUsers = result.items
-            let totalMembers = self.chatMemberTotal > 0 ? self.chatMemberTotal : (self.selectedChat?.userCount.flatMap(Int.init) ?? self.chatMembers.count)
-            let isAll = totalMembers > 1 && result.total >= (totalMembers - 1)
+            let isP2P = self.selectedChat?.isP2P ?? false
+            let totalMembers: Int = {
+                if isP2P { return 2 }
+                if self.chatMemberTotal > 0 { return self.chatMemberTotal }
+                if let count = self.selectedChat?.userCount.flatMap(Int.init), count > 0 { return count }
+                if !self.chatMembers.isEmpty { return self.chatMembers.count }
+                return 0
+            }()
+            let isAll = isP2P ? (result.total >= 1) : (totalMembers > 1 && result.total >= (totalMembers - 1))
             self.readReceipts[message.messageId] = (readCount: result.total, isAllRead: isAll, users: result.items)
             self.isLoadingReadUsers = false
         } catch {
@@ -1191,6 +1211,19 @@ public final class AppState: ObservableObject {
             } else {
                 self.chatMemberTotal = self.chatMembers.count
             }
+            
+            // Dynamically refresh cached read receipts with accurate group total
+            let effectiveTotal = self.chatMemberTotal
+            let isP2P = chat.isP2P
+            if effectiveTotal > 1 || isP2P {
+                for (msgId, receipt) in self.readReceipts {
+                    let isAll = isP2P ? (receipt.readCount >= 1) : (effectiveTotal > 1 && receipt.readCount >= (effectiveTotal - 1))
+                    if isAll != receipt.isAllRead {
+                        self.readReceipts[msgId] = (readCount: receipt.readCount, isAllRead: isAll, users: receipt.users)
+                    }
+                }
+            }
+            
             self.isLoadingChatMembers = false
         } catch {
             self.chatMemberError = error.localizedDescription
