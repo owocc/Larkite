@@ -898,15 +898,12 @@ public struct MessageBubbleView: View, Equatable {
                 .font(.system(size: 13.5))
                 .foregroundColor(isSelf ? .white : .primary)
                 .multilineTextAlignment(.leading)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: maxBubbleWidth - 36, alignment: .leading)
         } else {
             ReactionFlowLayout(spacing: 3, lineSpacing: 3, alignment: .leading) {
                 ForEach(Array(segments.enumerated()), id: \.offset) { _, seg in
                     renderPostSegment(seg, isSelf: isSelf)
                 }
             }
-            .frame(maxWidth: maxBubbleWidth - 36, alignment: .leading)
         }
     }
     
@@ -918,7 +915,6 @@ public struct MessageBubbleView: View, Equatable {
                 .font(.system(size: 13.5))
                 .foregroundColor(isSelf ? .white : .primary)
                 .multilineTextAlignment(.leading)
-                .fixedSize(horizontal: false, vertical: true)
                 
         case .link(let text, let url):
             if let linkUrl = URL(string: url) {
