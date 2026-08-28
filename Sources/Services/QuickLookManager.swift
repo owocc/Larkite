@@ -49,9 +49,12 @@ public final class QuickLookManager: NSObject, QLPreviewPanelDataSource, QLPrevi
         panel.dataSource = self
         panel.delegate = self
         panel.reloadData()
-        panel.makeKeyAndOrderFront(nil)
+        
+        if !panel.isVisible {
+            panel.makeKeyAndOrderFront(nil)
+        }
+        NSApp.activate(ignoringOtherApps: true)
     }
-    
     // MARK: - QLPreviewPanelDataSource
     
     public func numberOfPreviewItems(in panel: QLPreviewPanel!) -> Int {
