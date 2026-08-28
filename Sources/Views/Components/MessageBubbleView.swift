@@ -167,8 +167,7 @@ public struct MessageBubbleView: View, Equatable {
         return HStack(alignment: .bottom, spacing: 8) {
             Spacer(minLength: 48)
             
-            VStack(alignment: .trailing, spacing: 2) {
-                // Time & Read Status Header (Only displayed if showTime is true: time gap >= 10m or head)
+            VStack(alignment: .trailing, spacing: 6) {
                 if showTime {
                     HStack(spacing: 4) {
                         Text(message.formattedTime)
@@ -258,8 +257,7 @@ public struct MessageBubbleView: View, Equatable {
                     .frame(width: 32, height: 32)
             }
             
-            VStack(alignment: .leading, spacing: 2) {
-                // Sender Name & Time Header (Only shown if showSenderHeader is true)
+            VStack(alignment: .leading, spacing: 6) {
                 if showSenderHeader || showTime {
                     HStack(spacing: 6) {
                         if showSenderHeader {
@@ -414,16 +412,30 @@ public struct MessageBubbleView: View, Equatable {
             Text(text)
                 .font(.system(size: 13.5))
                 .foregroundColor(isSelf ? .white : .primary)
-                .padding(.leading, isSelf ? 14 : 18)
-                .padding(.trailing, isSelf ? 18 : 14)
+                .padding(.leading, isTailVisible ? (isSelf ? 14 : 18) : 14)
+                .padding(.trailing, isTailVisible ? (isSelf ? 18 : 14) : 14)
                 .padding(.vertical, 9)
                 .background(
-                    ChatBubbleShape(isSelf: isSelf)
-                        .fill(isSelf ? configManager.accentColorChoice.color : Color.appleMessagesIncomingBubble)
+                    Group {
+                        if isTailVisible {
+                            ChatBubbleShape(isSelf: isSelf)
+                                .fill(isSelf ? configManager.accentColorChoice.color : Color.appleMessagesIncomingBubble)
+                        } else {
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .fill(isSelf ? configManager.accentColorChoice.color : Color.appleMessagesIncomingBubble)
+                        }
+                    }
                 )
                 .overlay(
-                    ChatBubbleShape(isSelf: isSelf)
-                        .stroke(isSelf ? Color.white.opacity(0.12) : Color.clear, lineWidth: 0.8)
+                    Group {
+                        if isTailVisible {
+                            ChatBubbleShape(isSelf: isSelf)
+                                .stroke(isSelf ? Color.white.opacity(0.12) : Color.clear, lineWidth: 0.8)
+                        } else {
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .stroke(isSelf ? Color.white.opacity(0.12) : Color.clear, lineWidth: 0.8)
+                        }
+                    }
                 )
         case .image(let imageKey):
             // Apple Messages style: Frameless edge-to-edge image attachment
@@ -467,16 +479,30 @@ public struct MessageBubbleView: View, Equatable {
                         .foregroundColor(isSelf ? .white.opacity(0.8) : .secondary)
                 }
             }
-            .padding(.leading, isSelf ? 14 : 18)
-            .padding(.trailing, isSelf ? 18 : 14)
+            .padding(.leading, isTailVisible ? (isSelf ? 14 : 18) : 14)
+            .padding(.trailing, isTailVisible ? (isSelf ? 18 : 14) : 14)
             .padding(.vertical, 9)
             .background(
-                ChatBubbleShape(isSelf: isSelf)
-                    .fill(isSelf ? configManager.accentColorChoice.color : Color.appleMessagesIncomingBubble)
+                Group {
+                    if isTailVisible {
+                        ChatBubbleShape(isSelf: isSelf)
+                            .fill(isSelf ? configManager.accentColorChoice.color : Color.appleMessagesIncomingBubble)
+                    } else {
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(isSelf ? configManager.accentColorChoice.color : Color.appleMessagesIncomingBubble)
+                    }
+                }
             )
             .overlay(
-                ChatBubbleShape(isSelf: isSelf)
-                    .stroke(isSelf ? Color.white.opacity(0.12) : Color.clear, lineWidth: 0.8)
+                Group {
+                    if isTailVisible {
+                        ChatBubbleShape(isSelf: isSelf)
+                            .stroke(isSelf ? Color.white.opacity(0.12) : Color.clear, lineWidth: 0.8)
+                    } else {
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(isSelf ? Color.white.opacity(0.12) : Color.clear, lineWidth: 0.8)
+                    }
+                }
             )
             
         case .media(let fileKey, let imageKey, let fileName, let durationSec):
@@ -500,16 +526,30 @@ public struct MessageBubbleView: View, Equatable {
                     renderPostSegment(segment, isSelf: isSelf)
                 }
             }
-            .padding(.leading, isSelf ? 14 : 18)
-            .padding(.trailing, isSelf ? 18 : 14)
+            .padding(.leading, isTailVisible ? (isSelf ? 14 : 18) : 14)
+            .padding(.trailing, isTailVisible ? (isSelf ? 18 : 14) : 14)
             .padding(.vertical, 12)
             .background(
-                ChatBubbleShape(isSelf: isSelf)
-                    .fill(isSelf ? configManager.accentColorChoice.color : Color.appleMessagesIncomingBubble)
+                Group {
+                    if isTailVisible {
+                        ChatBubbleShape(isSelf: isSelf)
+                            .fill(isSelf ? configManager.accentColorChoice.color : Color.appleMessagesIncomingBubble)
+                    } else {
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(isSelf ? configManager.accentColorChoice.color : Color.appleMessagesIncomingBubble)
+                    }
+                }
             )
             .overlay(
-                ChatBubbleShape(isSelf: isSelf)
-                    .stroke(isSelf ? Color.white.opacity(0.12) : Color.clear, lineWidth: 0.8)
+                Group {
+                    if isTailVisible {
+                        ChatBubbleShape(isSelf: isSelf)
+                            .stroke(isSelf ? Color.white.opacity(0.12) : Color.clear, lineWidth: 0.8)
+                    } else {
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(isSelf ? Color.white.opacity(0.12) : Color.clear, lineWidth: 0.8)
+                    }
+                }
             )
         case .card(let rawJson):
             VStack(alignment: .leading, spacing: 6) {
