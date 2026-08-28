@@ -311,13 +311,37 @@ public struct ChatDetailView: View {
                                 }
                             }
                             
-                            // High-Performance Equatable Message Cells (120 FPS Buttery Smooth)
-                            ForEach(appState.messages) { msg in
-                                MessageBubbleView(message: msg)
-                                    .equatable()
-                                    .id(msg.id)
+                            // High-Performance Equatable Message Cells with 10-min Consecutive Aggregation
+                            ForEach(Array(appState.messages.enumerated()), id: \.element.id) { index, msg in
+                                let prevMsg: FeishuMessageItem? = index > 0 ? appState.messages[index - 1] : nil
+                                let nextMsg: FeishuMessageItem? = index < appState.messages.count - 1 ? appState.messages[index + 1] : nil
+                                
+                                let isSameSenderAsPrev = prevMsg != nil && prevMsg?.sender?.id == msg.sender?.id
+                                let prevTimeMs = prevMsg.flatMap { Double($0.createTime) } ?? 0
+                                let currTimeMs = Double(msg.createTime) ?? 0
+                                let timeDiffWithPrevMins = prevMsg != nil ? abs(currTimeMs - prevTimeMs) / (1000 * 60) : 999
+                                
+                                // Sender name header & time are shown if new sender OR time gap >= 10 minutes
+                                let isConsecutive = isSameSenderAsPrev && timeDiffWithPrevMins < 10
+                                let showSenderHeader = !isConsecutive
+                                let showTime = !isConsecutive || timeDiffWithPrevMins >= 10
+                                
+                                // Tail & Avatar are anchored to the last message of consecutive cluster
+                                let isSameSenderAsNext = nextMsg != nil && nextMsg?.sender?.id == msg.sender?.id
+                                let nextTimeMs = nextMsg.flatMap { Double($0.createTime) } ?? 0
+                                let timeDiffWithNextMins = nextMsg != nil ? abs(nextTimeMs - currTimeMs) / (1000 * 60) : 999
+                                let isNextConsecutive = isSameSenderAsNext && timeDiffWithNextMins < 10
+                                let isTailVisible = !isNextConsecutive
+                                
+                                MessageBubbleView(
+                                    message: msg,
+                                    showSenderHeader: showSenderHeader,
+                                    showTime: showTime,
+                                    isTailVisible: isTailVisible
+                                )
+                                .equatable()
+                                .id(msg.id)
                             }
-                            
                             // Bottom breathing spacer dynamically adapting to floating dock expansion (with 16pt bottom margin)
                             Color.clear
                                 .frame(height: viewModel.isEditorExpanded ? 350 : min(180, max(76, viewModel.editorContentHeight + 52)))

@@ -104,19 +104,34 @@ public struct ChatBubbleShape: Shape {
 public struct MessageBubbleView: View, Equatable {
     let message: FeishuMessageItem
     let isCurrentUser: Bool
+    let showSenderHeader: Bool
+    let showTime: Bool
+    let isTailVisible: Bool
     
     @ObservedObject var appState: AppState = .shared
     @ObservedObject var configManager: ConfigManager = .shared
     
-    public init(message: FeishuMessageItem, isCurrentUser: Bool = false) {
+    public init(
+        message: FeishuMessageItem,
+        isCurrentUser: Bool = false,
+        showSenderHeader: Bool = true,
+        showTime: Bool = true,
+        isTailVisible: Bool = true
+    ) {
         self.message = message
         self.isCurrentUser = isCurrentUser
+        self.showSenderHeader = showSenderHeader
+        self.showTime = showTime
+        self.isTailVisible = isTailVisible
     }
     
     public static func == (lhs: MessageBubbleView, rhs: MessageBubbleView) -> Bool {
         lhs.message.id == rhs.message.id &&
         lhs.message.updateTime == rhs.message.updateTime &&
         lhs.isCurrentUser == rhs.isCurrentUser &&
+        lhs.showSenderHeader == rhs.showSenderHeader &&
+        lhs.showTime == rhs.showTime &&
+        lhs.isTailVisible == rhs.isTailVisible &&
         lhs.configManager.accentColorChoice == rhs.configManager.accentColorChoice
     }
     
@@ -152,46 +167,43 @@ public struct MessageBubbleView: View, Equatable {
         return HStack(alignment: .bottom, spacing: 8) {
             Spacer(minLength: 48)
             
-            VStack(alignment: .trailing, spacing: 4) {
-                // Time & Read Status Header (Telegram style ✓✓ / 👁️ N)
-                HStack(spacing: 4) {
-                    Text(message.formattedTime)
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                    
-                    if isAllRead {
-                        // All Read: Double checkmark ✓✓ (matching reference image c6d1c5ecdbaddeaa.png!)
-                        HStack(spacing: -5) {
+            VStack(alignment: .trailing, spacing: 2) {
+                // Time & Read Status Header (Only displayed if showTime is true: time gap >= 10m or head)
+                if showTime {
+                    HStack(spacing: 4) {
+                        Text(message.formattedTime)
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                        
+                        if isAllRead {
+                            // All Read: Double checkmark ✓✓ (matching reference image c6d1c5ecdbaddeaa.png!)
+                            HStack(spacing: -5) {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 8, weight: .bold))
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 8, weight: .bold))
+                            }
+                            .foregroundColor(configManager.accentColorChoice.color)
+                            .help("全部已读")
+                        } else if readCount > 0 {
+                            // Partial Read in Group: Eye icon + readCount 👁️ N (matching reference image d800674c2547b3d1.png!)
+                            HStack(spacing: 2) {
+                                Image(systemName: "eye.fill")
+                                    .font(.system(size: 8))
+                                Text("\(readCount)")
+                                    .font(.system(size: 9, weight: .medium))
+                            }
+                            .foregroundColor(.secondary)
+                            .help("\(readCount) 人已读")
+                        } else {
+                            // Sent / Unread: Single checkmark ✓
                             Image(systemName: "checkmark")
-                                .font(.system(size: 8, weight: .bold))
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 8, weight: .bold))
+                                .font(.system(size: 8, weight: .semibold))
+                                .foregroundColor(.secondary.opacity(0.6))
+                                .help("已送达")
                         }
-                        .foregroundColor(configManager.accentColorChoice.color)
-                        .help("已全部已读")
-                    } else if readCount > 0 {
-                        // Partial Read in Group: Eye icon + readCount 👁️ N (matching reference image d800674c2547b3d1.png!)
-                        HStack(spacing: 2) {
-                            Image(systemName: "eye.fill")
-                                .font(.system(size: 8))
-                            Text("\(readCount)")
-                                .font(.system(size: 9, weight: .medium))
-                        }
-                        .foregroundColor(.secondary)
-                        .help("\(readCount) 人已读")
-                    } else {
-                        // Sent / Unread: Single checkmark ✓
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 8, weight: .semibold))
-                            .foregroundColor(.secondary.opacity(0.6))
-                            .help("已送达")
                     }
-                }
-                .frame(height: 14)
-                .onAppear {
-                    Task {
-                        await appState.loadReadReceipts(for: message.messageId)
-                    }
+                    .frame(height: 14)
                 }
                 
                 // Bubble Content with Right-Click Context Menu
@@ -202,8 +214,13 @@ public struct MessageBubbleView: View, Equatable {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 3)
-        .frame(minHeight: 36, alignment: .trailing)
+        .padding(.vertical, showSenderHeader ? 2 : 1)
+        .frame(minHeight: showTime ? 36 : 28, alignment: .trailing)
+        .onAppear {
+            Task {
+                await appState.loadReadReceipts(for: message.messageId)
+            }
+        }
     }
     
     // MARK: - Other's Messages (Left Aligned, Apple Messages Grey)
@@ -214,59 +231,65 @@ public struct MessageBubbleView: View, Equatable {
         let isGroup = !(appState.selectedChat?.isP2P ?? false)
         
         return HStack(alignment: .bottom, spacing: 10) {
-            // Sender Avatar
-            Button {
-                if let senderId = message.sender?.id {
-                    Task {
-                        await appState.inspectUser(
-                            openId: senderId,
-                            fallbackName: senderDisplayName,
-                            fallbackAvatar: senderAvatarUrl
-                        )
-                    }
-                }
-            } label: {
-                AvatarView(
-                    urlString: senderAvatarUrl,
-                    name: senderDisplayName,
-                    size: 32
-                )
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help("查看「\(senderDisplayName)」详细资料")
-            
-            VStack(alignment: .leading, spacing: 4) {
-                // Sender Name, Bot Badge, Time & Read Count
-                HStack(spacing: 6) {
-                    Text(senderDisplayName)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.primary)
-                    
-                    if message.sender?.isAppOrBot ?? false {
-                        StatusBadge("Bot", color: Color(hex: "7838FF"))
-                    }
-                    
-                    Text(message.formattedTime)
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                    
-                    if isGroup && readCount > 0 {
-                        HStack(spacing: 2) {
-                            Image(systemName: "eye.fill")
-                                .font(.system(size: 8))
-                            Text("\(readCount)")
-                                .font(.system(size: 9, weight: .medium))
+            // Sender Avatar (Only shown on cluster tail, otherwise empty placeholder for aligned indent)
+            if isTailVisible {
+                Button {
+                    if let senderId = message.sender?.id {
+                        Task {
+                            await appState.inspectUser(
+                                openId: senderId,
+                                fallbackName: senderDisplayName,
+                                fallbackAvatar: senderAvatarUrl
+                            )
                         }
-                        .foregroundColor(.secondary)
-                        .help("\(readCount) 人已读")
                     }
+                } label: {
+                    AvatarView(
+                        urlString: senderAvatarUrl,
+                        name: senderDisplayName,
+                        size: 32
+                    )
+                    .contentShape(Rectangle())
                 }
-                .frame(height: 14)
-                .onAppear {
-                    Task {
-                        await appState.loadReadReceipts(for: message.messageId)
+                .buttonStyle(.plain)
+                .help("查看「\(senderDisplayName)」详细资料")
+            } else {
+                Color.clear
+                    .frame(width: 32, height: 32)
+            }
+            
+            VStack(alignment: .leading, spacing: 2) {
+                // Sender Name & Time Header (Only shown if showSenderHeader is true)
+                if showSenderHeader || showTime {
+                    HStack(spacing: 6) {
+                        if showSenderHeader {
+                            Text(senderDisplayName)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(.primary)
+                            
+                            if message.sender?.isAppOrBot ?? false {
+                                StatusBadge("Bot", color: Color(hex: "7838FF"))
+                            }
+                        }
+                        
+                        if showTime {
+                            Text(message.formattedTime)
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        if isGroup && readCount > 0 {
+                            HStack(spacing: 2) {
+                                Image(systemName: "eye.fill")
+                                    .font(.system(size: 8))
+                                Text("\(readCount)")
+                                    .font(.system(size: 9, weight: .medium))
+                            }
+                            .foregroundColor(.secondary)
+                            .help("\(readCount) 人已读")
+                        }
                     }
+                    .frame(height: 14)
                 }
                 
                 // Bubble Content with Right-Click Context Menu
@@ -279,8 +302,13 @@ public struct MessageBubbleView: View, Equatable {
             Spacer(minLength: 48)
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 3)
-        .frame(minHeight: 36, alignment: .leading)
+        .padding(.vertical, showSenderHeader ? 2 : 1)
+        .frame(minHeight: showSenderHeader || showTime ? 36 : 28, alignment: .leading)
+        .onAppear {
+            Task {
+                await appState.loadReadReceipts(for: message.messageId)
+            }
+        }
     }
     // MARK: - Native Right-Click Context Menu for Reactions & Actions
     
