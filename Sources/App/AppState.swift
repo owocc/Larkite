@@ -17,6 +17,28 @@ public enum NavigationTab: String, CaseIterable, Identifiable {
         }
     }
 }
+public struct AppInAppNotification: Identifiable, Equatable, Sendable {
+    public let id: String
+    public let title: String
+    public let message: String
+    public let type: NotificationType
+    public let timestamp: Date
+    
+    public init(id: String = UUID().uuidString, title: String, message: String, type: NotificationType = .error, timestamp: Date = Date()) {
+        self.id = id
+        self.title = title
+        self.message = message
+        self.type = type
+        self.timestamp = timestamp
+    }
+    
+    public enum NotificationType: String, Equatable, Sendable {
+        case error
+        case warning
+        case info
+        case success
+    }
+}
 
 public enum ChatFilterMode: String, CaseIterable, Identifiable {
     case all = "全部"
@@ -24,7 +46,6 @@ public enum ChatFilterMode: String, CaseIterable, Identifiable {
     case group = "群聊"
     case `internal` = "内部"
     case external = "外部"
-    
     public var id: String { rawValue }
     
     public var menuTitle: String {
@@ -131,6 +152,10 @@ public final class AppState: ObservableObject {
     @Published public var inspectedUser: DetailedFeishuUser? = nil
     @Published public var isInspectingUser: Bool = false
     
+    // MARK: - macOS Native In-App Notification Banner State
+    @Published public var currentNotification: AppInAppNotification? = nil
+    
+    private var notificationDismissTask: Task<Void, Never>?
     private var oauthServerTask: Task<Void, Never>?
     private var activeMessageLoadTask: Task<Void, Never>?
     private var activeMembersLoadTask: Task<Void, Never>?
@@ -141,6 +166,27 @@ public final class AppState: ObservableObject {
         !isAddingAccount && session != nil && !(session?.accessToken.isEmpty ?? true)
     }
     
+    public func showNotification(title: String, message: String, type: AppInAppNotification.NotificationType = .error, duration: TimeInterval = 6.0) {
+        notificationDismissTask?.cancel()
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+            self.currentNotification = AppInAppNotification(title: title, message: message, type: type)
+        }
+        notificationDismissTask = Task {
+            try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
+            if !Task.isCancelled {
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                    self.currentNotification = nil
+                }
+            }
+        }
+    }
+    
+    public func dismissNotification() {
+        notificationDismissTask?.cancel()
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+            self.currentNotification = nil
+        }
+    }
     public var filteredChats: [FeishuChatItem] {
         var list = chats
         

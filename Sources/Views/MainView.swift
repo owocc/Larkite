@@ -30,8 +30,13 @@ public struct MainView: View {
         .sheet(isPresented: $appState.isShowingDebug) {
             debugModalSheet
         }
+        .overlay(alignment: .top) {
+            if let notif = appState.currentNotification {
+                InAppNotificationBanner(notification: notif)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
     }
-    
     private var debugModalSheet: some View {
         VStack(spacing: 0) {
             HStack {

@@ -34,7 +34,6 @@ public final class ChatDetailViewModel: ObservableObject {
         let clean = inputMessageText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty else { return }
         
-        sendError = nil
         do {
             try await appState.sendTextMessage(clean)
             self.inputMessageText = ""
@@ -43,7 +42,7 @@ public final class ChatDetailViewModel: ObservableObject {
                 self.editorContentHeight = 24
             }
         } catch {
-            self.sendError = error.localizedDescription
+            appState.showNotification(title: "发送消息失败", message: error.localizedDescription, type: .error)
         }
     }
     
@@ -71,7 +70,7 @@ public final class ChatDetailViewModel: ObservableObject {
                 do {
                     try await appState.sendImage(imageData: data, fileName: url.lastPathComponent)
                 } catch {
-                    self.sendError = "发送图片失败: \(error.localizedDescription)"
+                    appState.showNotification(title: "发送图片失败", message: error.localizedDescription, type: .error)
                 }
             }
         }
@@ -92,7 +91,7 @@ public final class ChatDetailViewModel: ObservableObject {
                 do {
                     try await appState.sendFile(fileData: data, fileName: url.lastPathComponent)
                 } catch {
-                    self.sendError = "发送文件失败: \(error.localizedDescription)"
+                    appState.showNotification(title: "发送文件失败", message: error.localizedDescription, type: .error)
                 }
             }
         }
@@ -103,10 +102,10 @@ public final class ChatDetailViewModel: ObservableObject {
             do {
                 let sent = try await appState.sendClipboardImage()
                 if !sent {
-                    self.sendError = "剪贴板中未检测到可发送的图片或文件"
+                    appState.showNotification(title: "剪贴板发送提示", message: "剪贴板中未检测到可发送的图片或文件", type: .warning)
                 }
             } catch {
-                self.sendError = "发送剪贴板内容失败: \(error.localizedDescription)"
+                appState.showNotification(title: "发送剪贴板内容失败", message: error.localizedDescription, type: .error)
             }
         }
     }
@@ -509,24 +508,6 @@ public struct ChatDetailView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
             
-            // Error toast if any
-            if let error = viewModel.sendError {
-                HStack(spacing: 6) {
-                    Image(systemName: "exclamationmark.circle.fill")
-                        .foregroundColor(.red)
-                    Text("发送失败: \(error)")
-                        .font(.system(size: 11))
-                        .foregroundColor(.red)
-                        .lineLimit(1)
-                    Spacer()
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 5)
-                .background(Color.red.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .padding(.horizontal, 16)
-            }
-            
             // Bottom Dock: Left Attachment + Middle Expanding Editor + Right Send Button
                 HStack(alignment: .bottom, spacing: 8) {
                     // Left: Attachment Liquid Glass Button (34x34 Circle, Fixed Bottom, Native Popover)
@@ -570,7 +551,7 @@ public struct ChatDetailView: View {
                                     do {
                                         try await appState.sendImage(imageData: data, fileName: fileName)
                                     } catch {
-                                        viewModel.sendError = "发送图片失败: \(error.localizedDescription)"
+                                        appState.showNotification(title: "发送图片失败", message: error.localizedDescription, type: .error)
                                     }
                                 }
                             },
@@ -579,7 +560,7 @@ public struct ChatDetailView: View {
                                     do {
                                         try await appState.sendFile(fileData: data, fileName: fileName)
                                     } catch {
-                                        viewModel.sendError = "发送文件失败: \(error.localizedDescription)"
+                                        appState.showNotification(title: "发送文件失败", message: error.localizedDescription, type: .error)
                                     }
                                 }
                             }
