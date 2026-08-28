@@ -109,6 +109,7 @@ public struct MessageImageView: View {
     let messageId: String
     let imageKey: String
     
+    @ObservedObject var appState: AppState = .shared
     @StateObject private var viewModel = MessageImageViewModel()
     
     public init(messageId: String, imageKey: String) {
@@ -134,7 +135,11 @@ public struct MessageImageView: View {
                             )
                             .contentShape(Rectangle())
                             .onTapGesture {
-                                viewModel.previewInSystem(messageId: messageId, imageKey: imageKey)
+                                if let img = viewModel.image {
+                                    appState.openInAppImagePreview(image: img, messageId: messageId, imageKey: imageKey)
+                                } else {
+                                    viewModel.previewInSystem(messageId: messageId, imageKey: imageKey)
+                                }
                             }
                         
                         if viewModel.isHovered {
@@ -218,7 +223,11 @@ public struct MessageImageView: View {
         HStack(spacing: 4) {
             // Preview in system default
             Button {
-                viewModel.previewInSystem(messageId: messageId, imageKey: imageKey)
+                if let img = viewModel.image {
+                    appState.openInAppImagePreview(image: img, messageId: messageId, imageKey: imageKey)
+                } else {
+                    viewModel.previewInSystem(messageId: messageId, imageKey: imageKey)
+                }
             } label: {
                 Image(systemName: "eye.fill")
                     .font(.system(size: 10))

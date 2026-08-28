@@ -36,6 +36,13 @@ public struct MainView: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
+        .overlay {
+            if let preview = appState.previewingImage {
+                InAppImageLightboxView(preview: preview)
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                    .zIndex(999)
+            }
+        }
     }
     private var debugModalSheet: some View {
         VStack(spacing: 0) {

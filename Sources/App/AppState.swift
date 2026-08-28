@@ -17,6 +17,17 @@ public enum NavigationTab: String, CaseIterable, Identifiable {
         }
     }
 }
+public struct InAppImagePreviewData: Identifiable, Equatable {
+    public let id = UUID()
+    public let image: NSImage
+    public let messageId: String
+    public let imageKey: String
+    
+    public static func == (lhs: InAppImagePreviewData, rhs: InAppImagePreviewData) -> Bool {
+        lhs.id == rhs.id && lhs.messageId == rhs.messageId && lhs.imageKey == rhs.imageKey
+    }
+}
+
 public struct DraftMentionTarget: Equatable, Sendable {
     public let id: String
     public let name: String
@@ -169,8 +180,12 @@ public final class AppState: ObservableObject {
     // MARK: - Quick Mention Action State
     @Published public var pendingMentionUser: DraftMentionTarget? = nil
     
+    // MARK: - In-App Zero-Latency Image Lightbox State
+    @Published public var previewingImage: InAppImagePreviewData? = nil
+    
     // MARK: - macOS Native In-App Notification Banner State
     @Published public var currentNotification: AppInAppNotification? = nil
+    
     private var notificationDismissTask: Task<Void, Never>?
     private var oauthServerTask: Task<Void, Never>?
     private var activeMessageLoadTask: Task<Void, Never>?
@@ -180,6 +195,18 @@ public final class AppState: ObservableObject {
     
     public var isLoggedIn: Bool {
         !isAddingAccount && session != nil && !(session?.accessToken.isEmpty ?? true)
+    }
+    
+    public func openInAppImagePreview(image: NSImage, messageId: String, imageKey: String) {
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+            self.previewingImage = InAppImagePreviewData(image: image, messageId: messageId, imageKey: imageKey)
+        }
+    }
+    
+    public func closeInAppImagePreview() {
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+            self.previewingImage = nil
+        }
     }
     
     public func showNotification(title: String, message: String, type: AppInAppNotification.NotificationType = .error, duration: TimeInterval = 6.0) {
