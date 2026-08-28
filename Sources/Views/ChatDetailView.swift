@@ -371,6 +371,12 @@ public struct ChatDetailView: View {
                                     .equatable()
                                 }
                                 .id(msg.id)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    if appState.isMultiSelectingMessages {
+                                        appState.toggleMessageSelectionForShare(msg.messageId)
+                                    }
+                                }
                             }
                             
                             // Bottom breathing spacer dynamically adapting to floating dock expansion & reply bar (with 16pt bottom margin)
@@ -511,12 +517,14 @@ public struct ChatDetailView: View {
             .buttonStyle(.bordered)
             .controlSize(.small)
             
-            // Generate Snapshot Button
+            // Generate Snapshot Button (SF Symbol, No Emoji)
             Button {
                 appState.shareSelectedMessages(chat: chat)
             } label: {
-                Label("生成长图卡片 📸", systemImage: "sparkles")
+                Label("生成长图卡片", systemImage: "photo.stack")
                     .font(.system(size: 11, weight: .semibold))
+                    .fixedSize()
+                    .lineLimit(1)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)

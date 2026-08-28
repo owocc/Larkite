@@ -611,7 +611,7 @@ public struct MessageBubbleView: View, Equatable {
                 appState.shareSingleMessage(message, chat: chat)
             }
         } label: {
-            Label("生成消息卡片分享 📸", systemImage: "square.and.arrow.up")
+            Label("生成消息卡片分享", systemImage: "photo.stack")
         }
         
         Button {

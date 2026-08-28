@@ -89,47 +89,51 @@ public struct MessageSnapshotViewer: View {
     
     public var body: some View {
         VStack(spacing: 0) {
-            // Top Toolbar: Themes + Actions
-            topToolbarView
-            
-            Divider()
-            
-            // Scrollable Preview Container
+            // Scrollable Card Preview Container
             ScrollView([.vertical, .horizontal]) {
                 VStack {
                     cardContent
                         .padding(28)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(maxWidth: .infinity, minHeight: 480)
             }
             .background(Color(nsColor: .controlBackgroundColor).opacity(0.3))
+            
+            Divider()
+            
+            // Bottom Controls Bar: Theme Switcher + Action Buttons (All Single-Line, No Wrapping)
+            bottomToolbarView
         }
-        .frame(minWidth: 540, minHeight: 620)
+        .frame(minWidth: 580, minHeight: 640)
     }
     
-    // MARK: - Top Toolbar
+    // MARK: - Bottom Controls Bar (Fixed Single Line, No Wrapping)
     
-    private var topToolbarView: some View {
+    private var bottomToolbarView: some View {
         HStack(spacing: 12) {
             // Theme Selector Pills
             HStack(spacing: 6) {
                 Text("主题:")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(.secondary)
+                    .fixedSize()
+                    .lineLimit(1)
                 
                 ForEach(SnapshotCardTheme.allCases) { theme in
                     Button {
                         viewModel.selectedTheme = theme
                     } label: {
-                        HStack(spacing: 4) {
+                        HStack(spacing: 5) {
                             Circle()
                                 .fill(theme.previewColor)
                                 .frame(width: 8, height: 8)
                             Text(theme.rawValue)
                                 .font(.system(size: 11, weight: viewModel.selectedTheme == theme ? .bold : .medium))
+                                .fixedSize()
+                                .lineLimit(1)
                         }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 4.5)
                         .background(
                             Capsule()
                                 .fill(viewModel.selectedTheme == theme ? Color(nsColor: .controlBackgroundColor) : Color.clear)
@@ -140,42 +144,51 @@ public struct MessageSnapshotViewer: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .fixedSize()
                 }
             }
             
-            Spacer()
+            Spacer(minLength: 16)
             
             if let toast = viewModel.actionToast {
                 Text(toast)
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(Color(hex: "34C759"))
+                    .fixedSize()
+                    .lineLimit(1)
                     .transition(.opacity)
             }
             
-            // Copy Image Button
+            // Copy Image Button (SF Symbol, No Emoji)
             Button {
                 copyCardImage()
             } label: {
-                Label("复制图片", systemImage: "doc.on.doc.fill")
-                    .font(.system(size: 11, weight: .semibold))
+                Label("复制图片", systemImage: "doc.on.doc")
+                    .font(.system(size: 11, weight: .medium))
+                    .fixedSize()
+                    .lineLimit(1)
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+            .fixedSize()
             .help("将生成的卡片长图复制到系统剪贴板")
             
-            // Save Image to Downloads Button
+            // Save Image to Downloads Button (SF Symbol, No Emoji)
             Button {
                 saveCardImage()
             } label: {
                 Label("保存长图", systemImage: "arrow.down.circle.fill")
                     .font(.system(size: 11, weight: .semibold))
+                    .fixedSize()
+                    .lineLimit(1)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
+            .fixedSize()
             .help("导出高分辨率 PNG 长图并保存至下载文件夹")
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
         .background(Color(nsColor: .windowBackgroundColor))
     }
     
@@ -199,10 +212,12 @@ public struct MessageSnapshotViewer: View {
                             Text(chat.displayName)
                                 .font(.system(size: 13, weight: .bold))
                                 .foregroundColor(.primary)
+                                .lineLimit(1)
                             
                             Text("会话记录分享 • 共 \(messages.count) 条消息")
                                 .font(.system(size: 10))
                                 .foregroundColor(.secondary)
+                                .lineLimit(1)
                         }
                         
                         Spacer()
