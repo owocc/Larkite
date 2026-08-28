@@ -231,6 +231,7 @@ public struct MessageBubbleView: View, Equatable {
     let showSenderHeader: Bool
     let showTime: Bool
     let position: BubbleClusterPosition
+    let maxBubbleWidth: CGFloat
     
     @ObservedObject var appState: AppState = .shared
     @ObservedObject var configManager: ConfigManager = .shared
@@ -240,13 +241,15 @@ public struct MessageBubbleView: View, Equatable {
         isCurrentUser: Bool = false,
         showSenderHeader: Bool = true,
         showTime: Bool = true,
-        position: BubbleClusterPosition = .single
+        position: BubbleClusterPosition = .single,
+        maxBubbleWidth: CGFloat = 520
     ) {
         self.message = message
         self.isCurrentUser = isCurrentUser
         self.showSenderHeader = showSenderHeader
         self.showTime = showTime
         self.position = position
+        self.maxBubbleWidth = maxBubbleWidth
     }
     
     public static func == (lhs: MessageBubbleView, rhs: MessageBubbleView) -> Bool {
@@ -256,6 +259,7 @@ public struct MessageBubbleView: View, Equatable {
         lhs.showSenderHeader == rhs.showSenderHeader &&
         lhs.showTime == rhs.showTime &&
         lhs.position == rhs.position &&
+        lhs.maxBubbleWidth == rhs.maxBubbleWidth &&
         lhs.configManager.accentColorChoice == rhs.configManager.accentColorChoice
     }
     
@@ -292,7 +296,7 @@ public struct MessageBubbleView: View, Equatable {
         let readCount = receipt?.readCount ?? 0
         
         return HStack(alignment: .bottom, spacing: 8) {
-            Spacer(minLength: 48)
+            Spacer(minLength: 20)
             
             VStack(alignment: .trailing, spacing: 6) {
                 if showTime {
@@ -332,8 +336,9 @@ public struct MessageBubbleView: View, Equatable {
                     .frame(height: 14)
                 }
                 
-                // Bubble Content with Right-Click Context Menu
+                // Bubble Content with Max Width Constraint (80% of window)
                 bubbleContent(content: content, isSelf: true)
+                    .frame(maxWidth: maxBubbleWidth, alignment: .trailing)
                     .contextMenu {
                         messageContextMenu(content: content, isSelf: true)
                     }
@@ -417,14 +422,15 @@ public struct MessageBubbleView: View, Equatable {
                     }
                     .frame(height: 14)
                 }
-                // Bubble Content with Right-Click Context Menu
+                // Bubble Content with Max Width Constraint (80% of window)
                 bubbleContent(content: content, isSelf: false)
+                    .frame(maxWidth: maxBubbleWidth, alignment: .leading)
                     .contextMenu {
                         messageContextMenu(content: content, isSelf: false)
                     }
             }
             
-            Spacer(minLength: 48)
+            Spacer(minLength: 20)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, showSenderHeader ? 2 : 1)
@@ -883,12 +889,15 @@ public struct MessageBubbleView: View, Equatable {
                 .font(.system(size: 13.5))
                 .foregroundColor(isSelf ? .white : .primary)
                 .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: maxBubbleWidth - 36, alignment: .leading)
         } else {
             ReactionFlowLayout(spacing: 3, lineSpacing: 3, alignment: .leading) {
                 ForEach(Array(segments.enumerated()), id: \.offset) { _, seg in
                     renderPostSegment(seg, isSelf: isSelf)
                 }
             }
+            .frame(maxWidth: maxBubbleWidth - 36, alignment: .leading)
         }
     }
     
@@ -900,6 +909,7 @@ public struct MessageBubbleView: View, Equatable {
                 .font(.system(size: 13.5))
                 .foregroundColor(isSelf ? .white : .primary)
                 .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
                 
         case .link(let text, let url):
             if let linkUrl = URL(string: url) {
@@ -942,7 +952,6 @@ public struct MessageBubbleView: View, Equatable {
                 .frame(width: 9999, height: 4)
         }
     }
-    
     private func systemMessageView(text: String) -> some View {
         HStack {
             Spacer()

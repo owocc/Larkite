@@ -288,15 +288,18 @@ public struct ChatDetailView: View {
     // MARK: - Messages Stream View
     
     private func messagesStreamView(chat: FeishuChatItem) -> some View {
-        Group {
-            if appState.isLoadingMessages && appState.messages.isEmpty {
-                loadingMessagesView
-            } else if let error = appState.messageError, appState.messages.isEmpty {
-                messageErrorView(error: error, chat: chat)
-            } else if appState.messages.isEmpty {
-                emptyMessagesView
-            } else {
-                ScrollViewReader { proxy in
+        GeometryReader { geo in
+            let maxBubbleWidth = max(240, geo.size.width * 0.80)
+            
+            Group {
+                if appState.isLoadingMessages && appState.messages.isEmpty {
+                    loadingMessagesView
+                } else if let error = appState.messageError, appState.messages.isEmpty {
+                    messageErrorView(error: error, chat: chat)
+                } else if appState.messages.isEmpty {
+                    emptyMessagesView
+                } else {
+                    ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: 4) {
                             // Top Auto-Load Sentinel: Triggers loadMoreMessages on scroll (No Click Needed)
@@ -366,7 +369,8 @@ public struct ChatDetailView: View {
                                         message: msg,
                                         showSenderHeader: showSenderHeader,
                                         showTime: showTime,
-                                        position: clusterPosition
+                                        position: clusterPosition,
+                                        maxBubbleWidth: maxBubbleWidth
                                     )
                                     .equatable()
                                 }
@@ -410,7 +414,9 @@ public struct ChatDetailView: View {
                         }
                     }
                 }
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
     
