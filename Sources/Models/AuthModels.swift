@@ -1,6 +1,25 @@
 import Foundation
 
 /// Feishu OAuth Token Response
+public struct FeishuTokenData: Codable, Sendable {
+    public let accessToken: String?
+    public let refreshToken: String?
+    public let expiresIn: Int?
+    public let refreshTokenExpiresIn: Int?
+    public let tokenType: String?
+    public let scope: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case accessToken = "access_token"
+        case refreshToken = "refresh_token"
+        case expiresIn = "expires_in"
+        case refreshTokenExpiresIn = "refresh_token_expires_in"
+        case tokenType = "token_type"
+        case scope
+    }
+}
+
+/// Feishu OAuth Token Response
 public struct FeishuTokenResponse: Codable, Sendable {
     public let code: Int
     public let msg: String?
@@ -12,6 +31,19 @@ public struct FeishuTokenResponse: Codable, Sendable {
     public let refreshTokenExpiresIn: Int?
     public let tokenType: String?
     public let scope: String?
+    public let data: FeishuTokenData?
+    
+    public var finalAccessToken: String? {
+        accessToken ?? data?.accessToken
+    }
+    
+    public var finalRefreshToken: String? {
+        refreshToken ?? data?.refreshToken
+    }
+    
+    public var finalExpiresIn: Int? {
+        expiresIn ?? data?.expiresIn
+    }
     
     enum CodingKeys: String, CodingKey {
         case code
@@ -24,6 +56,7 @@ public struct FeishuTokenResponse: Codable, Sendable {
         case refreshTokenExpiresIn = "refresh_token_expires_in"
         case tokenType = "token_type"
         case scope
+        case data
     }
 }
 

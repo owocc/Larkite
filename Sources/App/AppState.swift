@@ -274,8 +274,10 @@ public final class AppState: ObservableObject {
     }
     
     public func onAppFocused() async {
-        guard isLoggedIn, !isAuthenticating else { return }
-        await silentRefreshAll()
+        if isLoggedIn && !isAuthenticating {
+            _ = await ensureValidToken()
+            await silentRefreshAll()
+        }
     }
     
     public func startAutoRefreshTimer() {
@@ -285,6 +287,7 @@ public final class AppState: ObservableObject {
                 try? await Task.sleep(nanoseconds: 12_000_000_000) // Poll every 12 seconds
                 guard let self = self else { break }
                 if self.isLoggedIn && !self.isAuthenticating {
+                    _ = await self.ensureValidToken()
                     await self.silentRefreshAll()
                 }
             }
@@ -292,7 +295,7 @@ public final class AppState: ObservableObject {
     }
     
     public func silentRefreshAll() async {
-        guard let token = session?.accessToken, isLoggedIn, !isAuthenticating else { return }
+        guard let token = await ensureValidToken(), isLoggedIn, !isAuthenticating else { return }
         
         // 1. Silently fetch updated chat list without screen flicker
         if let result = try? await FeishuAPIClient.shared.fetchChatList(token: token, pageToken: nil, pageSize: 50) {
@@ -490,16 +493,16 @@ public final class AppState: ObservableObject {
                 code: code,
                 redirectUri: config.redirectUri
             )
-            
-            guard let accessToken = tokenResp.accessToken else {
+            guard let accessToken = tokenResp.finalAccessToken ?? tokenResp.accessToken else {
                 throw FeishuAPIClient.APIError.invalidResponse
             }
             
-            let expiresAt = tokenResp.expiresIn.map { Date().addingTimeInterval(Double($0)) }
+            let expiresIn = tokenResp.finalExpiresIn ?? tokenResp.expiresIn ?? 7140
+            let expiresAt = Date().addingTimeInterval(Double(expiresIn))
             var newSession = UserSession(
                 tokenType: .userAccessToken,
                 accessToken: accessToken,
-                refreshToken: tokenResp.refreshToken,
+                refreshToken: tokenResp.finalRefreshToken ?? tokenResp.refreshToken,
                 expiresAt: expiresAt,
                 user: nil
             )
@@ -741,8 +744,102 @@ public final class AppState: ObservableObject {
         logoutCurrentAccount()
     }
     
-    // MARK: - Chat List Query
+    // MARK: - Auto Session Renewal & Token Refresh (自动登录状态续签)
     
+    @discardableResult
+    public func ensureValidToken() async -> String? {
+        guard let sess = session else { return nil }
+        
+        // If token expires in less than 10 minutes (600s) or is already expired, renew it silently
+        let shouldRenew: Bool = {
+            if let exp = sess.expiresAt {
+                return Date().addingTimeInterval(600) >= exp
+            }
+            return false
+        }()
+        
+        if shouldRenew {
+            if let renewed = await renewSessionToken() {
+                return renewed
+            }
+        }
+        
+        return sess.accessToken
+    }
+    
+    @discardableResult
+    public func renewSessionToken() async -> String? {
+        guard let sess = session else { return nil }
+        let config = ConfigManager.shared.config
+        
+        switch sess.tokenType {
+        case .userAccessToken:
+            guard let refreshToken = sess.refreshToken, !refreshToken.isEmpty,
+                  !config.appId.isEmpty, !config.appSecret.isEmpty else {
+                return sess.accessToken
+            }
+            
+            do {
+                let tokenResp = try await FeishuAPIClient.shared.refreshUserAccessToken(
+                    appId: config.appId,
+                    appSecret: config.appSecret,
+                    refreshToken: refreshToken
+                )
+                
+                guard let newAccessToken = tokenResp.finalAccessToken ?? tokenResp.accessToken else {
+                    return sess.accessToken
+                }
+                
+                let newRefreshToken = tokenResp.finalRefreshToken ?? tokenResp.refreshToken ?? refreshToken
+                let expiresIn = tokenResp.finalExpiresIn ?? tokenResp.expiresIn ?? 7140
+                let newExpiresAt = Date().addingTimeInterval(Double(expiresIn))
+                
+                var updatedSession = sess
+                updatedSession.accessToken = newAccessToken
+                updatedSession.refreshToken = newRefreshToken
+                updatedSession.expiresAt = newExpiresAt
+                
+                self.session = updatedSession
+                if let accountId = ConfigManager.shared.activeAccountId {
+                    ConfigManager.shared.saveSession(updatedSession, forAccountId: accountId)
+                }
+                
+                return newAccessToken
+            } catch {
+                return nil
+            }
+            
+        case .tenantAccessToken:
+            guard !config.appId.isEmpty, !config.appSecret.isEmpty else {
+                return sess.accessToken
+            }
+            
+            do {
+                let newTenantToken = try await FeishuAPIClient.shared.fetchTenantAccessToken(
+                    appId: config.appId,
+                    appSecret: config.appSecret
+                )
+                
+                var updatedSession = sess
+                updatedSession.accessToken = newTenantToken
+                updatedSession.expiresAt = Date().addingTimeInterval(7100) // ~2 hours
+                
+                self.session = updatedSession
+                if let accountId = ConfigManager.shared.activeAccountId {
+                    ConfigManager.shared.saveSession(updatedSession, forAccountId: accountId)
+                }
+                
+                return newTenantToken
+            } catch {
+                return nil
+            }
+            
+        case .directToken:
+            return sess.accessToken
+        }
+    }
+    
+    // MARK: - Chat List Query
     public func loadChats(reset: Bool = false) async {
         guard let token = session?.accessToken else { return }
         
