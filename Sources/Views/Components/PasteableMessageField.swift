@@ -10,6 +10,7 @@ public struct PasteableMessageField: NSViewRepresentable {
     var onCommit: () -> Void
     var onPasteImage: (Data, String) -> Void
     var onPasteFile: (Data, String) -> Void
+    var onTextChange: ((String) -> Void)?
     
     public init(
         text: Binding<String>,
@@ -18,7 +19,8 @@ public struct PasteableMessageField: NSViewRepresentable {
         contentHeight: Binding<CGFloat> = .constant(24),
         onCommit: @escaping () -> Void,
         onPasteImage: @escaping (Data, String) -> Void,
-        onPasteFile: @escaping (Data, String) -> Void
+        onPasteFile: @escaping (Data, String) -> Void,
+        onTextChange: ((String) -> Void)? = nil
     ) {
         self._text = text
         self.placeholder = placeholder
@@ -27,6 +29,7 @@ public struct PasteableMessageField: NSViewRepresentable {
         self.onCommit = onCommit
         self.onPasteImage = onPasteImage
         self.onPasteFile = onPasteFile
+        self.onTextChange = onTextChange
     }
     
     public func makeNSView(context: Context) -> NSScrollView {
@@ -94,6 +97,7 @@ public struct PasteableMessageField: NSViewRepresentable {
         public func textDidChange(_ notification: Notification) {
             guard let tv = notification.object as? NSTextView else { return }
             parent.text = tv.string
+            parent.onTextChange?(tv.string)
             recalculateHeight(for: tv)
         }
         

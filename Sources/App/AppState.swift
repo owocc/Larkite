@@ -17,6 +17,16 @@ public enum NavigationTab: String, CaseIterable, Identifiable {
         }
     }
 }
+public struct DraftMentionTarget: Equatable, Sendable {
+    public let id: String
+    public let name: String
+    
+    public init(id: String, name: String) {
+        self.id = id
+        self.name = name
+    }
+}
+
 public struct AppInAppNotification: Identifiable, Equatable, Sendable {
     public let id: String
     public let title: String
@@ -156,10 +166,11 @@ public final class AppState: ObservableObject {
     // MARK: - User Profile Inspection State
     @Published public var inspectedUser: DetailedFeishuUser? = nil
     @Published public var isInspectingUser: Bool = false
+    // MARK: - Quick Mention Action State
+    @Published public var pendingMentionUser: DraftMentionTarget? = nil
     
     // MARK: - macOS Native In-App Notification Banner State
     @Published public var currentNotification: AppInAppNotification? = nil
-    
     private var notificationDismissTask: Task<Void, Never>?
     private var oauthServerTask: Task<Void, Never>?
     private var activeMessageLoadTask: Task<Void, Never>?

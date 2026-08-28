@@ -646,6 +646,15 @@ public struct MessageBubbleView: View, Equatable {
         
         if !isSelf, let senderId = message.sender?.id {
             Divider()
+            
+            if !(appState.selectedChat?.isP2P ?? true) {
+                Button {
+                    appState.pendingMentionUser = DraftMentionTarget(id: senderId, name: senderDisplayName)
+                } label: {
+                    Label("@ 提醒此人", systemImage: "at")
+                }
+            }
+            
             Button {
                 Task {
                     await appState.inspectUser(

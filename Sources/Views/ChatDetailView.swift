@@ -30,13 +30,62 @@ public final class ChatDetailViewModel: ObservableObject {
     @Published public var showAttachmentPopover: Bool = false
     @Published public var sendError: String? = nil
     @Published public var memberSearchQuery: String = ""
+    @Published public var showMentionAutoComplete: Bool = false
+    @Published public var mentionFilterQuery: String = ""
+    @Published public var mentionMap: [String: String] = [:] // "@张三" -> "ou_xxx"
+    
+    public func updateMentionTrigger(isP2P: Bool) {
+        guard !isP2P else {
+            showMentionAutoComplete = false
+            return
+        }
+        if let atIndex = inputMessageText.lastIndex(of: "@") {
+            let sub = String(inputMessageText[atIndex...])
+            if !sub.contains(" ") && !sub.contains("\n") {
+                let query = String(sub.dropFirst()).trimmingCharacters(in: .whitespaces)
+                self.mentionFilterQuery = query
+                self.showMentionAutoComplete = true
+                return
+            }
+        }
+        self.showMentionAutoComplete = false
+    }
+    
+    public func insertMention(memberId: String, name: String) {
+        let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let atIndex = inputMessageText.lastIndex(of: "@") {
+            let prefix = String(inputMessageText[..<atIndex])
+            inputMessageText = prefix + "@\(cleanName) "
+        } else {
+            if !inputMessageText.isEmpty && !inputMessageText.hasSuffix(" ") {
+                inputMessageText += " "
+            }
+            inputMessageText += "@\(cleanName) "
+        }
+        mentionMap["@\(cleanName)"] = memberId
+        showMentionAutoComplete = false
+    }
+    
     public func sendMessage(appState: AppState) async {
         let clean = inputMessageText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty else { return }
         
+        var formattedText = clean
+        for (mentionTag, memberId) in mentionMap {
+            if formattedText.contains(mentionTag) {
+                let atTag = "<at user_id=\"\(memberId)\">\(mentionTag)</at>"
+                formattedText = formattedText.replacingOccurrences(of: mentionTag, with: atTag)
+            }
+        }
+        if formattedText.contains("@所有人") && !formattedText.contains("<at user_id=\"all\">") {
+            formattedText = formattedText.replacingOccurrences(of: "@所有人", with: "<at user_id=\"all\">@所有人</at>")
+        }
+        
         do {
-            try await appState.sendTextMessage(clean)
+            try await appState.sendTextMessage(formattedText)
             self.inputMessageText = ""
+            self.mentionMap = [:]
+            self.showMentionAutoComplete = false
             withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
                 self.isEditorExpanded = false
                 self.editorContentHeight = 24
@@ -280,6 +329,12 @@ public struct ChatDetailView: View {
             }
             .sheet(item: $appState.inspectingReactionMessage) { msg in
                 MessageReactionDetailSheet(message: msg)
+            }
+            .onChange(of: appState.pendingMentionUser?.id) { _ in
+                if let pending = appState.pendingMentionUser {
+                    viewModel.insertMention(memberId: pending.id, name: pending.name)
+                    appState.pendingMentionUser = nil
+                }
             }
         } else {
             emptySelectionView
@@ -564,15 +619,141 @@ public struct ChatDetailView: View {
         .padding(.bottom, 16)
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }
+    // MARK: - Floating Mention Auto-Complete View
+    
+    private func mentionAutoCompleteView(chat: FeishuChatItem) -> some View {
+        let myOpenId = appState.session?.user?.openId ?? ""
+        let myUserId = appState.session?.user?.userId ?? ""
+        let query = viewModel.mentionFilterQuery.lowercased()
+        
+        let filteredMembers = appState.chatMembers.filter { m in
+            guard m.memberId != myOpenId, m.memberId != myUserId else { return false }
+            if query.isEmpty { return true }
+            return m.displayName.lowercased().contains(query) || (m.name?.lowercased().contains(query) ?? false)
+        }
+        let showAllOption = query.isEmpty || "所有人".contains(query) || "all".contains(query)
+        
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Image(systemName: "at")
+                    .foregroundColor(configManager.accentColorChoice.color)
+                    .font(.system(size: 11, weight: .bold))
+                Text("选择要 @ 提醒的成员")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(.primary)
+                Spacer()
+                Button {
+                    viewModel.showMentionAutoComplete = false
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 10)
+            .padding(.top, 8)
+            
+            Divider()
+            
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 2) {
+                    if showAllOption {
+                        Button {
+                            viewModel.insertMention(memberId: "all", name: "所有人")
+                        } label: {
+                            mentionAllOptionRow
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    
+                    ForEach(filteredMembers) { m in
+                        Button {
+                            viewModel.insertMention(memberId: m.memberId, name: m.displayName)
+                        } label: {
+                            mentionMemberRow(m: m)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 6)
+                .padding(.bottom, 6)
+            }
+            .frame(maxHeight: 180)
+        }
+        .frame(width: 260)
+        .background(
+            Color.elevatedInputBackground
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 0.8)
+        )
+        .shadow(color: Color.black.opacity(0.14), radius: 12, x: 0, y: 4)
+        .padding(.horizontal, 16)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+    }
+    
+    private var mentionAllOptionRow: some View {
+        HStack(spacing: 8) {
+            ZStack {
+                Circle()
+                    .fill(configManager.accentColorChoice.color.opacity(0.18))
+                    .frame(width: 24, height: 24)
+                Image(systemName: "person.3.fill")
+                    .font(.system(size: 11))
+                    .foregroundColor(configManager.accentColorChoice.color)
+            }
+            
+            VStack(alignment: .leading, spacing: 1) {
+                Text("所有人")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.primary)
+                Text("提醒群聊中的所有成员")
+                    .font(.system(size: 9))
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+    }
+    
+    private func mentionMemberRow(m: FeishuChatMemberItem) -> some View {
+        HStack(spacing: 8) {
+            AvatarView(urlString: UserProfileManager.shared.resolveAvatarUrl(for: m.memberId), name: m.displayName, size: 24)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(m.displayName)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+            }
+            Spacer()
+            Text(m.memberId.prefix(6))
+                .font(.system(size: 9, design: .monospaced))
+                .foregroundColor(.secondary.opacity(0.7))
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+    }
     
     
-    // MARK: - Liquid Glass Floating Input Dock
+    
     // MARK: - Liquid Glass Floating Input Dock (Telegram macOS Style)
     
     private var messageInputBar: some View {
         let dynamicEditorHeight: CGFloat = viewModel.isEditorExpanded ? 280 : min(120, max(34, viewModel.editorContentHeight + 8))
         
         return VStack(spacing: 6) {
+            // Floating Mention Auto-Complete List in Group Chats
+            if viewModel.showMentionAutoComplete, let currentChat = chat, !currentChat.isP2P {
+                mentionAutoCompleteView(chat: currentChat)
+            }
             // Floating Reply Bar (Stacked upwards above input dock)
             if let replying = appState.replyingToMessage {
                 HStack(spacing: 8) {
@@ -665,9 +846,13 @@ public struct ChatDetailView: View {
                                         appState.showNotification(title: "发送文件失败", message: error.localizedDescription, type: .error)
                                     }
                                 }
+                            },
+                            onTextChange: { _ in
+                                if let currentChat = chat {
+                                    viewModel.updateMentionTrigger(isP2P: currentChat.isP2P)
+                                }
                             }
                         )
-                        .padding(.leading, 12)
                         .padding(.trailing, 34)
                         .padding(.vertical, 4)
                         .frame(height: dynamicEditorHeight)
@@ -1047,6 +1232,17 @@ public struct ChatDetailView: View {
                                     .buttonStyle(.plain)
                                     
                                     Spacer()
+                                    
+                                    // @ Mention Button
+                                    Button {
+                                        viewModel.insertMention(memberId: member.memberId, name: member.displayName)
+                                    } label: {
+                                        Image(systemName: "at")
+                                            .font(.system(size: 10, weight: .bold))
+                                            .foregroundColor(configManager.accentColorChoice.color)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("在输入框中 @ 提醒此人")
                                     
                                     // Direct chat button
                                     Button {
