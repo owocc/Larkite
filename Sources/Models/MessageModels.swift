@@ -191,12 +191,12 @@ public struct FeishuMessageItem: Codable, Identifiable, Equatable, Hashable, Sen
         switch msgType {
         case "text":
             let text = json["text"] as? String ?? ""
-            return .text(text)
+            let segments = resolveMentionSegments(for: text)
+            return .text(text: text, segments: segments)
             
         case "image":
             let imageKey = json["image_key"] as? String ?? ""
             return .image(imageKey: imageKey)
-            
         case "file":
             let fileKey = json["file_key"] as? String ?? ""
             let fileName = json["file_name"] as? String ?? "未知文件"
@@ -254,9 +254,9 @@ public struct FeishuMessageItem: Codable, Identifiable, Equatable, Hashable, Sen
                         let href = element["href"] as? String ?? ""
                         segments.append(.link(text: text, url: href))
                     case "at":
-                        let userName = element["user_name"] as? String ?? element["user_id"] as? String ?? "用户"
-                        segments.append(.mention(name: userName))
-                    case "img":
+                        let userId = element["user_id"] as? String
+                        let userName = element["user_name"] as? String ?? "用户"
+                        segments.append(.mention(id: userId, name: userName))
                         let imageKey = element["image_key"] as? String ?? ""
                         segments.append(.image(imageKey: imageKey))
                     default:
@@ -271,6 +271,64 @@ public struct FeishuMessageItem: Codable, Identifiable, Equatable, Hashable, Sen
 
         
         return .post(title: title, segments: segments)
+    }
+    
+    public func resolveMentionSegments(for text: String) -> [PostSegment] {
+        guard !text.isEmpty else { return [] }
+        let mentionsList = self.mentions ?? []
+        
+        // Build lookup map from key -> MessageMention
+        var mentionMap: [String: MessageMention] = [:]
+        for m in mentionsList {
+            mentionMap[m.key] = m
+        }
+        
+        // Regex for @_user_N or @_all
+        guard let regex = try? NSRegularExpression(pattern: "(@_user_\\d+|@_all)") else {
+            return [.text(text)]
+        }
+        
+        let nsText = text as NSString
+        let matches = regex.matches(in: text, range: NSRange(location: 0, length: nsText.length))
+        guard !matches.isEmpty else { return [.text(text)] }
+        
+        var segments: [PostSegment] = []
+        var lastIndex = 0
+        
+        for match in matches {
+            let range = match.range
+            if range.location > lastIndex {
+                let beforeText = nsText.substring(with: NSRange(location: lastIndex, length: range.location - lastIndex))
+                segments.append(.text(beforeText))
+            }
+            
+            let key = nsText.substring(with: range)
+            if key == "@_all" {
+                segments.append(.mention(id: nil, name: "所有人"))
+            } else if let mention = mentionMap[key] {
+                let name = mention.name?.isEmpty == false ? mention.name! : (mention.id.isEmpty ? "用户" : "用户 (\(mention.id.prefix(6)))")
+                segments.append(.mention(id: mention.id.isEmpty ? nil : mention.id, name: name))
+            } else {
+                // Fallback: try to find by matching order in mentions
+                let userIndexStr = key.replacingOccurrences(of: "@_user_", with: "")
+                if let idx = Int(userIndexStr), idx - 1 < mentionsList.count && idx > 0 {
+                    let mention = mentionsList[idx - 1]
+                    let name = mention.name?.isEmpty == false ? mention.name! : (mention.id.isEmpty ? "用户" : "用户 (\(mention.id.prefix(6)))")
+                    segments.append(.mention(id: mention.id.isEmpty ? nil : mention.id, name: name))
+                } else {
+                    segments.append(.mention(id: nil, name: key))
+                }
+            }
+            
+            lastIndex = range.location + range.length
+        }
+        
+        if lastIndex < nsText.length {
+            let remaining = nsText.substring(from: lastIndex)
+            segments.append(.text(remaining))
+        }
+        
+        return segments
     }
     
     enum CodingKeys: String, CodingKey {
@@ -291,9 +349,8 @@ public struct FeishuMessageItem: Codable, Identifiable, Equatable, Hashable, Sen
     }
 }
 
-/// Parsed High-level Message Enum
 public enum ParsedMessageContent: Equatable, Hashable, Sendable {
-    case text(String)
+    case text(text: String, segments: [PostSegment])
     case image(imageKey: String)
     case file(fileKey: String, fileName: String, fileSize: Int?)
     case audio(fileKey: String, durationMs: Int?)
@@ -311,7 +368,7 @@ public enum ParsedMessageContent: Equatable, Hashable, Sendable {
 public enum PostSegment: Equatable, Hashable, Sendable {
     case text(String)
     case link(text: String, url: String)
-    case mention(name: String)
+    case mention(id: String?, name: String)
     case image(imageKey: String)
     case lineBreak
 }
@@ -319,12 +376,37 @@ public enum PostSegment: Equatable, Hashable, Sendable {
 extension ParsedMessageContent {
     public var previewSummary: String {
         switch self {
-        case .text(let t): return t
+        case .text(let t, let segments):
+            if !segments.isEmpty {
+                return segments.map { seg in
+                    switch seg {
+                    case .text(let str): return str
+                    case .link(let str, _): return str
+                    case .mention(_, let name): return "@\(name)"
+                    case .image: return "[图片]"
+                    case .lineBreak: return " "
+                    }
+                }.joined()
+            }
+            return t
         case .image: return "[图片]"
         case .file(_, let name, _): return "[文件] \(name)"
         case .audio: return "[语音]"
         case .media(_, _, let name, _): return "[视频] \(name ?? "")"
-        case .post(let title, _): return title ?? "[富文本消息]"
+        case .post(let title, let segments):
+            if let title = title, !title.isEmpty { return title }
+            if !segments.isEmpty {
+                return segments.map { seg in
+                    switch seg {
+                    case .text(let str): return str
+                    case .link(let str, _): return str
+                    case .mention(_, let name): return "@\(name)"
+                    case .image: return "[图片]"
+                    case .lineBreak: return " "
+                    }
+                }.joined()
+            }
+            return "[富文本消息]"
         case .card: return "[卡片消息]"
         case .shareChat: return "[分享群聊]"
         case .system(let s): return s

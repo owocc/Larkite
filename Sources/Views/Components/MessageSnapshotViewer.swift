@@ -564,12 +564,39 @@ public struct MessageSnapshotViewer: View {
                 }
             }
             
-        case .text(let text):
+        case .text(_, let segments):
             VStack(alignment: .leading, spacing: 4) {
-                Text(text)
-                    .font(.system(size: 12.5))
-                    .foregroundColor(isSelf ? .white : .primary)
-                    .multilineTextAlignment(.leading)
+                if segments.count > 1 {
+                    HStack(spacing: 3) {
+                        ForEach(Array(segments.enumerated()), id: \.offset) { _, seg in
+                            switch seg {
+                            case .text(let t):
+                                Text(t)
+                                    .font(.system(size: 12.5))
+                                    .foregroundColor(isSelf ? .white : .primary)
+                            case .mention(_, let name):
+                                Text("@\(name)")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundColor(isSelf ? .white : Color(hex: "3370FF"))
+                                    .padding(.horizontal, 4)
+                                    .padding(.vertical, 1)
+                                    .background(RoundedRectangle(cornerRadius: 4).fill(isSelf ? Color.white.opacity(0.25) : Color(hex: "3370FF").opacity(0.12)))
+                            case .link(let t, _):
+                                Text(t)
+                                    .font(.system(size: 12.5))
+                                    .underline()
+                                    .foregroundColor(isSelf ? .white : Color(hex: "3370FF"))
+                            default:
+                                EmptyView()
+                            }
+                        }
+                    }
+                } else if let first = segments.first, case .text(let t) = first {
+                    Text(t)
+                        .font(.system(size: 12.5))
+                        .foregroundColor(isSelf ? .white : .primary)
+                        .multilineTextAlignment(.leading)
+                }
                 
                 if !reactions.isEmpty {
                     snapshotReactionsPills(reactions)
@@ -581,7 +608,6 @@ public struct MessageSnapshotViewer: View {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(isSelf ? configManager.accentColorChoice.color : (isFlatOnGradient ? Color.white.opacity(0.94) : Color.appleMessagesIncomingBubble))
             )
-            
         case .audio(_, let durationMs):
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
@@ -623,6 +649,13 @@ public struct MessageSnapshotViewer: View {
                         Text(t)
                             .font(.system(size: 12))
                             .foregroundColor(isSelf ? .white : .primary)
+                    case .mention(_, let name):
+                        Text("@\(name)")
+                            .font(.system(size: 11.5, weight: .bold))
+                            .foregroundColor(isSelf ? .white : Color(hex: "3370FF"))
+                            .padding(.horizontal, 3.5)
+                            .padding(.vertical, 1)
+                            .background(RoundedRectangle(cornerRadius: 3.5).fill(isSelf ? Color.white.opacity(0.25) : Color(hex: "3370FF").opacity(0.12)))
                     case .link(let t, _):
                         Text(t)
                             .font(.system(size: 12))

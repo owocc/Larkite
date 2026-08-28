@@ -554,13 +554,12 @@ public struct MessageBubbleView: View, Equatable {
         
         // Media Specific Actions (Images & Files)
         switch content {
-        case .text(let text):
+        case .text(let text, _):
             Button {
                 copyToClipboard(text: text)
             } label: {
                 Label("复制文本内容", systemImage: "doc.on.doc")
             }
-            
         case .image(let imageKey):
             Button {
                 previewImageInSystem(imageKey: imageKey)
@@ -719,12 +718,9 @@ public struct MessageBubbleView: View, Equatable {
     @ViewBuilder
     private func bubbleContent(content: ParsedMessageContent, isSelf: Bool) -> some View {
         switch content {
-        case .text(let text):
+        case .text(_, let segments):
             VStack(alignment: .leading, spacing: 4) {
-                Text(text)
-                    .font(.system(size: 13.5))
-                    .foregroundColor(isSelf ? .white : .primary)
-                    .multilineTextAlignment(.leading)
+                renderRichTextSegments(segments, isSelf: isSelf)
                 
                 inBubbleReactionsView(isSelf: isSelf)
             }
@@ -881,35 +877,69 @@ public struct MessageBubbleView: View, Equatable {
     }
     
     @ViewBuilder
+    private func renderRichTextSegments(_ segments: [PostSegment], isSelf: Bool) -> some View {
+        if segments.count == 1, case .text(let t) = segments[0] {
+            Text(t)
+                .font(.system(size: 13.5))
+                .foregroundColor(isSelf ? .white : .primary)
+                .multilineTextAlignment(.leading)
+        } else {
+            ReactionFlowLayout(spacing: 3, lineSpacing: 3, alignment: .leading) {
+                ForEach(Array(segments.enumerated()), id: \.offset) { _, seg in
+                    renderPostSegment(seg, isSelf: isSelf)
+                }
+            }
+        }
+    }
+    
+    @ViewBuilder
     private func renderPostSegment(_ segment: PostSegment, isSelf: Bool) -> some View {
         switch segment {
         case .text(let text):
             Text(text)
-                .font(.system(size: 13))
+                .font(.system(size: 13.5))
                 .foregroundColor(isSelf ? .white : .primary)
+                .multilineTextAlignment(.leading)
+                
         case .link(let text, let url):
             if let linkUrl = URL(string: url) {
                 Link(text, destination: linkUrl)
-                    .font(.system(size: 13))
+                    .font(.system(size: 13.5))
                     .foregroundColor(isSelf ? .white.opacity(0.9) : Color(hex: "3370FF"))
                     .underline()
             } else {
                 Text(text)
-                    .font(.system(size: 13))
+                    .font(.system(size: 13.5))
                     .foregroundColor(isSelf ? .white.opacity(0.9) : Color(hex: "3370FF"))
             }
-        case .mention(let name):
-            Text("@\(name)")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(isSelf ? .white : Color(hex: "3370FF"))
-                .padding(.horizontal, 4)
-                .padding(.vertical, 1)
-                .background(isSelf ? Color.white.opacity(0.25) : Color(hex: "3370FF").opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 4))
+            
+        case .mention(let id, let name):
+            Button {
+                if let uid = id, !uid.isEmpty, uid != "all" {
+                    Task {
+                        await appState.inspectUser(openId: uid, fallbackName: name)
+                    }
+                }
+            } label: {
+                Text("@\(name)")
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundColor(isSelf ? .white : configManager.accentColorChoice.color)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1.5)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(isSelf ? Color.white.opacity(0.25) : configManager.accentColorChoice.color.opacity(0.14))
+                    )
+            }
+            .buttonStyle(.plain)
+            .help(id != nil && id != "all" ? "点击查看「\(name)」的详细资料" : "@\(name)")
+            
         case .image(let imageKey):
             MessageImageView(messageId: message.messageId, imageKey: imageKey)
+            
         case .lineBreak:
-            Divider().opacity(0)
+            Color.clear
+                .frame(width: 9999, height: 4)
         }
     }
     
