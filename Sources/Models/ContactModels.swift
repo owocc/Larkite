@@ -52,6 +52,50 @@ public struct FeishuContactUser: Codable, Identifiable, Equatable, Hashable, Sen
     public let jobTitle: String?
     public let city: String?
     public let avatar: FeishuContactAvatar?
+    public init(
+        openId: String? = nil,
+        userId: String? = nil,
+        unionId: String? = nil,
+        name: String? = nil,
+        enName: String? = nil,
+        email: String? = nil,
+        enterpriseEmail: String? = nil,
+        mobile: String? = nil,
+        jobTitle: String? = nil,
+        city: String? = nil,
+        avatar: FeishuContactAvatar? = nil
+    ) {
+        self.openId = openId
+        self.userId = userId
+        self.unionId = unionId
+        self.name = name
+        self.enName = enName
+        self.email = email
+        self.enterpriseEmail = enterpriseEmail
+        self.mobile = mobile
+        self.jobTitle = jobTitle
+        self.city = city
+        self.avatar = avatar
+    }
+    
+    public init(
+        openId: String? = nil,
+        userId: String? = nil,
+        name: String? = nil,
+        avatarUrl: String? = nil
+    ) {
+        self.openId = openId
+        self.userId = userId
+        self.unionId = nil
+        self.name = name
+        self.enName = nil
+        self.email = nil
+        self.enterpriseEmail = nil
+        self.mobile = nil
+        self.jobTitle = nil
+        self.city = nil
+        self.avatar = avatarUrl.map { FeishuContactAvatar(avatar72: $0, avatar240: $0, avatar640: $0, avatarOrigin: $0) }
+    }
     
     public var displayName: String {
         if let name = name, !name.isEmpty { return name }

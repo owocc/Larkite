@@ -415,17 +415,69 @@ public final class FeishuAPIClient: Sendable {
     }
     
     /// Constructs or returns a P2P single chat representation for a user without creating any unwanted groups
+    /// Obtains or creates the official P2P chat_id (oc_xxx) for a user without sending any dummy messages
+    public func obtainP2PChatId(token: String, openId: String) async throws -> String {
+        var components = URLComponents(string: "https://open.feishu.cn/open-apis/im/v1/p2p_chats")
+        components?.queryItems = [
+            URLQueryItem(name: "user_id_type", value: "open_id")
+        ]
+        guard let url = components?.url else {
+            throw APIError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        let body = ["user_id": openId]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+        
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let dataObj = json["data"] as? [String: Any],
+           let p2pObj = dataObj["p2p_chat"] as? [String: Any],
+           let chatId = p2pObj["chat_id"] as? String, !chatId.isEmpty {
+            return chatId
+        }
+        
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let code = json["code"] as? Int, code != 0 {
+            let msg = json["msg"] as? String ?? "获取单聊失败"
+            throw APIError.feishuError(code: code, msg: msg)
+        }
+        
+        return openId
+    }
+    
+    /// Constructs or returns a P2P single chat representation for a user without creating any unwanted groups
     public func createOrGetP2PChat(
         token: String,
         receiveIdType: String,
         receiveId: String
     ) async throws -> FeishuChatItem {
+        // If receiveId is open_id (ou_xxx), obtain official oc_xxx chat_id via p2p_chats endpoint
+        var officialChatId = receiveId
+        if receiveId.hasPrefix("ou_") || receiveIdType == "open_id" {
+            if let fetchedChatId = try? await obtainP2PChatId(token: token, openId: receiveId) {
+                officialChatId = fetchedChatId
+            }
+        }
+        
         let resolvedName = await UserProfileManager.shared.resolveDisplayName(for: receiveId, currentUserId: nil)
         let displayName = resolvedName.hasPrefix("用户 (") ? "私聊 (\(receiveId.prefix(8)))" : resolvedName
+        let avatar = await UserProfileManager.shared.resolveAvatarUrl(for: receiveId)
         
         return FeishuChatItem(
-            chatId: receiveId,
-            avatar: nil,
+            chatId: officialChatId,
+            avatar: avatar,
             name: displayName,
             description: "单聊 · \(displayName)",
             ownerId: receiveId,

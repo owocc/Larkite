@@ -742,6 +742,7 @@ public final class AppState: ObservableObject {
             self.chats = savedP2P
             Task {
                 await self.loadContacts()
+                await self.discoverContactsFromGroups()
             }
         }
         
@@ -863,13 +864,35 @@ public final class AppState: ObservableObject {
         if !targetChatId.hasPrefix("oc_") {
             if let matched = self.chats.first(where: { $0.isP2P && $0.chatId.hasPrefix("oc_") && ($0.ownerId == chat.chatId || $0.ownerId == chat.ownerId) }) {
                 targetChatId = matched.chatId
-            } else {
-                self.messages = []
-                self.isLoadingMessages = false
-                return
+            } else if let openId = chat.ownerId ?? (chat.chatId.hasPrefix("ou_") ? chat.chatId : nil) {
+                // Obtain official P2P chat ID seamlessly without sending any dummy messages
+                if let realChatId = try? await FeishuAPIClient.shared.obtainP2PChatId(token: token, openId: openId), realChatId.hasPrefix("oc_") {
+                    targetChatId = realChatId
+                    
+                    if let index = self.chats.firstIndex(where: { $0.chatId == chat.chatId }) {
+                        let updated = FeishuChatItem(
+                            chatId: realChatId,
+                            avatar: chat.avatar,
+                            name: chat.name,
+                            description: chat.description,
+                            ownerId: chat.ownerId ?? openId,
+                            ownerIdType: "open_id",
+                            external: chat.external,
+                            tenantKey: chat.tenantKey,
+                            chatStatus: chat.chatStatus,
+                            chatMode: "p2p",
+                            chatType: "private",
+                            chatTag: "p2p",
+                            userCount: "2",
+                            botCount: "0"
+                        )
+                        self.chats[index] = updated
+                        self.selectedChat = updated
+                        ConfigManager.shared.saveP2PChats(self.chats)
+                    }
+                }
             }
         }
-        
         do {
             let result = try await FeishuAPIClient.shared.fetchChatMessages(
                 token: token,
@@ -1461,7 +1484,54 @@ public final class AppState: ObservableObject {
         ConfigManager.shared.saveP2PChats(self.chats)
     }
     
-    // MARK: - Enterprise Contacts Query
+    // MARK: - Enterprise Contacts & Group Member Auto-Discovery
+    
+    public func discoverContactsFromGroups() async {
+        guard let token = session?.accessToken else { return }
+        let myOpenId = session?.user?.openId ?? ""
+        let myUserId = session?.user?.userId ?? ""
+        
+        let groupChats = self.chats.filter { !$0.isP2P }
+        guard !groupChats.isEmpty else { return }
+        
+        var discovered: [String: FeishuContactUser] = [:]
+        
+        for group in groupChats.prefix(20) {
+            if let result = try? await FeishuAPIClient.shared.fetchChatMembers(token: token, chatId: group.chatId, pageSize: 100),
+               let members = result.items {
+                for m in members {
+                    let mId = m.memberId
+                    guard !mId.isEmpty, mId != myOpenId, mId != myUserId else { continue }
+                    if discovered[mId] == nil {
+                        let displayName = m.name?.isEmpty == false ? m.name! : m.displayName
+                        let contact = FeishuContactUser(
+                            openId: mId,
+                            name: displayName,
+                            avatarUrl: nil
+                        )
+                        discovered[mId] = contact
+                    }
+                }
+            }
+        }
+        
+        let newContacts = Array(discovered.values)
+        if !newContacts.isEmpty {
+            self.contacts = newContacts
+            UserProfileManager.shared.seedWith(user: self.session?.user, contacts: newContacts)
+            
+            for contact in newContacts {
+                let p2pItem = contact.toP2PChatItem()
+                let exists = self.chats.contains { c in
+                    c.chatId == p2pItem.chatId || (c.ownerId != nil && c.ownerId == p2pItem.ownerId)
+                }
+                if !exists {
+                    self.chats.append(p2pItem)
+                }
+            }
+            ConfigManager.shared.saveP2PChats(self.chats)
+        }
+    }
     
     public func loadContacts() async {
         guard let token = session?.accessToken else { return }
@@ -1470,26 +1540,27 @@ public final class AppState: ObservableObject {
         do {
             let result = try await FeishuAPIClient.shared.fetchContacts(token: token, pageSize: 50)
             let fetchedContacts = result.items ?? []
-            self.contacts = fetchedContacts
-            UserProfileManager.shared.seedWith(user: self.session?.user, contacts: fetchedContacts)
-            
-            for contact in fetchedContacts {
-                let p2pItem = contact.toP2PChatItem()
-                let exists = self.chats.contains { chat in
-                    chat.chatId == p2pItem.chatId || (chat.ownerId != nil && chat.ownerId == p2pItem.ownerId)
+            if !fetchedContacts.isEmpty {
+                self.contacts = fetchedContacts
+                UserProfileManager.shared.seedWith(user: self.session?.user, contacts: fetchedContacts)
+                
+                for contact in fetchedContacts {
+                    let p2pItem = contact.toP2PChatItem()
+                    let exists = self.chats.contains { chat in
+                        chat.chatId == p2pItem.chatId || (chat.ownerId != nil && chat.ownerId == p2pItem.ownerId)
+                    }
+                    if !exists {
+                        self.chats.append(p2pItem)
+                    }
                 }
-                if !exists {
-                    self.chats.append(p2pItem)
-                }
+                
+                ConfigManager.shared.saveP2PChats(self.chats)
             }
-            
-            ConfigManager.shared.saveP2PChats(self.chats)
             self.isLoadingContacts = false
         } catch {
             self.isLoadingContacts = false
         }
     }
-    
     public func openContactChat(_ contact: FeishuContactUser) {
         let p2pItem = contact.toP2PChatItem()
         if let index = self.chats.firstIndex(where: { $0.chatId == p2pItem.chatId }) {
