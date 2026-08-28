@@ -110,15 +110,15 @@ public struct MessageSnapshotViewer: View {
             // Bottom Controls Bar: Themes + Customization Options + Action Buttons
             bottomToolbarView
         }
-        .frame(minWidth: 620, minHeight: 640)
+        .frame(minWidth: 640, minHeight: 640)
     }
     
     // MARK: - Bottom Controls Bar (Fixed Single Line, No Wrapping)
     
     private var bottomToolbarView: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             // 1. Theme Selector Pills (Whole Pill Clickable)
-            HStack(spacing: 6) {
+            HStack(spacing: 5) {
                 Text("主题:")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(.secondary)
@@ -131,7 +131,7 @@ public struct MessageSnapshotViewer: View {
                             viewModel.selectedTheme = theme
                         }
                     } label: {
-                        HStack(spacing: 5) {
+                        HStack(spacing: 4) {
                             Circle()
                                 .fill(theme.previewColor)
                                 .frame(width: 8, height: 8)
@@ -140,8 +140,8 @@ public struct MessageSnapshotViewer: View {
                                 .fixedSize()
                                 .lineLimit(1)
                         }
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 4.5)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
                         .background(
                             Capsule()
                                 .fill(viewModel.selectedTheme == theme ? Color(nsColor: .controlBackgroundColor) : Color.clear)
@@ -176,7 +176,7 @@ public struct MessageSnapshotViewer: View {
                         .lineLimit(1)
                 }
                 .padding(.horizontal, 8)
-                .padding(.vertical, 4.5)
+                .padding(.vertical, 4)
                 .background(
                     Capsule()
                         .fill(Color(nsColor: .controlBackgroundColor).opacity(0.6))
@@ -191,7 +191,7 @@ public struct MessageSnapshotViewer: View {
             .fixedSize()
             .help("自定义卡片框架、标题、时间戳与水印展示")
             
-            Spacer(minLength: 12)
+            Spacer(minLength: 8)
             
             if let toast = viewModel.actionToast {
                 Text(toast)
@@ -229,8 +229,8 @@ public struct MessageSnapshotViewer: View {
             .fixedSize()
             .help("导出高分辨率 PNG 长图并保存至下载文件夹")
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
         .background(Color(nsColor: .windowBackgroundColor))
     }
     
@@ -283,10 +283,17 @@ public struct MessageSnapshotViewer: View {
                             Divider()
                         }
                         
-                        // Messages Stream
-                        VStack(alignment: .leading, spacing: 10) {
-                            ForEach(Array(messages.enumerated()), id: \.element.id) { _, msg in
-                                snapshotMessageRow(msg, isFlatOnGradient: false)
+                        // Messages Stream with Consecutive Sender Clustering
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(Array(messages.enumerated()), id: \.element.id) { index, msg in
+                                let prevMsg = index > 0 ? messages[index - 1] : nil
+                                let isSameSenderAsPrev = prevMsg != nil && prevMsg?.sender?.id == msg.sender?.id
+                                let prevTimeMs = prevMsg.flatMap { Double($0.createTime) } ?? 0
+                                let currTimeMs = Double(msg.createTime) ?? 0
+                                let timeDiffMins = prevMsg != nil ? abs(currTimeMs - prevTimeMs) / (1000 * 60) : 999
+                                let isConsecutive = isSameSenderAsPrev && timeDiffMins < 10
+                                
+                                snapshotMessageRow(msg, isFlatOnGradient: false, showSenderHeader: !isConsecutive)
                             }
                         }
                         
@@ -341,10 +348,17 @@ public struct MessageSnapshotViewer: View {
                             .padding(.bottom, 4)
                         }
                         
-                        // Messages Stream
-                        VStack(alignment: .leading, spacing: 10) {
-                            ForEach(Array(messages.enumerated()), id: \.element.id) { _, msg in
-                                snapshotMessageRow(msg, isFlatOnGradient: true)
+                        // Messages Stream with Consecutive Sender Clustering
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(Array(messages.enumerated()), id: \.element.id) { index, msg in
+                                let prevMsg = index > 0 ? messages[index - 1] : nil
+                                let isSameSenderAsPrev = prevMsg != nil && prevMsg?.sender?.id == msg.sender?.id
+                                let prevTimeMs = prevMsg.flatMap { Double($0.createTime) } ?? 0
+                                let currTimeMs = Double(msg.createTime) ?? 0
+                                let timeDiffMins = prevMsg != nil ? abs(currTimeMs - prevTimeMs) / (1000 * 60) : 999
+                                let isConsecutive = isSameSenderAsPrev && timeDiffMins < 10
+                                
+                                snapshotMessageRow(msg, isFlatOnGradient: true, showSenderHeader: !isConsecutive)
                             }
                         }
                         
@@ -375,7 +389,7 @@ public struct MessageSnapshotViewer: View {
     
     // MARK: - Snapshot Message Item Row (Zero Shadows, Clean Flat Design)
     
-    private func snapshotMessageRow(_ msg: FeishuMessageItem, isFlatOnGradient: Bool) -> some View {
+    private func snapshotMessageRow(_ msg: FeishuMessageItem, isFlatOnGradient: Bool, showSenderHeader: Bool) -> some View {
         let myOpenId = appState.session?.user?.openId ?? ""
         let myUserId = appState.session?.user?.userId ?? ""
         let isSelf = (msg.sender?.id == myOpenId && !myOpenId.isEmpty) || (msg.sender?.id == myUserId && !myUserId.isEmpty)
@@ -389,14 +403,19 @@ public struct MessageSnapshotViewer: View {
         
         return HStack(alignment: .top, spacing: 8) {
             if !isSelf {
-                AvatarView(urlString: avatarUrl, name: senderName, size: 26)
+                if showSenderHeader {
+                    AvatarView(urlString: avatarUrl, name: senderName, size: 26)
+                } else {
+                    Color.clear
+                        .frame(width: 26, height: 26)
+                }
             }
             
             VStack(alignment: isSelf ? .trailing : .leading, spacing: 3) {
                 // Header (Name + Time)
-                if (viewModel.showSenderNames && !isSelf) || viewModel.showTimestamps {
+                if (viewModel.showSenderNames && !isSelf && showSenderHeader) || viewModel.showTimestamps {
                     HStack(spacing: 4) {
-                        if viewModel.showSenderNames && !isSelf {
+                        if viewModel.showSenderNames && !isSelf && showSenderHeader {
                             Text(senderName)
                                 .font(.system(size: 11, weight: .semibold))
                                 .foregroundColor(isFlatOnGradient ? .white.opacity(0.9) : .secondary)
@@ -410,77 +429,288 @@ public struct MessageSnapshotViewer: View {
                     }
                 }
                 
-                // Bubble Content
-                VStack(alignment: .leading, spacing: 4) {
-                    switch msg.parsedContent {
-                    case .text(let text):
-                        Text(text)
-                            .font(.system(size: 12.5))
-                            .foregroundColor(isSelf ? .white : (isFlatOnGradient ? .primary : .primary))
-                            .multilineTextAlignment(.leading)
-                        
-                    case .image(let imageKey):
-                        MessageImageView(messageId: msg.messageId, imageKey: imageKey)
-                            .frame(maxWidth: 240)
-                        
-                    case .file(_, let fileName, let fileSize):
-                        HStack(spacing: 8) {
-                            Image(systemName: "doc.fill")
-                                .foregroundColor(isSelf ? .white : Color(hex: "3370FF"))
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(fileName)
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundColor(isSelf ? .white : .primary)
-                                    .lineLimit(1)
-                                if let size = fileSize {
-                                    Text(formattedFileSize(bytes: size))
-                                        .font(.system(size: 9))
-                                        .foregroundColor(isSelf ? .white.opacity(0.8) : .secondary)
-                                }
-                            }
-                        }
-                        .padding(8)
-                        
-                    default:
-                        Text(msg.parsedContent.previewSummary)
-                            .font(.system(size: 11))
-                            .foregroundColor(isSelf ? .white : .primary)
-                    }
-                    
-                    // In-bubble reactions if present
-                    if !reactions.isEmpty {
-                        HStack(spacing: 4) {
-                            ForEach(reactions) { r in
-                                HStack(spacing: 2) {
-                                    Text(r.emojiChar)
-                                        .font(.system(size: 10))
-                                    if r.count > 1 {
-                                        Text("\(r.count)")
-                                            .font(.system(size: 8.5, weight: .bold))
-                                            .foregroundColor(.secondary)
-                                    }
-                                }
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 2)
-                                .background(Capsule().fill(Color(nsColor: .windowBackgroundColor)))
-                            }
-                        }
-                        .padding(.top, 2)
-                    }
-                }
-                .padding(.horizontal, 11)
-                .padding(.vertical, 7)
-                .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(isSelf ? configManager.accentColorChoice.color : (isFlatOnGradient ? Color.white.opacity(0.94) : Color.appleMessagesIncomingBubble))
-                )
+                // Content Rendering (Optimized for Images, Videos, Files, and Texts)
+                snapshotContentBody(msg: msg, isSelf: isSelf, isFlatOnGradient: isFlatOnGradient, reactions: reactions)
             }
             
             if isSelf {
-                AvatarView(urlString: avatarUrl, name: "我", size: 26)
+                if showSenderHeader {
+                    AvatarView(urlString: avatarUrl, name: "我", size: 26)
+                } else {
+                    Color.clear
+                        .frame(width: 26, height: 26)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: isSelf ? .trailing : .leading)
+    }
+    
+    // MARK: - Specialized Snapshot Content Body
+    
+    @ViewBuilder
+    private func snapshotContentBody(msg: FeishuMessageItem, isSelf: Bool, isFlatOnGradient: Bool, reactions: [GroupedReaction]) -> some View {
+        switch msg.parsedContent {
+        case .image(let imageKey):
+            // Frameless High-Quality Image with Rounded Corners
+            VStack(alignment: isSelf ? .trailing : .leading, spacing: 4) {
+                MessageImageView(messageId: msg.messageId, imageKey: imageKey)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color.black.opacity(0.08), lineWidth: 0.8)
+                    )
+                
+                if !reactions.isEmpty {
+                    snapshotReactionsPills(reactions)
+                }
+            }
+            
+        case .media(_, let imageKey, let fileName, let durationSec):
+            // Video Preview Card with Duration Badge
+            VStack(alignment: isSelf ? .trailing : .leading, spacing: 4) {
+                ZStack(alignment: .bottomTrailing) {
+                    if let imgKey = imageKey, !imgKey.isEmpty {
+                        MessageImageView(messageId: msg.messageId, imageKey: imgKey)
+                    } else {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.85))
+                                .frame(width: 220, height: 130)
+                            
+                            Circle()
+                                .fill(Color.black.opacity(0.55))
+                                .frame(width: 36, height: 36)
+                                .overlay(
+                                    Image(systemName: "play.fill")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.white)
+                                        .offset(x: 1)
+                                )
+                        }
+                    }
+                    
+                    if let sec = durationSec, sec > 0 {
+                        HStack(spacing: 3) {
+                            Image(systemName: "play.fill")
+                                .font(.system(size: 8))
+                            Text(String(format: "%02d:%02d", sec / 60, sec % 60))
+                                .font(.system(size: 9, weight: .semibold))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(Color.black.opacity(0.65)))
+                        .padding(6)
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.black.opacity(0.08), lineWidth: 0.8)
+                )
+                
+                if !reactions.isEmpty {
+                    snapshotReactionsPills(reactions)
+                }
+            }
+            
+        case .file(_, let fileName, let fileSize):
+            // macOS Native Rich File Card with Color-Coded Icon
+            VStack(alignment: isSelf ? .trailing : .leading, spacing: 4) {
+                HStack(spacing: 10) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(snapshotFileColor(for: fileName).opacity(0.18))
+                            .frame(width: 36, height: 36)
+                        
+                        Image(systemName: snapshotFileIcon(for: fileName))
+                            .font(.system(size: 18))
+                            .foregroundColor(snapshotFileColor(for: fileName))
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(fileName)
+                            .font(.system(size: 11.5, weight: .medium))
+                            .foregroundColor(.primary)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                        
+                        if let size = fileSize {
+                            Text(formattedFileSize(bytes: size))
+                                .font(.system(size: 9.5))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    
+                    Spacer(minLength: 8)
+                    
+                    Image(systemName: "arrow.down.circle")
+                        .font(.system(size: 15))
+                        .foregroundColor(.secondary.opacity(0.65))
+                }
+                .padding(10)
+                .frame(width: 250)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(isSelf ? (isFlatOnGradient ? Color.white.opacity(0.95) : Color(nsColor: .controlBackgroundColor).opacity(0.6)) : (isFlatOnGradient ? Color.white.opacity(0.95) : Color.appleMessagesIncomingBubble))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.secondary.opacity(0.15), lineWidth: 0.8)
+                )
+                
+                if !reactions.isEmpty {
+                    snapshotReactionsPills(reactions)
+                }
+            }
+            
+        case .text(let text):
+            VStack(alignment: .leading, spacing: 4) {
+                Text(text)
+                    .font(.system(size: 12.5))
+                    .foregroundColor(isSelf ? .white : .primary)
+                    .multilineTextAlignment(.leading)
+                
+                if !reactions.isEmpty {
+                    snapshotReactionsPills(reactions)
+                }
+            }
+            .padding(.horizontal, 11)
+            .padding(.vertical, 7)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(isSelf ? configManager.accentColorChoice.color : (isFlatOnGradient ? Color.white.opacity(0.94) : Color.appleMessagesIncomingBubble))
+            )
+            
+        case .audio(_, let durationMs):
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Image(systemName: "waveform")
+                        .font(.system(size: 15))
+                        .foregroundColor(isSelf ? .white : Color(hex: "3370FF"))
+                    Text("语音消息")
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundColor(isSelf ? .white : .primary)
+                    if let ms = durationMs {
+                        Text("\(ms / 1000)s")
+                            .font(.system(size: 10))
+                            .foregroundColor(isSelf ? .white.opacity(0.8) : .secondary)
+                    }
+                }
+                
+                if !reactions.isEmpty {
+                    snapshotReactionsPills(reactions)
+                }
+            }
+            .padding(.horizontal, 11)
+            .padding(.vertical, 7)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(isSelf ? configManager.accentColorChoice.color : (isFlatOnGradient ? Color.white.opacity(0.94) : Color.appleMessagesIncomingBubble))
+            )
+            
+        case .post(let title, let segments):
+            VStack(alignment: .leading, spacing: 4) {
+                if let title = title, !title.isEmpty {
+                    Text(title)
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(isSelf ? .white : .primary)
+                }
+                
+                ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
+                    switch segment {
+                    case .text(let t):
+                        Text(t)
+                            .font(.system(size: 12))
+                            .foregroundColor(isSelf ? .white : .primary)
+                    case .link(let t, _):
+                        Text(t)
+                            .font(.system(size: 12))
+                            .foregroundColor(isSelf ? .white.opacity(0.9) : Color(hex: "3370FF"))
+                            .underline()
+                    default:
+                        EmptyView()
+                    }
+                }
+                
+                if !reactions.isEmpty {
+                    snapshotReactionsPills(reactions)
+                }
+            }
+            .padding(.horizontal, 11)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(isSelf ? configManager.accentColorChoice.color : (isFlatOnGradient ? Color.white.opacity(0.94) : Color.appleMessagesIncomingBubble))
+            )
+            
+        default:
+            VStack(alignment: .leading, spacing: 4) {
+                Text(msg.parsedContent.previewSummary)
+                    .font(.system(size: 11))
+                    .foregroundColor(isSelf ? .white : .primary)
+                
+                if !reactions.isEmpty {
+                    snapshotReactionsPills(reactions)
+                }
+            }
+            .padding(.horizontal, 11)
+            .padding(.vertical, 7)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(isSelf ? configManager.accentColorChoice.color : (isFlatOnGradient ? Color.white.opacity(0.94) : Color.appleMessagesIncomingBubble))
+            )
+        }
+    }
+    
+    private func snapshotReactionsPills(_ reactions: [GroupedReaction]) -> some View {
+        HStack(spacing: 4) {
+            ForEach(reactions) { r in
+                HStack(spacing: 2) {
+                    Text(r.emojiChar)
+                        .font(.system(size: 10))
+                    if r.count > 1 {
+                        Text("\(r.count)")
+                            .font(.system(size: 8.5, weight: .bold))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(.horizontal, 5)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(Color(nsColor: .windowBackgroundColor)))
+            }
+        }
+        .padding(.top, 2)
+    }
+    
+    private func snapshotFileIcon(for fileName: String) -> String {
+        let ext = (fileName as NSString).pathExtension.lowercased()
+        switch ext {
+        case "pdf": return "doc.text.fill"
+        case "zip", "tar", "gz", "7z", "rar": return "doc.zipper"
+        case "doc", "docx", "pages": return "doc.richtext.fill"
+        case "xls", "xlsx", "numbers", "csv": return "tablecells.fill"
+        case "ppt", "pptx", "key": return "play.rectangle.fill"
+        case "mp3", "wav", "m4a", "flac", "aac": return "music.note"
+        case "mp4", "mov", "avi", "mkv", "webm": return "film.fill"
+        case "png", "jpg", "jpeg", "webp", "gif", "heic": return "photo.fill"
+        case "swift", "js", "ts", "py", "json", "html", "css", "c", "cpp", "go", "rs": return "curlybraces"
+        default: return "doc.fill"
+        }
+    }
+
+    private func snapshotFileColor(for fileName: String) -> Color {
+        let ext = (fileName as NSString).pathExtension.lowercased()
+        switch ext {
+        case "pdf": return .red
+        case "zip", "tar", "gz", "7z", "rar": return .purple
+        case "doc", "docx", "pages": return Color(hex: "3370FF")
+        case "xls", "xlsx", "numbers", "csv": return .green
+        case "ppt", "pptx", "key": return .orange
+        case "mp3", "wav", "m4a", "flac": return .pink
+        case "mp4", "mov", "avi", "mkv": return .indigo
+        default: return .secondary
+        }
     }
     
     private var currentDateString: String {
